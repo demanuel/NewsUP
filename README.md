@@ -24,13 +24,21 @@ uploaded (all the files *generated* will be later *removed*)
 ## Options
 
 -fo: format. At this moment only 7z or zip are supported (default: 7z)
+
 -passwd: password. It will set the password of the 7zip file. It only be setted if the format is 7z and if the file is bigger than 30MiB.
+
 -s: server where the files will be uploaded to (SSL server not supported) REQUIRED
+
 -p: port. If the server doesn't use the traditional 119 port (SSL port not supported)
+
 -n: newsgroups. You can have as many as you want. This will crosspost the file. REQUIRED
+
 -t: number of threads or connections for uploading the files (default: 2). Tip: you can use this to throttle your bandwidth usage :-P
+
 -r: the redundancy of the parity archives (default: 0.2 - or 20% :-) )
+
 -e: email of the uploader (default: 'Anonymous Coward <anonymous.coward@mailinator.com>')
+
 -c: comment (you can have 2!) (default: ['Enjoy','Powered by NewsUp'])
 
 
