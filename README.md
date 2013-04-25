@@ -42,6 +42,10 @@ This command will create an archive with all the contents inside de folder (spli
 # What doesn't do
 At this moment it doesn't support SSL. It will in a future release!
 
+# Requirements (besides perl and some libraries)
+1- 7zip (http://p7zip.sourceforge.net/)
+2- par2cmdline (https://github.com/BlackIkeEagle/par2cmdline)
+
 # END
 
 Enjoy it. Email me at demanuel@ymail.com if you have Any request, info or question.
