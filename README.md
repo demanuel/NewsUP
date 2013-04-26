@@ -16,9 +16,10 @@ the file will be compressed and split in volumes of 30, 50 or 100 MiBs, dependin
 on how many volumes will be required to be created.
 The compressed format will be 7z (although it won't really compress. The level of compression is 0).
 If you choose format zip the file won't be splitted and it won't be possible to set
-a password.
-After the "file compression" takes place the parity files will be generated and all the files will be 
-uploaded (all the files *generated* will be later *removed*)
+a password. 
+After the "file compression" takes place the parity files will be generated as well as a SFV file and 
+all the files will be uploaded (all the files *generated* will be later *removed*, excepting the SFV).
+A NZB file will be generated for later retrieving.
 
 
 ## Options

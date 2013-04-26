@@ -115,6 +115,8 @@ for my $file (@FILES){
   #store a list of the temp files
   @files_to_remove=@files_to_upload;
 
+  create_sfv_file($file, \@files_to_upload);
+
   @files_to_upload = split_file_list_by_thread(\@files_to_upload, $NNTP_THREADS);
 
   my @threads_list = ();
@@ -133,14 +135,38 @@ for my $file (@FILES){
   }
   
 
-  #creates a NZB file.
-  create_nzb(\@xml_file_list, $file);
+  if($#xml_file_list > 0){
+    #creates a NZB file.
+    create_nzb(\@xml_file_list, $file);
+  }
 
   #remove the temporary files (the compressed and/or splitted file and their parity archives)
   remove_temporary_files($file, @files_to_remove);
 
 }
 
+
+sub create_sfv_file{
+  my $file = shift;
+  my $array_ref = shift;
+  $file.='.sfv';
+
+  open my $FH, '>', $file or die "Couldn't open file $!";
+  
+  for my $file_to_upload (@$array_ref){
+    
+    open my $FTU, '<', $file_to_upload or die "Couldn't open the file: $!";
+    my $crc32 = crc32 *$FTU;
+    close $FTU;
+    my $filename= (fileparse($file_to_upload))[0];
+    print $FH "$filename ".sprintf("%x\r\n", $crc32);
+    
+  }
+
+  close $FH;
+  push $array_ref,$file;
+  
+}
 
 # This method splits a list into smaller lists containing the most identical size.
 #Example: Imagine that you want to upload some files with the following sizes (in MiB):
@@ -263,11 +289,16 @@ sub process_files{
   my $nntp = Net::NNTP->new($NNTP_SERVER);
   $nntp->authinfo($USERNAME, $USER_PASSWORD);
 
-  if($nntp->postok()){
+  if($nntp->postok() && ($nntp->code==281 || $nntp->code==250)){
     for my $file (@files_to_upload){
       say "Uploading $file: 0%";
       push @xml_files, _encode_and_upload($file, $nntp);
     }
+  }else{
+    say "You cannot upload! Possible reasons:";
+    say "1- You don't have permissions to post";
+    say "2- Bad username";
+    say "3- Bad password";
   }
 
   $nntp->quit();
@@ -328,7 +359,7 @@ sub _encode_and_upload{
 
     #join the content
     $content=$content_header.$content.$content_tail;
-    
+
     #post the message
     $nntp->post($msg_header.$content) or die "nntp_post: posting failed: ", $nntp->message;
 
