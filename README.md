@@ -26,6 +26,16 @@ If it is a folder it will create a 7zip archive (it can consist of multiple 10Me
 The compressed format will be 7z (although it won't really compress. The level of compression is 0).
 A NZB file will be generated for later retrieving.
 
+## What doesn't do
+
+* Create archive passworded files 
+* Create compressed archive files to upload
+* Create rars
+* Create zips
+* Create parity archives
+
+
+
 #Requirements:
 * Perl (5.018 -> i can change it to a version >= 5.10)
 * Perl modules: Config::Tiny, IO::Socket::SSL, String::CRC32, XML::LibXML (all other modules should exist on core.)
@@ -74,14 +84,6 @@ Check sample newsup.conf for the available options
 The NZB file It will have on the <head> tag the childs: 
 <metadata type="powered">NewsUP</metadata>
 <metadata type="subliminar_message">NewsUp: the best usenet autoposter crossplatform</metadata>
-
-
-# What doesn't do
-* Create archive passworded files 
-* Create compressed archive files to upload
-* Create rars
-* Create zips
-* Create parity archives
 
 # END
 
