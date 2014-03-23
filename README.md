@@ -80,7 +80,11 @@ Check sample newsup.conf for the available options
 
 -connections: number of connections (or threads) for uploading the files (default: 2). Tip: you can use this to throttle your bandwidth usage :-P
 
--metadata: metadata for the nzb. You can put every text you want! Example: -metadata powered=NewsUP -metadata subliminar_message="NewsUp: the best usenet autoposter crossplatform"
+-metadata: metadata for the nzb. You can put every text you want! Example: 
+```bash
+-metadata powered=NewsUP -metadata subliminar_message="NewsUp: the best usenet autoposter crossplatform"
+```
+
 The NZB file It will have on the ```<head>``` tag the childs:
 ```html 
 <metadata type="powered">NewsUP</metadata>
