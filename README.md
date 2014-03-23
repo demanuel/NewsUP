@@ -1,7 +1,7 @@
 NewsUP
 ======
 
-Backup your personal files to the usenet!
+NewsUP a binary usenet uploader/poster. Backup your personal files to the usenet!
 
 # Intro
 
@@ -81,10 +81,11 @@ Check sample newsup.conf for the available options
 -connections: number of connections (or threads) for uploading the files (default: 2). Tip: you can use this to throttle your bandwidth usage :-P
 
 -metadata: metadata for the nzb. You can put every text you want! Example: -metadata powered=NewsUP -metadata subliminar_message="NewsUp: the best usenet autoposter crossplatform"
-The NZB file It will have on the <head> tag the childs: 
+The NZB file It will have on the ```<head>``` tag the childs:
+```html 
 <metadata type="powered">NewsUP</metadata>
 <metadata type="subliminar_message">NewsUp: the best usenet autoposter crossplatform</metadata>
-
+```
 # END
 
 Enjoy it. Email me at demanuel@ymail.com if you have any request, info or question. You're also free to ping me if you just use it.
