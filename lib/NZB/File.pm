@@ -1,4 +1,4 @@
-package File;
+package NZB::File;
 use strict;
 use utf8;
 use XML::LibXML;
@@ -28,7 +28,7 @@ sub add_password{
 
 sub add_segment{
   my $self = shift;
-  push $self->{segments}, [shift, shift]; 
+  push @{$self->{segments}}, [shift, shift]; 
 }
 
 

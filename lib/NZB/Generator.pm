@@ -1,4 +1,4 @@
-package Generator;
+package NZB::Generator;
 use strict;
 use utf8;
 use XML::LibXML;

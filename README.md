@@ -2,6 +2,7 @@ NewsUP
 ======
 
 NewsUP a binary usenet uploader/poster. Backup your personal files to the usenet!
+It will run on any platform that supports perl (Windows, *nix, bsd)
 
 # Intro
 
@@ -29,11 +30,15 @@ A NZB file will be generated for later retrieving.
 ## What doesn't do
 
 * Create archive passworded files 
-* Create compressed archive files to upload
-* Create rars
-* Create zips
+* Create compressed archive files to upload [1]
+* Create rars [1]
+* Create zips [1]
 * Create parity archives
 
+
+### Notes
+1- If you are uploading a folder it will create a 7zip file containing the folder and all the files inside. This 7zip will be split in 10 meg volumes.
+The 7zip will not have any password and no compression.
 
 
 #Requirements:

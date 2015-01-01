@@ -1,4 +1,4 @@
-package Uploader;
+package Net::NNTP::Uploader;
 use strict;
 use File::Basename;
 use IO::Socket::INET;
@@ -148,7 +148,7 @@ sub upload_files{
     my $filePart=1;
     my $fileMaxParts = ceil($fileSize/$NNTP_MAX_UPLOAD_SIZE);
 
-    my $NZBFile = File->new($from, $newsgroupsRef);
+    my $NZBFile = NZB::File->new($from, $newsgroupsRef);
     $NZBFile->set_subject(sprintf("\"%s\" yenc (/%d) [%s]", $fileName,$fileMaxParts,$fileSize));
 
     my $fileSpeedInitTimer = time();    

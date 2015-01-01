@@ -1,3 +1,5 @@
+#!/usr/bin/perl
+
 ###############################################################################
 #     NewsUP - create backups of your files to the usenet.
 #     Copyright (C) 2012  David Santiago
@@ -17,13 +19,12 @@
 ##############################################################################
 
 
-#!/usr/bin/perl
 use warnings;
 use strict;
 use utf8;
 use 5.018;
 use FindBin qw($Bin);
-use lib "$Bin/lib/";
+use lib "$Bin/lib";
 use Net::NNTP::Uploader;
 use NZB::Generator;
 use Getopt::Long;
@@ -64,7 +65,7 @@ sub main{
     unlink $tempFileName;
   }
 
-  my $nzbGen = Generator->new();
+  my $nzbGen = NZB::Generator->new();
   say $nzbGen->create_nzb(\@nzbFilesList, $meta), " created!";
 
 }
@@ -78,7 +79,7 @@ sub start_upload{
 
   my @comments = @$commentsRef;
   
-  my $up = Uploader->new($server,$port,$username,$userpasswd);
+  my $up = Net::NNTP::Uploader->new($server,$port,$username,$userpasswd);
 
   my ($initComment, $endComment);
   if ($#comments+1==2) {
