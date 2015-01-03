@@ -1,3 +1,10 @@
+##############################################################################
+#
+# Author: David Santiago <demanuel@ymail.com>
+# License: GPL V3
+#
+##############################################################################
+
 package Net::NNTP::Uploader;
 use strict;
 use File::Basename;

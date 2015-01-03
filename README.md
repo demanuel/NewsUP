@@ -51,11 +51,14 @@ The 7zip will not have any password and no compression.
 2. Download the source code (https://github.com/demanuel/NewsUP/archive/master.zip)
 3. Copy the sample.conf file ~/.config/newsup.conf and edit the options as appropriate. This step is optional since everything can be done by command line.
 
+If you have any issue installing/running this, not please send me an email so i can try to help you.
+
 ## Linux
-If you have linux the required perl modules should be on your package management system. If not please send me an email so i can check it how can you install it.
+If you have linux, the required perl modules should be on your package management system. 
 
 ## Windows
 On windows with strawberry perl please do:
+
 1- cpan
 
 2- Do the next step if you haven't yet installed any perl module

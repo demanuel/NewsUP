@@ -2,7 +2,7 @@
 
 ###############################################################################
 #     NewsUP - create backups of your files to the usenet.
-#     Copyright (C) 2012  David Santiago
+#     Copyright (C) David Santiago
 #  
 #     This program is free software: you can redistribute it and/or modify
 #     it under the terms of the GNU General Public License as published by
