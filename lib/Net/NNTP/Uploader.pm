@@ -267,7 +267,7 @@ sub _post{
       carp "Error: $@";
       return undef;
     }
-    say "OUTPUT: $output";
+
     #441 Posting Failed. Message-ID is not unique E1
     #$self->_post(\@newsgroups, $subject, $content, $from) if $output=~ /duplicate/i || $output=~ /not unique/i;
     $messageID = undef if ($output!~ /240/ );
