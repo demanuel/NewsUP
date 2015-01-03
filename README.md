@@ -44,11 +44,33 @@ The 7zip will not have any password and no compression.
 #Requirements:
 * Perl (5.018 -> i can change it to a version >= 5.10)
 * Perl modules: Config::Tiny, IO::Socket::SSL, String::CRC32, XML::LibXML (all other modules should exist on core.)
+* 7Zip
 
 # Installation
 1. Check if you have all the requirements installed.
 2. Download the source code (https://github.com/demanuel/NewsUP/archive/master.zip)
 3. Copy the sample.conf file ~/.config/newsup.conf and edit the options as appropriate. This step is optional since everything can be done by command line.
+
+## Linux
+If you have linux the required perl modules should be on your package management system. If not please send me an email so i can check it how can you install it.
+
+## Windows
+On windows with strawberry perl please do:
+1- cpan
+
+2- Do the next step if you haven't yet installed any perl module
+2.1- If you don't need a proxy to connect to the internet: o conf init
+choose the right options for you. The default ones should be enough
+2.2- If you need a proxy to connect to internet: o conf init /proxy/
+2.2.2- After the proxy is configured: o conf commit
+
+3- install Config::Tiny
+
+4- install IO::Socket::SSL
+
+The other modules are included with strawberry perl.
+
+
 
 # Running
 The most basic way to run it (please check the options section) is:

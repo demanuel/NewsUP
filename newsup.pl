@@ -49,12 +49,12 @@ sub main{
 
   my @threadsList = ();
   for (my $i = 0; $i<$connections; $i++) {
-    push @threadsList, threads->create('start_upload',
-				       $server, $port, $username, $userpasswd, 
-     				       $filesRef->[$i], $connections, $newsGroupsRef, 
-     				       $commentsRef, $from);    
+     push @threadsList, threads->create('start_upload',
+				        $server, $port, $username, $userpasswd, 
+     				    $filesRef->[$i], $connections, $newsGroupsRef, 
+     				    $commentsRef, $from);    
     
-  }
+   }
 
   my @nzbFilesList = ();
   for (my $i = 0; $i<$connections; $i++){
@@ -88,7 +88,6 @@ sub start_upload{
   }elsif ($#comments+1==1) {
     $initComment = $comments[0];
   }
-
   my @filesList = $up->upload_files($filesToUploadRef,$from,$initComment,$endComment ,$newsGroupsRef);
   return @filesList;
 
@@ -99,7 +98,12 @@ sub start_upload{
 #Returns a list of the actual files to be uploaded and a list of the files created (so they can be removed later)
 sub compress_folders{
   
-  my $command = '7z a -mx0 -v10m "%s.7z" "%s"';
+  my $linuxCommand = '7z a -mx0 -v10m "%s.7z" "%s"';
+  my $winCommand='"c:\Program Files\7-Zip\7z.exe" a -mx0 -v10m "%s.7z" "%s"';
+  my $command='';
+  
+  $command = $^O eq 'MSWin32' ? $winCommand:$linuxCommand;
+  
   my @files = @{shift()};
   my @realFilesToUpload = ();
   my @tempFiles = ();
@@ -129,9 +133,7 @@ sub parse_command_line{
 
   my ($server, $port, $username, $userpasswd, @filesToUpload, $threads, @comments, $from);
   my @newsGroups = ();
-  my $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
-  my %metadata = %{$config->{metadata}};
-
+  my %metadata=();
 
   GetOptions('server=s'=>\$server,
 	     'port=i'=>\$port,
@@ -143,31 +145,38 @@ sub parse_command_line{
 	     'newsgroup|group=s'=>\@newsGroups,
 	     'connections'=>\$threads,
 	     'metadata=s'=>\%metadata,);
-  
-  if (!defined $server) {
-    $server = $config->{server}{server};
-  }
-  if (!defined $port) {
-    $port = $config->{server}{port};
-  }
-  if (!defined $username) {
-    $username = $config->{auth}{user};
-  }
-  if (!defined $userpasswd) {
-    $userpasswd = $config->{auth}{password};
-  }
-  if (!defined $from) {
-    $from = $config->{upload}{uploader};
+
+  if (-e $ENV{"HOME"}.'/.config/newsup.conf') {
+
+    my $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
+    %metadata = %{$config->{metadata}};
+    
+    if (!defined $server) {
+      $server = $config->{server}{server};
+    }
+    if (!defined $port) {
+      $port = $config->{server}{port};
+    }
+    if (!defined $username) {
+      $username = $config->{auth}{user};
+    }
+    if (!defined $userpasswd) {
+      $userpasswd = $config->{auth}{password};
+    }
+    if (!defined $from) {
+      $from = $config->{upload}{uploader};
+    }
+    
+    $threads = $config->{server}{connections};
+    
+    if ($threads < 1) {
+      croak "Please specify a correct number of connections!";    
+    }
+   
   }
 
-  $threads = $config->{server}{connections};
-
-  if ($threads < 1) {
-    croak "Please specify a correct number of connections!";    
-  }
-
-  if (@newsGroups==0) {
-    croak "Please specify at least one news group!";
+  if (!defined $server || !defined $port || !defined $username || !defined $from || @newsGroups==0) {
+    croak "Please check the parameters ('server', 'port', 'username'/'password', 'from' and 'newsgoup')";
   }
 
   return ($server, $port, $username, $userpasswd, 

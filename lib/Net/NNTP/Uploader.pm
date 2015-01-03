@@ -129,17 +129,17 @@ sub upload_files{
 
   $self->_create_socket;
   croak "Authentication Failed!" if $self->_authenticate == -1;
-  say "Authenticated!";
+  say "Thread Authenticated!";
 
   my @nzbFiles = ();
 
 
   for my $file (@$filesListRef) {
-    open my $ifh, '<', $file or die "Couldn't open file: $!";
+    open my $ifh, '<:bytes', $file or die "Couldn't open file: $!";
     binmode $ifh;
     my $fileCRC32=crc32( *$ifh);
     close $ifh;
-    open $ifh, '<', $file or die "Couldn't open file: $!";
+    open $ifh, '<:bytes', $file or die "Couldn't open file: $!";
     binmode $ifh;
 
     my $fileSize= -s $file;
@@ -152,10 +152,10 @@ sub upload_files{
     $NZBFile->set_subject(sprintf("\"%s\" yenc (/%d) [%s]", $fileName,$fileMaxParts,$fileSize));
 
     my $fileSpeedInitTimer = time();    
-    while(read($ifh, my $bytes, $NNTP_MAX_UPLOAD_SIZE)){
+    while(read($ifh, my $bytes, $NNTP_MAX_UPLOAD_SIZE)>0){
       my $subject = sprintf("\"%s\" yenc (%d/%d) [%s]", $fileName,$filePart,$fileMaxParts,$fileSize,$fileCRC32);
       my $readSize=bytes::length($bytes);
-      my $startingBytes = $NNTP_MAX_UPLOAD_SIZE*($filePart-1);
+      my $startingBytes = 1+$NNTP_MAX_UPLOAD_SIZE*($filePart-1);
 
       $subject = "[$initComment] $subject" if defined $initComment;
       $subject = "$subject [$endComment]" if defined $endComment;
@@ -163,14 +163,23 @@ sub upload_files{
       my $content = $self->_get_post_body($filePart, $fileMaxParts, $fileName, $startingBytes, $readSize, $bytes);
 
       my $partSpeedTimer = time();
-      my $messageID = $self->_post($newsgroupsRef, $subject, $content, $from);
-      printf("%s  [%0.2f KBytes/sec]\r", $fileName, $readSize/(time()-$partSpeedTimer)/1024);
+      my $messageID;
+      my $counter=0;
 
-      if (!$messageID) {
-	carp "Uploading file $fileName failed!";
-	$self->_logout;
-	return;
-      }
+      do {
+	$messageID = $self->_post($newsgroupsRef, $subject, $content, $from);
+	$counter+=1;
+
+	#3 tries
+	if ($counter == 3) {
+	  carp "Uploading file $fileName failed!";
+	  $self->_logout;
+	  return;
+	}
+	
+      } while (!defined $messageID);
+
+      printf("[%0.2f KBytes/sec]\r", $readSize/(time()-$partSpeedTimer)/1024);
 
       $NZBFile->add_segment($readSize, $messageID);
       $filePart+=1;
@@ -210,8 +219,8 @@ sub _get_post_body{
   if ($filePart==$fileMaxParts){
     $content .= sprintf(" crc32=", $fileCRC32);
   }
-  return $content;
 
+  return $content;
 }
 
 sub _post{
@@ -225,36 +234,42 @@ sub _post{
   my $socket = $self->{socket};
 
   print $socket "POST\r\n";
-  sysread($socket, my $output, 8192);
-
+  my $output;
+  sysread($socket, $output, 8192);
 
   my @response = split(' ', $output);
   my $outputCode = $response[0];
   my $messageID;
   
   if ($outputCode==340) {
-    
+    $output = '';
     $messageID = _get_message_id();
+    
+    eval{
+      print $socket sprintf("From: %s\r\n",$from);
+      print $socket sprintf("Newsgroups: %s\r\n",join(', ',@newsgroups));
+      print $socket sprintf("Subject: %s\r\n", $subject);
+      print $socket sprintf("Message-ID: <%s>\r\n", $messageID);
+      print $socket "\r\n";
+      print $socket $content;
+      print $socket "\r\n.\r\n";
 
-    print $socket sprintf("From: %s\r\n",$from);
-    print $socket sprintf("Newsgroups: %s\r\n",join(', ',@newsgroups));
-    print $socket sprintf("Subject: %s\r\n", $subject);
-    print $socket sprintf("Message-ID: <%s>\r\n", $messageID);
-    print $socket "\r\n";
-    print $socket "$content\r\n";
-    print $socket ".\r\n";
-
-    sysread($socket, $output, 8192);
-        
-    my @post_output = split(' ',$output);
-
+      sysread($socket, $output, 8192);
+    };
+    if ($@){
+      carp "Error: $@";
+      return undef;
+    }
+    say "OUTPUT: $output";
     #441 Posting Failed. Message-ID is not unique E1
-    $self->_post(\@newsgroups, $subject, $content, $from) if $output=~ /duplicate/i || $output=~ /not unique/i;
-    return $messageID if $post_output[0] == 240;
+    #$self->_post(\@newsgroups, $subject, $content, $from) if $output=~ /duplicate/i || $output=~ /not unique/i;
+    $messageID = undef if ($output!~ /240/ );
+    
+    
+    return $messageID;
   }
 
-  return 0;
-  
+  return undef;
 }
 
 sub _get_message_id{
