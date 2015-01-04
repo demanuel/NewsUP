@@ -23,7 +23,7 @@ This is a completely rewrite of the previous version (some options changed) and 
 # What does this program do
 
 It will upload a file or folder to the usenet. 
-If it is a folder it will create a 7zip archive (it can consist of multiple 10Megs file with *no password*).
+If it is a folder it will create a 7zip archive (it can consist of multiple 10MiB file (passworded or not - please check the options)).
 The compressed format will be 7z (although it won't really compress. The level of compression is 0).
 A NZB file will be generated for later retrieving.
 
@@ -33,18 +33,35 @@ A NZB file will be generated for later retrieving.
 * Create compressed archive files to upload [1]
 * Create rars [1]
 * Create zips [1]
-* Create parity archives
 
 
 ### Notes
-1- If you are uploading a folder it will create a 7zip file containing the folder and all the files inside. This 7zip will be split in 10 meg volumes.
-The 7zip will not have any password and no compression.
+1- If you are uploading a folder, or files bigger than 10MiB. it will create a 7zip file containing the folder and all the files inside. This 7zip will be split in 10 meg volumes. The 7zip will not have compression.
+
+## Decisions and questions
+1- Why it was decided to compress folders?
+I decided that because, to keep the same file structure. Example if you upload a folder
+```
+my_folder
+|- file1
+|- file2
+```
+
+When you download you want the same filestructure. Unfortunately the yenc mechanism, doesn't allow that. So you would end up with two files (file1 and file2), but no folder.
+
+2- Why do you split the files in 10 MiB?
+I decided to split, instead of uploading the full file, to make the development of multi threads simpler. If i want to have a full file and multiple threads, the threads would need to communicate with each other, through shared memory. This process is usually tricky. with the files being splited a thread will be responsible only for their own file, and it's not required to communicate with the other thread, making the development of this program easier.
+This approach has some problems too: If a file is 11MiB and splitted in 10MiB + 1 MiB, then one thread will upload 10MiB and the other one 1MiB. In this extreme cases the speed achieved is not as good as a trully multi-thread program, however this difference is residual (or there is none) on big files, and IMHO, not enough to change this strategy.
+
+The size 10 MiB, was decided so the download can be supported on more older clients (when decoding you need to load it to memory), and also as a treshold between speed and number of threads, discussed earlier.  
 
 
 #Requirements:
-* Perl (5.018 -> i can change it to a version >= 5.10)
+* Perl (preferably 5.018 or higher)
 * Perl modules: Config::Tiny, IO::Socket::SSL, String::CRC32, XML::LibXML (all other modules should exist on core.)
 * 7Zip
+* par2repair
+* Free disk space (Example: If you're uploading a 300MiB file, you'll need at least 301MiB free space)
 
 # Installation
 1. Check if you have all the requirements installed.
@@ -53,39 +70,17 @@ The 7zip will not have any password and no compression.
 
 If you have any issue installing/running this, not please send me an email so i can try to help you.
 
-## Linux
-If you have linux, the required perl modules should be on your package management system. 
-
-## Windows
-On windows with strawberry perl please do:
-
-1- cpan
-
-2- Do the next step if you haven't yet installed any perl module
-2.1- If you don't need a proxy to connect to the internet: o conf init
-choose the right options for you. The default ones should be enough
-2.2- If you need a proxy to connect to internet: o conf init /proxy/
-2.2.2- After the proxy is configured: o conf commit
-
-3- install Config::Tiny
-
-4- install IO::Socket::SSL
-
-The other modules are included with strawberry perl.
-
-
-
 # Running
 The most basic way to run it (please check the options section) is:
 $ perl newsup.pl -file my_file -con 2 -news alt.binaries.test
 
-Everytime the newsup runs, it will create a NZB file for later retrieval of the uploaded files. The filename will consist on the unixepoch of the creation.
+Everytime the newsup runs, it will create a NZB file for later retrieval of the uploaded files. The NZB filename will consist on the unixepoch of the creation.
 
 
 ## Options
 
 ## Config file
-This file doesn't support all the options of the command line. Everytime an option from the command line and an option from the config file, the command line takes precedence.
+This file doesn't support all the options of the command line. Everytime an option from the command line conflicts with an option from the config file, the command line option takes precedence.
 Check sample newsup.conf for the available options
 
 ### Command line options
@@ -106,6 +101,14 @@ Check sample newsup.conf for the available options
 
 -newsgroup: newsgroups. You can have as many as you want. This will crosspost the file.
 
+-par2: enable parity files creation.
+
+-par2red: percentage (withouth the % sign). This option represents the redundancy of the parity files.
+
+-name: name of the compressed file. The name of the splitted file.
+
+-cpass: password of the 7zip file.
+
 -groups: alias for newsgroups option
 
 -connections: number of connections (or threads) for uploading the files (default: 2). Tip: you can use this to throttle your bandwidth usage :-P
@@ -120,6 +123,30 @@ The NZB file It will have on the ```<head>``` tag the childs:
 <metadata type="powered">NewsUP</metadata>
 <metadata type="subliminar_message">NewsUp: the best usenet autoposter crossplatform</metadata>
 ```
+
+# Examples
+
+```bash
+$ perl newsup.pl -group alt.binaries.test -f <bin_file> -par2 -name <some_name>
+```
+If <bin_file> is bigger than 10 Megs (or it is a folder), it will create a 7zip file with name <some_name>.7z
+If <bin_file> is smaller than 10 Megs and is not a folder a 7zip will NOT be created.
+Parity volumes will then be created, and uploaded. A NZB file will then be created.
+
+
+```bash
+$ perl newsup.pl -group alt.binaries.test -f <bin_file> -par2 -name <some_name> -cpass my_passwd
+```
+It works exactly the same way as the previous example but if a 7zip file is created it will have the password 'my_passwd'
+
+
+```bash
+$ perl newsup.pl -group alt.binaries.test -f <bin_file> -par2
+```
+The same example as the first, but instead it will create a 7zip file with name newsup.7z
+
+
+
 # END
 
 Enjoy it. Email me at demanuel@ymail.com if you have any request, info or question. You're also free to ping me if you just use it.

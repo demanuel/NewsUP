@@ -32,6 +32,7 @@ use Config::Tiny;
 use Carp;
 use File::Glob ':bsd_glob';
 use threads;
+use File::Find;
 
 main();
 
@@ -40,10 +41,15 @@ sub main{
 
   my ($server, $port, $username, $userpasswd, 
       $filesToUploadRef, $connections, $newsGroupsRef, 
-      $commentsRef, $from, $meta)=parse_command_line();
-
+      $commentsRef, $from, $meta, $name, $par2, $par2red, $cpass)=parse_command_line();
+  say "name: $name";
+  
   my @comments = @$commentsRef;
-  my ($filesRef,$tempFilesRef) = compress_folders($filesToUploadRef);
+  my ($filesRef,$tempFilesRef) = compress_and_split($filesToUploadRef, $name, $cpass);
+
+  if ($par2) {
+    ($filesRef,$tempFilesRef) = create_parity_files($filesRef, $tempFilesRef, $par2red);
+  }
   
   $filesRef = distribute_files_by_thread($connections, $filesRef); 
 
@@ -93,8 +99,70 @@ sub start_upload{
 
 }
 
-#Checks if every element in the listRef is a directory.
-#If it is a directory it compresses it in files of 10Megs
+sub create_parity_files{
+  my @realFilesToUpload=@{shift @_};
+  my @tempFiles=@{shift @_};
+  my $red = shift;
+
+  my $command = "par2 c -r$red ".join(', ',@realFilesToUpload);
+  system($command);
+  my @expandedCompressFiles = bsd_glob("*.7z*par2");
+  push @realFilesToUpload, @expandedCompressFiles;
+  push @tempFiles, @expandedCompressFiles;
+
+  return (\@realFilesToUpload,\@tempFiles);
+
+}
+
+#Compress the input
+sub compress_and_split{
+  my @files = @{shift(@_)};
+  my $name = shift @_;
+  my $cpass = shift @_;
+  
+  my @realFilesToUpload = ();
+  my @tempFiles = ();
+  my $total_size = 0;
+
+  my $linuxCommand = '7z a -mx0 -v10m "'.$name.'.7z"';
+  my $winCommand='"c:\Program Files\7-Zip\7z.exe" a -mx0 -v10m "'.$name.'.7z"';
+  my $command='';
+  
+  $command = $^O eq 'MSWin32' ? $winCommand:$linuxCommand;
+
+  if (defined $cpass) {
+    $command.=" -p$cpass"
+  }
+  
+  my $is_dir=0;
+  for my $file(@files){
+    if (-d $file) {
+      $is_dir=1;
+      my $dir_size=0;
+      find(sub{ -f and ( $dir_size += -s ) }, $file );
+      $total_size+=$dir_size;
+      
+    }else {
+      $total_size+=-s $file ;
+    }
+  }
+
+  if ($total_size > 10*1024*1024 || $is_dir==1) {#10Megs
+    $command.=' "'.$_.'"' for (@files);
+  }else {
+    return (\@files,[]);
+  }
+
+  system($command);
+  my @expandedCompressFiles = bsd_glob("$name.7z*");
+  push @realFilesToUpload, @expandedCompressFiles;
+  push @tempFiles, @expandedCompressFiles;
+
+  return (\@realFilesToUpload,\@tempFiles);
+  
+}
+
+#If it is a directory, compresses it in files of 10Megs
 #Returns a list of the actual files to be uploaded and a list of the files created (so they can be removed later)
 sub compress_folders{
   
@@ -131,7 +199,7 @@ sub compress_folders{
 #options on the config file
 sub parse_command_line{
 
-  my ($server, $port, $username, $userpasswd, @filesToUpload, $threads, @comments, $from);
+  my ($server, $port, $username, $userpasswd, @filesToUpload, $threads, @comments, $from, $name, $par2,$par2red, $cpass);
   my @newsGroups = ();
   my %metadata=();
 
@@ -144,7 +212,11 @@ sub parse_command_line{
 	     'uploader=s'=>\$from,
 	     'newsgroup|group=s'=>\@newsGroups,
 	     'connections'=>\$threads,
-	     'metadata=s'=>\%metadata,);
+	     'name=s'=>\$name,
+	     'metadata=s'=>\%metadata,
+	     'par2'=>\$par2,
+	     'par2red=i'=>\$par2red,
+	     'cpass=s'=>\$cpass);
 
   if (-e $ENV{"HOME"}.'/.config/newsup.conf') {
 
@@ -166,7 +238,19 @@ sub parse_command_line{
     if (!defined $from) {
       $from = $config->{upload}{uploader};
     }
-    
+
+    if (!defined $name) {
+      $name = 'newsup';
+    }
+
+    if (!defined $par2) {
+      $par2 = $config->{parity}{enabled};
+    }
+
+    if (!defined $par2red) {
+      $par2red = $config->{parity}{redundancy};
+    }
+
     $threads = $config->{server}{connections};
     
     if ($threads < 1) {
@@ -181,7 +265,8 @@ sub parse_command_line{
 
   return ($server, $port, $username, $userpasswd, 
 	  \@filesToUpload, $threads, \@newsGroups, 
-	  \@comments, $from, \%metadata);
+	  \@comments, $from, \%metadata, $name,
+	  $par2, $par2red, $cpass);
 }
 
 # takes number+arrayref, returns ref to array of arrays

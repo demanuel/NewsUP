@@ -23,7 +23,6 @@ my $NNTP_MAX_UPLOAD_SIZE=512*1024; #512Kb
 my $YENC_NNTP_LINESIZE=128;
 $|=1;
 
-
 sub new{
 
   my $class = shift;  
@@ -74,7 +73,7 @@ sub _create_socket{
 				    ) or die "ERROR in Socket Creation : $!\n";
   }
   
-  sysread($socket, my $output, 8192);
+  read($socket, my $output, 8192);
   
   my @array = split ' ', $output;
   
@@ -94,7 +93,7 @@ sub _authenticate{
   my $self = shift;
   my $socket = $self->{socket};
   print $socket sprintf("authinfo user %s\r\n",$self->{username});
-  sysread($socket, my $output, 8192);
+  read($socket, my $output, 8192);
 
 
   my @status = split(' ', $output);
@@ -103,7 +102,7 @@ sub _authenticate{
   }
 
   print $socket sprintf("authinfo pass %s\r\n",$self->{userpass});
-  sysread($socket, $output, 8192);
+  read($socket, $output, 8192);
 
 
   @status = split(' ', $output);
@@ -242,7 +241,7 @@ sub _post{
 
   print $socket "POST\r\n";
   my $output;
-  sysread($socket, $output, 8192);
+  read($socket, $output, 8192);
 
   my @response = split(' ', $output);
   my $outputCode = $response[0];
@@ -253,6 +252,7 @@ sub _post{
     $messageID = _get_message_id();
     
     eval{
+
       print $socket sprintf("From: %s\r\n",$from);
       print $socket sprintf("Newsgroups: %s\r\n",join(', ',@newsgroups));
       print $socket sprintf("Subject: %s\r\n", $subject);
@@ -261,7 +261,8 @@ sub _post{
       print $socket $content;
       print $socket "\r\n.\r\n";
 
-      sysread($socket, $output, 8192);
+      read($socket, $output, 8192);
+
     };
     if ($@){
       carp "Error: $@";
