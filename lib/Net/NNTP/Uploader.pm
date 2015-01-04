@@ -72,8 +72,8 @@ sub _create_socket{
 				     Proto => 'tcp',
 				    ) or die "ERROR in Socket Creation : $!\n";
   }
-  
-  read($socket, my $output, 8192);
+  $socket->autoflush(1);
+  sysread($socket, my $output, 8192);
   
   my @array = split ' ', $output;
   
@@ -93,7 +93,7 @@ sub _authenticate{
   my $self = shift;
   my $socket = $self->{socket};
   print $socket sprintf("authinfo user %s\r\n",$self->{username});
-  read($socket, my $output, 8192);
+  sysread($socket, my $output, 8192);
 
 
   my @status = split(' ', $output);
@@ -102,7 +102,7 @@ sub _authenticate{
   }
 
   print $socket sprintf("authinfo pass %s\r\n",$self->{userpass});
-  read($socket, $output, 8192);
+  sysread($socket, $output, 8192);
 
 
   @status = split(' ', $output);
@@ -252,16 +252,20 @@ sub _post{
     $messageID = _get_message_id();
     
     eval{
+      print $socket sprintf("From: %s\r\n",$from).
+	sprintf("Newsgroups: %s\r\n",join(', ',@newsgroups)).
+	sprintf("Subject: %s\r\n", $subject).
+	sprintf("Message-ID: <%s>\r\n", $messageID).
+	"\r\n$content\r\n.\r\n";
+      # print $socket sprintf("From: %s\r\n",$from);
+      # print $socket sprintf("Newsgroups: %s\r\n",join(', ',@newsgroups));
+      # print $socket sprintf("Subject: %s\r\n", $subject);
+      # print $socket sprintf("Message-ID: <%s>\r\n", $messageID);
+      # print $socket "\r\n";
+      # print $socket $content;
+      # print $socket "\r\n.\r\n";
 
-      print $socket sprintf("From: %s\r\n",$from);
-      print $socket sprintf("Newsgroups: %s\r\n",join(', ',@newsgroups));
-      print $socket sprintf("Subject: %s\r\n", $subject);
-      print $socket sprintf("Message-ID: <%s>\r\n", $messageID);
-      print $socket "\r\n";
-      print $socket $content;
-      print $socket "\r\n.\r\n";
-
-      read($socket, $output, 8192);
+      sysread($socket, $output, 8192);
 
     };
     if ($@){

@@ -42,7 +42,6 @@ sub main{
   my ($server, $port, $username, $userpasswd, 
       $filesToUploadRef, $connections, $newsGroupsRef, 
       $commentsRef, $from, $meta, $name, $par2, $par2red, $cpass)=parse_command_line();
-  say "name: $name";
   
   my @comments = @$commentsRef;
   my ($filesRef,$tempFilesRef) = compress_and_split($filesToUploadRef, $name, $cpass);
@@ -104,7 +103,7 @@ sub create_parity_files{
   my @tempFiles=@{shift @_};
   my $red = shift;
 
-  my $command = "par2 c -r$red ".join(', ',@realFilesToUpload);
+  my $command = "par2 c -r$red ".join(' ',@realFilesToUpload);
   system($command);
   my @expandedCompressFiles = bsd_glob("*.7z*par2");
   push @realFilesToUpload, @expandedCompressFiles;
