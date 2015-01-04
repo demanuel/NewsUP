@@ -6,7 +6,7 @@ It will run on any platform that supports perl that matches the requirements
 
 # Intro
 
-This program will upload binary files to the usenet and generate a NZB file. It supports SSL and multiple connections.
+This program will upload binary files to the usenet and generate a NZB file. It supports SSL, multiple connections and parity files.
 This program is licensed with GPLv3.
 
 
@@ -24,12 +24,11 @@ This is a completely rewrite of the previous version and some options changed...
 
 It will upload a file or folder to the usenet. 
 If it is a folder it will create a 7zip archive (it can consist of multiple 10MiB file (passworded or not - please check the options)).
-The compressed format will be 7z (although it won't really compress. The level of compression is 0).
+The compressed format will be 7z (although it won't really compress. The level of compression is 0). It can also create parity files.
 A NZB file will be generated for later retrieving.
 
 ## What doesn't do
 
-* Create archive passworded files 
 * Create compressed archive files to upload [1]
 * Create rars [1]
 * Create zips [1]
@@ -50,7 +49,7 @@ my_folder
 When you download you want the same filestructure. Unfortunately the yenc mechanism, doesn't allow that. So you would end up with two files (file1 and file2), but no folder.
 
 2- Why do you split the files in 10 MiB?
-I decided to split, instead of uploading the full file, to make the development of multi threads simpler. If i want to have a full file and multiple threads, the threads would need to communicate with each other, through shared memory. This process is usually tricky. with the files being splited a thread will be responsible only for their own file, and it's not required to communicate with the other thread, making the development of this program easier.
+I decided to split, instead of uploading the full file, to make the development of multi connections simpler. If i want to have a full file and multiple connections, the connection threads would need to communicate with each other, through shared memory. This process is usually tricky. with the files being splited a thread will be responsible only for their own file, and it's not required to communicate with the other thread, making the development of this program easier.
 This approach has some problems too: If a file is 11MiB and splitted in 10MiB + 1 MiB, then one thread will upload 10MiB and the other one 1MiB. In this extreme cases the speed achieved is not as good as a trully multi-thread program, however this difference is residual (or there is none) on big files, and IMHO, not enough to change this strategy.
 
 The size 10 MiB, was decided so the download can be supported on more older clients (when decoding you need to load it to memory), and also as a treshold between speed and number of threads, discussed earlier.  
