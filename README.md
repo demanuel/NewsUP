@@ -11,7 +11,7 @@ This program is licensed with GPLv3.
 
 
 ## note
-This is a completely rewrite of the previous version (some options changed) and the creation of the parity files was dropped amongst others... but now it supports SSL! :-D
+This is a completely rewrite of the previous version and some options changed... but now it supports SSL! :-D
 
 ## Alternatives
 * newsmangler (https://github.com/madcowfred/newsmangler)
