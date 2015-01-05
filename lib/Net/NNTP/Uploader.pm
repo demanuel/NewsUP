@@ -257,6 +257,14 @@ sub _post{
 	sprintf("Subject: %s\r\n", $subject).
 	sprintf("Message-ID: <%s>\r\n", $messageID).
 	"\r\n$content\r\n.\r\n";
+
+#      print $socket sprintf("From: $from\r\nNewsgroups: %s\r\n",join(', ',@newsgroups)).
+#	sprintf("Subject: %s\r\n", $subject).
+#	sprintf("Message-ID: <%s>\r\n", $messageID).
+#	"\r\n$content\r\n.\r\n";
+
+
+      
       # print $socket sprintf("From: %s\r\n",$from);
       # print $socket sprintf("Newsgroups: %s\r\n",join(', ',@newsgroups));
       # print $socket sprintf("Subject: %s\r\n", $subject);

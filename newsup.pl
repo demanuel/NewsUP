@@ -33,6 +33,7 @@ use Carp;
 use File::Glob ':bsd_glob';
 use threads;
 use File::Find;
+use File::Basename;
 
 main();
 
@@ -41,10 +42,11 @@ sub main{
 
   my ($server, $port, $username, $userpasswd, 
       $filesToUploadRef, $connections, $newsGroupsRef, 
-      $commentsRef, $from, $meta, $name, $par2, $par2red, $cpass)=parse_command_line();
+      $commentsRef, $from, $meta, $name, $par2,
+      $par2red, $cpass,$temp)=parse_command_line();
   
   my @comments = @$commentsRef;
-  my ($filesRef,$tempFilesRef) = compress_and_split($filesToUploadRef, $name, $cpass);
+  my ($filesRef,$tempFilesRef) = compress_and_split($filesToUploadRef, $temp, $name, $cpass);
 
   if ($par2) {
     ($filesRef,$tempFilesRef) = create_parity_files($filesRef, $tempFilesRef, $par2red);
@@ -105,17 +107,27 @@ sub create_parity_files{
 
   my $command = "par2 c -r$red ".join(' ',@realFilesToUpload);
   system($command);
-  my @expandedCompressFiles = bsd_glob("*.7z*par2");
-  push @realFilesToUpload, @expandedCompressFiles;
-  push @tempFiles, @expandedCompressFiles;
+  my %folders=();
+
+  #To avoid adding the same files
+  for (@realFilesToUpload) {
+    my ($f,$d,$s) = fileparse($_);
+    $folders{$d}=1;
+  }
+
+  for (keys %folders) {
+    my @expandedParFiles = bsd_glob("$_*.7z*par2");
+    push @realFilesToUpload, @expandedParFiles;
+    push @tempFiles, @expandedParFiles;
+  }
 
   return (\@realFilesToUpload,\@tempFiles);
-
 }
 
 #Compress the input
 sub compress_and_split{
   my @files = @{shift(@_)};
+  my $temp = shift @_;
   my $name = shift @_;
   my $cpass = shift @_;
   
@@ -123,8 +135,8 @@ sub compress_and_split{
   my @tempFiles = ();
   my $total_size = 0;
 
-  my $linuxCommand = '7z a -mx0 -v10m "'.$name.'.7z"';
-  my $winCommand='"c:\Program Files\7-Zip\7z.exe" a -mx0 -v10m "'.$name.'.7z"';
+  my $linuxCommand = '7z a -mx0 -v10m "'.$temp.'/'.$name.'.7z"';
+  my $winCommand='"c:\Program Files\7-Zip\7z.exe" a -mx0 -v10m "'.$temp.'/'.$name.'.7z"';
   my $command='';
   
   $command = $^O eq 'MSWin32' ? $winCommand:$linuxCommand;
@@ -153,7 +165,7 @@ sub compress_and_split{
   }
 
   system($command);
-  my @expandedCompressFiles = bsd_glob("$name.7z*");
+  my @expandedCompressFiles = bsd_glob("$temp/$name.7z*");
   push @realFilesToUpload, @expandedCompressFiles;
   push @tempFiles, @expandedCompressFiles;
 
@@ -198,7 +210,11 @@ sub compress_folders{
 #options on the config file
 sub parse_command_line{
 
-  my ($server, $port, $username, $userpasswd, @filesToUpload, $threads, @comments, $from, $name, $par2,$par2red, $cpass);
+  my ($server, $port, $username,$userpasswd,
+      @filesToUpload, $threads, @comments,
+      $from, $name, $par2,$par2red, $cpass,
+      $temp);
+  
   my @newsGroups = ();
   my %metadata=();
 
@@ -215,7 +231,8 @@ sub parse_command_line{
 	     'metadata=s'=>\%metadata,
 	     'par2'=>\$par2,
 	     'par2red=i'=>\$par2red,
-	     'cpass=s'=>\$cpass);
+	     'cpass=s'=>\$cpass,
+	     'tmp=s'=>\$temp);
 
   if (-e $ENV{"HOME"}.'/.config/newsup.conf') {
 
@@ -223,41 +240,46 @@ sub parse_command_line{
     %metadata = %{$config->{metadata}};
     
     if (!defined $server) {
-      $server = $config->{server}{server};
+      $server = $config->{server}{server} if exists $config->{server}{server};
     }
     if (!defined $port) {
-      $port = $config->{server}{port};
+      $port = $config->{server}{port}  if exists $config->{server}{server};
     }
     if (!defined $username) {
-      $username = $config->{auth}{user};
+      $username = $config->{auth}{user}  if exists $config->{auth}{user};
     }
     if (!defined $userpasswd) {
-      $userpasswd = $config->{auth}{password};
+      $userpasswd = $config->{auth}{password} if exists $config->{auth}{password};
     }
     if (!defined $from) {
-      $from = $config->{upload}{uploader};
+      $from = $config->{upload}{uploader} if exists $config->{upload}{uploader};
     }
-
     if (!defined $name) {
       $name = 'newsup';
     }
-
     if (!defined $par2) {
-      $par2 = $config->{parity}{enabled};
+      $par2 = $config->{parity}{enabled} if exists $config->{parity}{enabled};
     }
-
     if (!defined $par2red) {
-      $par2red = $config->{parity}{redundancy};
+      $par2red = $config->{parity}{redundancy} if exists $config->{parity}{redundancy};
     }
-
-    $threads = $config->{server}{connections};
-    
+    if (!defined $threads) {
+      $threads = $config->{server}{connections} if exists $config->{server}{connections};
+    }
     if ($threads < 1) {
       croak "Please specify a correct number of connections!";    
     }
-   
+    if (!defined $temp) {
+      $temp = $config->{generic}{tmp} if exists $config->{generic}{tmp};
+    }
+
+    chop $temp if (substr $temp, -1 eq '/');
   }
 
+  if (!defined $temp || !(-e $temp && -d $temp)) {
+    $temp = '.';
+  }
+  
   if (!defined $server || !defined $port || !defined $username || !defined $from || @newsGroups==0) {
     croak "Please check the parameters ('server', 'port', 'username'/'password', 'from' and 'newsgoup')";
   }
@@ -265,7 +287,7 @@ sub parse_command_line{
   return ($server, $port, $username, $userpasswd, 
 	  \@filesToUpload, $threads, \@newsGroups, 
 	  \@comments, $from, \%metadata, $name,
-	  $par2, $par2red, $cpass);
+	  $par2, $par2red, $cpass, $temp);
 }
 
 # takes number+arrayref, returns ref to array of arrays

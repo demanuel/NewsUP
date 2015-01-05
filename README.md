@@ -38,7 +38,8 @@ A NZB file will be generated for later retrieving.
 1- If you are uploading a folder, or files bigger than 10MiB. it will create a 7zip file containing the folder and all the files inside. This 7zip will be split in 10 meg volumes. The 7zip will not have compression.
 
 ## Decisions and questions
-1- Why it was decided to compress folders?
+*1- Why it was decided to compress folders?*
+
 I decided that because, to keep the same file structure. Example if you upload a folder
 ```
 my_folder
@@ -48,11 +49,18 @@ my_folder
 
 When you download you want the same filestructure. Unfortunately the yenc mechanism, doesn't allow that. So you would end up with two files (file1 and file2), but no folder.
 
-2- Why do you split the files in 10 MiB?
+
+*2- Why do you split the files in 10 MiB?*
+
 I decided to split, instead of uploading the full file, to make the development of multi connections simpler. If i want to have a full file and multiple connections, the connection threads would need to communicate with each other, through shared memory. This process is usually tricky. with the files being splited a thread will be responsible only for their own file, and it's not required to communicate with the other thread, making the development of this program easier.
 This approach has some problems too: If a file is 11MiB and splitted in 10MiB + 1 MiB, then one thread will upload 10MiB and the other one 1MiB. In this extreme cases the speed achieved is not as good as a trully multi-thread program, however this difference is residual (or there is none) on big files, and IMHO, not enough to change this strategy.
 
 The size 10 MiB, was decided so the download can be supported on more older clients (when decoding you need to load it to memory), and also as a treshold between speed and number of threads, discussed earlier.  
+
+
+* 3- Why 7zip and not rar?*
+
+I have only 7zip installed and not rar on my system (I tend to use what i have available on my system - rar is shareware and 7zip is opensource). Please note that the archiving is done without any compression.
 
 
 #Requirements:
@@ -76,13 +84,41 @@ $ perl newsup.pl -file my_file -con 2 -news alt.binaries.test
 Everytime the newsup runs, it will create a NZB file for later retrieval of the uploaded files. The NZB filename will consist on the unixepoch of the creation.
 
 
-## Options
+# Options
 
 ## Config file
 This file doesn't support all the options of the command line. Everytime an option from the command line conflicts with an option from the config file, the command line option takes precedence.
+
+Example ('#' denotes a comment. This example isn't a working conf. It's only for demonstration purposes):
+```
+[server]
+server= <server address> #switch -server
+port= <port> #every port that ain't 563 or 995 it will not use TLS. Switch -port
+connections= <connection number> #Switch -connections
+
+[auth]
+user= <username> #Switch -username
+password= <password> #switch -password
+
+[metadata] #You can put here anything you want to appear on the nzb header. It must have the pattern: word= a big one line sentence. Switch -metadata
+client= NewsUP
+veryWeirdInfoIWantToPutOnTheNZBMetadata= it's really very weird!
+
+[upload]
+uploader= NewsUP <NewsUp@localhost.localdomain> #To identify de uploader and to receive replies. Usualy it's bogus. Switch -uploader
+
+[parity]
+enabled= 0 #If you want to enable parity creation. Switch -par
+redundancy= 10 #percentage of redundancy for parity files. Switch -par2red
+
+[generic]
+tmp = /tmp #folder to where the compression and/or par files should go. All the files are removed after upload. Switch -tmp
+```
+
+
 Check sample newsup.conf for the available options
 
-### Command line options
+## Command line options
 
 -username: credential for authentication on the server.
 
@@ -99,6 +135,8 @@ Check sample newsup.conf for the available options
 -uploader: the email of the one who is uploading, so it can be later emailed for whoever sees the post. Usually this value is a bogus one.
 
 -newsgroup: newsgroups. You can have as many as you want. This will crosspost the file.
+
+-tmp: folder. Full path to were the temporary files (the 7zip and par2) will be written. If the path doesn't exist it will be the current folder. All the files are removed after upload.
 
 -par2: enable parity files creation.
 
