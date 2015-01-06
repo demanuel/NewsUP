@@ -19,7 +19,8 @@ use Data::Dumper;
 use Digest::MD5 qw(md5_hex);
 use 5.018;
 
-my $NNTP_MAX_UPLOAD_SIZE=512*1024; #512Kb
+#512Kb - the segment size. I tried with 4 Megs and got a 441. The allowed posting segment size isn't standard
+my $NNTP_MAX_UPLOAD_SIZE=512*1024; 
 my $YENC_NNTP_LINESIZE=128;
 $|=1;
 
@@ -177,7 +178,7 @@ sub upload_files{
 	$counter+=1;
 
 	#3 tries
-	if ($counter == 3) {
+	if ($counter > 3) {
 	  carp "Uploading file $fileName failed!";
 	  $self->_logout;
 	  last;
@@ -269,7 +270,7 @@ sub _post{
     #441 Posting Failed. Message-ID is not unique E1
     #$self->_post(\@newsgroups, $subject, $content, $from) if $output=~ /duplicate/i || $output=~ /not unique/i;
     $messageID = undef if ($output!~ /240/ );
-    
+    say $output if ($output =~ /441/);
     
     return $messageID;
   }
