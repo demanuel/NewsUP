@@ -113,6 +113,7 @@ redundancy= 10 #percentage of redundancy for parity files. Switch -par2red
 
 [generic]
 tmp = /tmp #folder to where the compression and/or par files should go. All the files are removed after upload. Switch -tmp
+randomize = 0 #0 or 1. To disable or enable the name toggle. If this is done, the person who download the files will required the parity files
 ```
 
 
@@ -137,6 +138,8 @@ Check sample newsup.conf for the available options
 -newsgroup: newsgroups. You can have as many as you want. This will crosspost the file.
 
 -tmp: folder. Full path to were the temporary files (the 7zip and par2) will be written. If the path doesn't exist it will be the current folder. All the files are removed after upload.
+
+-randomize: If you want to randomly toggle the names of some files. This will require the par2 files to correct the name
 
 -par2: enable parity files creation.
 

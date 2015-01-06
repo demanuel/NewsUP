@@ -43,13 +43,17 @@ sub main{
   my ($server, $port, $username, $userpasswd, 
       $filesToUploadRef, $connections, $newsGroupsRef, 
       $commentsRef, $from, $meta, $name, $par2,
-      $par2red, $cpass,$temp)=parse_command_line();
+      $par2red, $cpass,$temp, $randomize)=parse_command_line();
   
   my @comments = @$commentsRef;
   my ($filesRef,$tempFilesRef) = compress_and_split($filesToUploadRef, $temp, $name, $cpass);
 
   if ($par2) {
     ($filesRef,$tempFilesRef) = create_parity_files($filesRef, $tempFilesRef, $par2red);
+  }
+
+  if ($randomize){
+    randomize_file_names($tempFilesRef) ;
   }
   
   $filesRef = distribute_files_by_thread($connections, $filesRef); 
@@ -75,6 +79,25 @@ sub main{
   my $nzbGen = NZB::Generator->new();
   say $nzbGen->create_nzb(\@nzbFilesList, $meta), " created!";
 
+}
+
+#It will toggle randomly the name of some compressed/splitted files
+#Example: the file a.7z.001 will be renamed a.7z.003 while the a.7z.003 will be renamed to a.7z.001.
+sub randomize_file_names{
+  my $tempFilesRef = shift;
+  
+  my @only_compressed_files = grep /7z\.\d{3}$/, @{$tempFilesRef};
+  for (1..int(rand(@only_compressed_files))) {
+    my $file_one = $only_compressed_files[rand(@only_compressed_files)];
+    my $file_two = $only_compressed_files[rand(@only_compressed_files)];
+    if ($file_one ne $file_two) {
+      my $tmp_file_name=$file_one.".tmp";
+      rename $file_one, $tmp_file_name;
+      rename $file_two, $file_one;
+      rename $tmp_file_name, $file_two;
+    }
+  }
+  
 }
 
 #Creates the required objects to upload and starts the upload
@@ -180,7 +203,7 @@ sub parse_command_line{
   my ($server, $port, $username,$userpasswd,
       @filesToUpload, $threads, @comments,
       $from, $name, $par2,$par2red, $cpass,
-      $temp);
+      $temp,$randomize);
   
   my @newsGroups = ();
   my %metadata=();
@@ -199,7 +222,8 @@ sub parse_command_line{
 	     'par2'=>\$par2,
 	     'par2red=i'=>\$par2red,
 	     'cpass=s'=>\$cpass,
-	     'tmp=s'=>\$temp);
+	     'tmp=s'=>\$temp,
+	     'randomize'=>\$temp);
 
   if (-e $ENV{"HOME"}.'/.config/newsup.conf') {
 
@@ -239,10 +263,14 @@ sub parse_command_line{
     if (!defined $temp) {
       $temp = $config->{generic}{tmp} if exists $config->{generic}{tmp};
     }
+    if (!defined $randomize) {
+      $randomize = $config->{generic}{randomize} if exists $config->{generic}{randomize};
+    }
 
-    chop $temp if (substr $temp, -1 eq '/');
+    chop $temp if (substr ($temp, -1) eq '/');
   }
 
+  say "TEMP: $temp";
   if (!defined $temp || !(-e $temp && -d $temp)) {
     $temp = '.';
   }
@@ -254,7 +282,7 @@ sub parse_command_line{
   return ($server, $port, $username, $userpasswd, 
 	  \@filesToUpload, $threads, \@newsGroups, 
 	  \@comments, $from, \%metadata, $name,
-	  $par2, $par2red, $cpass, $temp);
+	  $par2, $par2red, $cpass, $temp, $randomize);
 }
 
 # takes number+arrayref, returns ref to array of arrays

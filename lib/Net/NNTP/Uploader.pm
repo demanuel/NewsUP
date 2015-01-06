@@ -180,7 +180,7 @@ sub upload_files{
 	if ($counter == 3) {
 	  carp "Uploading file $fileName failed!";
 	  $self->_logout;
-	  return;
+	  last;
 	}
 	
       } while (!defined $messageID);
@@ -253,26 +253,11 @@ sub _post{
     
     eval{
       print $socket sprintf("From: %s\r\n",$from).
-	sprintf("Newsgroups: %s\r\n",join(', ',@newsgroups)).
-	sprintf("Subject: %s\r\n", $subject).
-	sprintf("Message-ID: <%s>\r\n", $messageID).
-	"\r\n$content\r\n.\r\n";
-
-#      print $socket sprintf("From: $from\r\nNewsgroups: %s\r\n",join(', ',@newsgroups)).
-#	sprintf("Subject: %s\r\n", $subject).
-#	sprintf("Message-ID: <%s>\r\n", $messageID).
-#	"\r\n$content\r\n.\r\n";
-
-
+       	sprintf("Newsgroups: %s\r\n",join(', ',@newsgroups)).
+       	sprintf("Subject: %s\r\n", $subject).
+       	sprintf("Message-ID: <%s>\r\n", $messageID).
+       	"\r\n$content\r\n.\r\n";
       
-      # print $socket sprintf("From: %s\r\n",$from);
-      # print $socket sprintf("Newsgroups: %s\r\n",join(', ',@newsgroups));
-      # print $socket sprintf("Subject: %s\r\n", $subject);
-      # print $socket sprintf("Message-ID: <%s>\r\n", $messageID);
-      # print $socket "\r\n";
-      # print $socket $content;
-      # print $socket "\r\n.\r\n";
-
       sysread($socket, $output, 8192);
 
     };
