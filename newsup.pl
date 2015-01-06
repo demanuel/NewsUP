@@ -34,6 +34,7 @@ use File::Glob ':bsd_glob';
 use threads;
 use File::Find;
 use File::Basename;
+use POSIX;
 
 main();
 
@@ -158,8 +159,8 @@ sub compress_and_split{
   my @tempFiles = ();
   my $total_size = 0;
 
-  my $linuxCommand = '7z a -mx0 -v10m "'.$temp.'/'.$name.'.7z"';
-  my $winCommand='"c:\Program Files\7-Zip\7z.exe" a -mx0 -v10m "'.$temp.'/'.$name.'.7z"';
+  my $linuxCommand = '7z a -mx0 -v%dm "'.$temp.'/'.$name.'.7z"';
+  my $winCommand='"c:\Program Files\7-Zip\7z.exe" a -mx0 -v%dm "'.$temp.'/'.$name.'.7z"';
   my $command='';
   
   $command = $^O eq 'MSWin32' ? $winCommand:$linuxCommand;
@@ -187,7 +188,18 @@ sub compress_and_split{
     return (\@files,[]);
   }
 
-  system($command);
+  #7zip has a limitation of only supporting a file splitted into a max of 1000 parts
+  my @available_sizes_for_splitting = (10,50,120,350); #Max 350 Gigs.
+  my $splitting_size = 1;
+  for my $megs (@available_sizes_for_splitting) {
+    $splitting_size=$megs;
+    last if (ceil($total_size/($splitting_size*1024*1024)) <= 999 );#Kilobytes -> Megabytes
+    $splitting_size = 1
+  }
+
+  croak "Please split this upload into several small ones. Max upload 350 Gigs!" if ($splitting_size==1);
+  
+  system(sprintf($command, $splitting_size));
   my @expandedCompressFiles = bsd_glob("$temp/$name.7z*");
   push @realFilesToUpload, @expandedCompressFiles;
   push @tempFiles, @expandedCompressFiles;
@@ -270,7 +282,6 @@ sub parse_command_line{
     chop $temp if (substr ($temp, -1) eq '/');
   }
 
-  say "TEMP: $temp";
   if (!defined $temp || !(-e $temp && -d $temp)) {
     $temp = '.';
   }
