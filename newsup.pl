@@ -173,39 +173,6 @@ sub compress_and_split{
   
 }
 
-#If it is a directory, compresses it in files of 10Megs
-#Returns a list of the actual files to be uploaded and a list of the files created (so they can be removed later)
-sub compress_folders{
-  
-  my $linuxCommand = '7z a -mx0 -v10m "%s.7z" "%s"';
-  my $winCommand='"c:\Program Files\7-Zip\7z.exe" a -mx0 -v10m "%s.7z" "%s"';
-  my $command='';
-  
-  $command = $^O eq 'MSWin32' ? $winCommand:$linuxCommand;
-  
-  my @files = @{shift()};
-  my @realFilesToUpload = ();
-  my @tempFiles = ();
-
-  for my $file (@files){
-
-    if (-d $file) {
-      $file =~ s/\/\z//;
-      system(sprintf($command, $file, $file));
-      my @expandedCompressFiles = bsd_glob("$file.7z*");
-      push @realFilesToUpload, @expandedCompressFiles;
-      push @tempFiles, @expandedCompressFiles;
-	
-    }else {
-      push @realFilesToUpload, $file;
-    }
-    
-  }
-
-  return (\@realFilesToUpload,\@tempFiles);
-
-}
-
 #Returns a bunch of options that it will be used on the upload. Options passed through command line have precedence over
 #options on the config file
 sub parse_command_line{
