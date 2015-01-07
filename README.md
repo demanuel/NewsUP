@@ -55,7 +55,8 @@ When you download you want the same filestructure. Unfortunately the yenc mechan
 I decided to split, instead of uploading the full file, to make the development of multi connections simpler. If i want to have a full file and multiple connections, the connection threads would need to communicate with each other, through shared memory. This process is usually tricky. with the files being splited a thread will be responsible only for their own file, and it's not required to communicate with the other thread, making the development of this program easier.
 This approach has some problems too: If a file is 11MiB and splitted in 10MiB + 1 MiB, then one thread will upload 10MiB and the other one 1MiB. In this extreme cases the speed achieved is not as good as a trully multi-thread program, however this difference is residual (or there is none) on big files, and IMHO, not enough to change this strategy.
 
-The size 10 MiB, was decided so the download can be supported on more older clients (when decoding you need to load it to memory), and also as a treshold between speed and number of threads, discussed earlier.  
+The size 10 MiB, was decided so the download can be supported on more older clients (when decoding you need to load it to memory), and also as a treshold between speed and number of threads, discussed earlier. This size will increase to 50 megs if you're trying to upload more than 10GiB, 120MiB if more than 50GiB, 350MiB if you're trying to upload more than 120GiB.
+The maximum file size allowed is 350 GiB.
 
 
 * 3- Why 7zip and not rar?*
