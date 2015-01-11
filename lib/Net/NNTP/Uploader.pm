@@ -12,7 +12,7 @@ use IO::Socket::INET;
 use IO::Socket::SSL;# qw(debug3);
 use Time::HiRes qw/ time /;
 use POSIX;
-use NZB::File;
+use NZB::Segment;
 use Carp;
 use String::CRC32;
 use Data::Dumper;
@@ -20,7 +20,7 @@ use Digest::MD5 qw(md5_hex);
 use 5.018;
 
 #512Kb - the segment size. I tried with 4 Megs and got a 441. The allowed posting segment size isn't standard
-my $NNTP_MAX_UPLOAD_SIZE=512*1024; 
+our $NNTP_MAX_UPLOAD_SIZE=512*1024; 
 my $YENC_NNTP_LINESIZE=128;
 $|=1;
 
@@ -123,9 +123,7 @@ sub _logout{
   
 }
 
-#loops across the files and uploads them
-sub upload_files{
-
+sub transmit_files{
   my $self = shift;
   my $filesListRef = shift;
   my $from = shift;
@@ -133,76 +131,114 @@ sub upload_files{
   my $endComment=shift;
   my $newsgroupsRef = shift;
 
-
   $self->_create_socket;
   croak "Authentication Failed!" if $self->_authenticate == -1;
-  say "Thread Authenticated!";
 
-  my @nzbFiles = ();
+  my @nzbSegments = ();
 
-
-  for my $file (@$filesListRef) {
-    open my $ifh, '<:bytes', $file or die "Couldn't open file: $!";
+  for my $filePair (@$filesListRef) {
+    open my $ifh, '<:bytes', $filePair->[0] or die "Couldn't open file: $!";
     binmode $ifh;
     my $fileCRC32=crc32( *$ifh);
+    
+    my $fileSize= -s $filePair->[0];
+    my $fileName=(fileparse($filePair->[0]))[0];
+    my @temp = split('/',$filePair->[1]);
+    my $currentFilePart = $temp[0];
+    my $totalFilePart = $temp[1];
+    my $readedData = $self->_get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
+    my $subject = sprintf("\"%s\" yenc (%d/%d) [%s]", $fileName,$currentFilePart,$totalFilePart,$fileSize,$fileCRC32);
+    my $readSize=bytes::length($readedData);
+
+    $subject = "[$initComment] $subject" if defined $initComment;
+    $subject = "$subject [$endComment]" if defined $endComment;
+    my $content = $self->_get_post_body($currentFilePart, $totalFilePart, $fileName,
+					1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1), $readSize, $readedData);
+
+    my $segmentTimer = time();
+    my $messageID;
+    my $counter=0;
+
+    do {
+      $messageID = $self->_post($newsgroupsRef, $subject, $content, $from);
+      carp "Upload of segment from file ".$filePair->[0]." failed! Retrying!" if (!defined $messageID);
+      
+    } while (!defined $messageID);
+    printf("[%0.2f KBytes/sec]\r", $readSize/(time()-$segmentTimer)/1024);
     close $ifh;
-    open $ifh, '<:bytes', $file or die "Couldn't open file: $!";
-    binmode $ifh;
 
-    my $fileSize= -s $file;
-    my $fileName=(fileparse($file))[0];
-
-    my $filePart=1;
-    my $fileMaxParts = ceil($fileSize/$NNTP_MAX_UPLOAD_SIZE);
-
-    my $NZBFile = NZB::File->new($from, $newsgroupsRef);
-    $NZBFile->set_subject(sprintf("\"%s\" yenc (/%d) [%s]", $fileName,$fileMaxParts,$fileSize));
-
-    my $fileSpeedInitTimer = time();    
-    while(read($ifh, my $bytes, $NNTP_MAX_UPLOAD_SIZE)>0){
-      my $subject = sprintf("\"%s\" yenc (%d/%d) [%s]", $fileName,$filePart,$fileMaxParts,$fileSize,$fileCRC32);
-      my $readSize=bytes::length($bytes);
-      my $startingBytes = 1+$NNTP_MAX_UPLOAD_SIZE*($filePart-1);
-
-      $subject = "[$initComment] $subject" if defined $initComment;
-      $subject = "$subject [$endComment]" if defined $endComment;
-
-      my $content = $self->_get_post_body($filePart, $fileMaxParts, $fileName, $startingBytes, $readSize, $bytes);
-
-      my $partSpeedTimer = time();
-      my $messageID;
-      my $counter=0;
-
-      do {
-	$messageID = $self->_post($newsgroupsRef, $subject, $content, $from);
-	$counter+=1;
-
-	#3 tries
-	if ($counter > 3) {
-	  carp "Uploading file $fileName failed!";
-	  $self->_logout;
-	  last;
-	}
-	
-      } while (!defined $messageID);
-
-      printf("[%0.2f KBytes/sec]\r", $readSize/(time()-$partSpeedTimer)/1024);
-
-      $NZBFile->add_segment($readSize, $messageID);
-      $filePart+=1;
-
-    }
-
-    printf("%s was uploaded with a velocity of %0.2f KBytes/sec\r\n", $fileName, ($fileSize/(time()-$fileSpeedInitTimer))/1024);
-
-    close $ifh;
-    push @nzbFiles, $NZBFile;  
+    push @nzbSegments, NZB::Segment->new($fileName, $readSize, $currentFilePart,$totalFilePart,$messageID);
   }
 
   $self->_logout;
-  return @nzbFiles;
+  return \@nzbSegments;
+}
+
+#It will perform the header check!
+sub header_check{
+  my $self = shift;
+  my $segments = shift;
+  my $newsgroups = shift;
+  my $from = shift;
+  my $comments=shift;
+  my $temp = shift;
+
+  $self->_create_socket;
+  $self->_authenticate;
+  
+  my $socket = $self->{socket};
+  my $newsgroup = $newsgroups->[0];
+  print $socket "group $newsgroup\r\n";
+  my $output;
+  sysread($socket, $output, 8192);
+  
+  my @missingSegments = ();
+  my @existingElements =();
+  
+  for my $segment (@$segments) {
+    my $messageID = $segment->{messageID};
+    print $socket "stat <$messageID>\r\n";
+    sysread($socket, $output, 8192);
+    my @status = split(' ', $output);
+    
+    if ($status[0] == 223) {
+      push @existingElements, $segment;
+    }else {
+      say "Header check: Missing segment found!";
+      push @missingSegments, $segment;
+    }
+
+  }
+  
+  $self->_logout;
+  
+  my @missingParts = ();
+  if (scalar @missingSegments) {
+    for (@missingSegments) {
+      push @missingParts, [$temp.'/'.$_->{fileName}, $_->{number}.'/'.$self->{total}];
+    }
+    
+  }
+  push @existingElements, @{$self->transmit_files(\@missingParts, $from, $comments->[0], $comments->[1], $newsgroups)};
+  return \@existingElements;
 
 }
+
+sub _get_file_bytes_by_part{
+  my $self = shift;
+  my $fileNameHandle = shift;
+  my $part = shift;
+
+  my $correctPosition = $NNTP_MAX_UPLOAD_SIZE*$part;
+
+  seek ($fileNameHandle, $correctPosition, 0);
+
+  my $bytes;
+  read($fileNameHandle, $bytes, $NNTP_MAX_UPLOAD_SIZE);
+  
+  return $bytes;
+}
+
 
 sub _get_post_body{
 
@@ -214,8 +250,6 @@ sub _get_post_body{
   my $readSize = shift;
   my $bytes = shift;
   my $fileCRC32 = shift;
-
-  
 
   my $content = sprintf("=ybegin part=%d total=%d line=%d size=%d name=%s\r\n",$filePart, $fileMaxParts, $YENC_NNTP_LINESIZE,$readSize,$fileName);
 
@@ -242,7 +276,7 @@ sub _post{
 
   print $socket "POST\r\n";
   my $output;
-  read($socket, $output, 8192);
+  sysread($socket, $output, 8192);
 
   my @response = split(' ', $output);
   my $outputCode = $response[0];
@@ -270,7 +304,7 @@ sub _post{
     #441 Posting Failed. Message-ID is not unique E1
     #$self->_post(\@newsgroups, $subject, $content, $from) if $output=~ /duplicate/i || $output=~ /not unique/i;
     $messageID = undef if ($output!~ /240/ );
-    say $output if ($output =~ /441/);
+    carp $output if ($output =~ /441/);
     
     return $messageID;
   }

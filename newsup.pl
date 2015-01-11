@@ -35,8 +35,13 @@ use threads;
 use File::Find;
 use File::Basename;
 use POSIX;
+use Data::Dumper;
 
 main();
+
+#TODO:
+#HEADERCHECK
+#FILELIST -> discarded
 
 
 sub main{
@@ -44,42 +49,59 @@ sub main{
   my ($server, $port, $username, $userpasswd, 
       $filesToUploadRef, $connections, $newsGroupsRef, 
       $commentsRef, $from, $meta, $name, $par2,
-      $par2red, $cpass,$temp, $randomize)=parse_command_line();
-  
+      $par2red, $cpass,$temp, $randomize, $headerCheck)=parse_command_line();
+
   my @comments = @$commentsRef;
   my ($filesRef,$tempFilesRef) = compress_and_split($filesToUploadRef, $temp, $name, $cpass);
 
   if ($par2) {
     ($filesRef,$tempFilesRef) = create_parity_files($filesRef, $tempFilesRef, $par2red);
   }
-
   if ($randomize){
     randomize_file_names($tempFilesRef) ;
   }
   
-  $filesRef = distribute_files_by_thread($connections, $filesRef); 
+  $filesRef = _distribute_files_by_connection ($connections, $filesRef); 
+
 
   my @threadsList = ();
   for (my $i = 0; $i<$connections; $i++) {
-     push @threadsList, threads->create('start_upload',
-				        $server, $port, $username, $userpasswd, 
-     				    $filesRef->[$i], $connections, $newsGroupsRef, 
-     				    $commentsRef, $from);    
+    say 'Connection '.($i+1).' uploading';
+    push @threadsList, threads->create('transmit_files',
+				       $server, $port, $username, $userpasswd, 
+				       $filesRef->[$i], $connections, $newsGroupsRef, 
+				       $commentsRef, $from, $headerCheck, $temp);
     
    }
 
-  my @nzbFilesList = ();
+  my @nzbSegmentsList = ();
   for (my $i = 0; $i<$connections; $i++){
-    push @nzbFilesList, $threadsList[$i]->join();
+    push @nzbSegmentsList, $threadsList[$i]->join();
   }
 
+  #TODO: header check
+ # check_headers(\@nzbSegmentList, $newsGroupsRef, $server, $port, $username, $userpasswd) if $headerCheck;
+
+  
   for my $tempFileName (@$tempFilesRef) {
     unlink $tempFileName;
   }
+  my $nzbGen = NZB::Generator->new($meta, \@nzbSegmentsList, $from, $newsGroupsRef);
+  say 'File '.$nzbGen->write_nzb . " created!\r\n";
+  
+}
 
-  my $nzbGen = NZB::Generator->new();
-  say $nzbGen->create_nzb(\@nzbFilesList, $meta), " created!";
+sub transmit_files{
+  my ($server, $port, $username, $userpasswd, 
+      $filesRef, $connections, $newsGroupsRef, 
+      $commentsRef, $from, $headerCheck, $temp) = @_;
+  my $uploader = Net::NNTP::Uploader->new($server, $port, $username, $userpasswd);
+  my $segments = $uploader->transmit_files($filesRef, $from, $commentsRef->[0], $commentsRef->[1], $newsGroupsRef);
+  if ($headerCheck){
+    $segments = $uploader->header_check($segments, $newsGroupsRef, $from, $commentsRef, $temp);
+  }
 
+  return @$segments;
 }
 
 #It will toggle randomly the name of some compressed/splitted files
@@ -87,49 +109,29 @@ sub main{
 sub randomize_file_names{
   my $tempFilesRef = shift;
   
-  my @only_compressed_files = grep /7z\.\d{3}$/, @{$tempFilesRef};
-  for (1..int(rand(@only_compressed_files))) {
-    my $file_one = $only_compressed_files[rand(@only_compressed_files)];
-    my $file_two = $only_compressed_files[rand(@only_compressed_files)];
-    if ($file_one ne $file_two) {
-      my $tmp_file_name=$file_one.".tmp";
-      rename $file_one, $tmp_file_name;
-      rename $file_two, $file_one;
-      rename $tmp_file_name, $file_two;
+  my @onlyCompressedFiles = grep /7z\.\d{3}$/, @{$tempFilesRef};
+  for (1..int(rand(@onlyCompressedFiles))) {
+    my $fileOne = $onlyCompressedFiles[rand(@onlyCompressedFiles)];
+    my $fileTwo = $onlyCompressedFiles[rand(@onlyCompressedFiles)];
+    if ($fileOne ne $fileTwo) {
+      my $tmpFileName=$fileOne.".tmp";
+      rename $fileOne, $tmpFileName;
+      rename $fileTwo, $fileOne;
+      rename $tmpFileName, $fileTwo;
     }
   }
   
 }
 
-#Creates the required objects to upload and starts the upload
-sub start_upload{
 
-  my ($server, $port, $username, 
-      $userpasswd, $filesToUploadRef, 
-      $connections, $newsGroupsRef, $commentsRef, $from) = @_;
-
-  my @comments = @$commentsRef;
-  
-  my $up = Net::NNTP::Uploader->new($server,$port,$username,$userpasswd);
-
-  my ($initComment, $endComment);
-  if ($#comments+1==2) {
-    $initComment = $comments[0];
-    $endComment = $comments[1];
-  }elsif ($#comments+1==1) {
-    $initComment = $comments[0];
-  }
-  my @filesList = $up->upload_files($filesToUploadRef,$from,$initComment,$endComment ,$newsGroupsRef);
-  return @filesList;
-
-}
 
 sub create_parity_files{
+  say "Creating parity archives!";
   my @realFilesToUpload=@{shift @_};
   my @tempFiles=@{shift @_};
   my $red = shift;
 
-  my $command = "par2 c -r$red ".join(' ',@realFilesToUpload);
+  my $command = "par2 c -q -r$red ".join(' ',@realFilesToUpload);
   system($command);
   my %folders=();
 
@@ -150,6 +152,8 @@ sub create_parity_files{
 
 #Compress the input
 sub compress_and_split{
+  say "Compressing and splitting files!";
+  
   my @files = @{shift(@_)};
   my $temp = shift @_;
   my $name = shift @_;
@@ -157,9 +161,9 @@ sub compress_and_split{
   
   my @realFilesToUpload = ();
   my @tempFiles = ();
-  my $total_size = 0;
+  my $totalSize = 0;
 
-  my $linuxCommand = '7z a -mx0 -v%dm "'.$temp.'/'.$name.'.7z"';
+  my $linuxCommand = '7z a -mx0 -v%dm "'.$temp.'/'.$name.'.7z" > /dev/null';
   my $winCommand='"c:\Program Files\7-Zip\7z.exe" a -mx0 -v%dm "'.$temp.'/'.$name.'.7z"';
   my $command='';
   
@@ -169,37 +173,37 @@ sub compress_and_split{
     $command.=" -p$cpass"
   }
   
-  my $is_dir=0;
+  my $isDir=0;
   for my $file(@files){
     if (-d $file) {
-      $is_dir=1;
-      my $dir_size=0;
-      find(sub{ -f and ( $dir_size += -s ) }, $file );
-      $total_size+=$dir_size;
+      $isDir=1;
+      my $dirSize=0;
+      find(sub{ -f and ( $dirSize += -s ) }, $file );
+      $totalSize+=$dirSize;
       
     }else {
-      $total_size+=-s $file ;
+      $totalSize+=-s $file ;
     }
   }
 
-  if ($total_size > 10*1024*1024 || $is_dir==1) {#10Megs
+  if ($totalSize > 10*1024*1024 || $isDir==1) {#10Megs
     $command.=' "'.$_.'"' for (@files);
   }else {
     return (\@files,[]);
   }
 
   #7zip has a limitation of only supporting a file splitted into a max of 1000 parts
-  my @available_sizes_for_splitting = (10,50,120,350); #Max 350 Gigs.
-  my $splitting_size = 1;
-  for my $megs (@available_sizes_for_splitting) {
-    $splitting_size=$megs;
-    last if (ceil($total_size/($splitting_size*1024*1024)) <= 999 );#Kilobytes -> Megabytes
-    $splitting_size = 1
+  my @availableSizesForSplitting = (10,50,120,350); #Max 350 Gigs.
+  my $splittingSize = 1;
+  for my $megs (@availableSizesForSplitting) {
+    $splittingSize=$megs;
+    last if (ceil($totalSize/($splittingSize*1024*1024)) <= 999 );#Kilobytes -> Megabytes
+    $splittingSize = 1
   }
 
-  croak "Please split this upload into several small ones. Max upload 350 Gigs!" if ($splitting_size==1);
+  croak "Please split this upload into several small ones. Max upload 350 Gigs!" if ($splittingSize==1);
   
-  system(sprintf($command, $splitting_size));
+  system(sprintf($command, $splittingSize));
   my @expandedCompressFiles = bsd_glob("$temp/$name.7z*");
   push @realFilesToUpload, @expandedCompressFiles;
   push @tempFiles, @expandedCompressFiles;
@@ -215,7 +219,8 @@ sub parse_command_line{
   my ($server, $port, $username,$userpasswd,
       @filesToUpload, $threads, @comments,
       $from, $name, $par2,$par2red, $cpass,
-      $temp,$randomize);
+      $temp,$randomize, $headerCheck);
+
   
   my @newsGroups = ();
   my %metadata=();
@@ -228,14 +233,15 @@ sub parse_command_line{
 	     'comment=s'=>\@comments,
 	     'uploader=s'=>\$from,
 	     'newsgroup|group=s'=>\@newsGroups,
-	     'connections'=>\$threads,
+	     'connections=i'=>\$threads,
 	     'name=s'=>\$name,
 	     'metadata=s'=>\%metadata,
 	     'par2'=>\$par2,
 	     'par2red=i'=>\$par2red,
 	     'cpass=s'=>\$cpass,
 	     'tmp=s'=>\$temp,
-	     'randomize'=>\$temp);
+	     'randomize'=>\$randomize,
+	     'headerCheck'=>\$headerCheck);
 
   if (-e $ENV{"HOME"}.'/.config/newsup.conf') {
 
@@ -279,6 +285,11 @@ sub parse_command_line{
       $randomize = $config->{generic}{randomize} if exists $config->{generic}{randomize};
     }
 
+    if (!defined $headerCheck) {
+      $headerCheck = $config->{generic}{headerCheck} if exists $config->{generic}{headerCheck};
+    }
+
+
     chop $temp if (substr ($temp, -1) eq '/');
   }
 
@@ -293,19 +304,31 @@ sub parse_command_line{
   return ($server, $port, $username, $userpasswd, 
 	  \@filesToUpload, $threads, \@newsGroups, 
 	  \@comments, $from, \%metadata, $name,
-	  $par2, $par2red, $cpass, $temp, $randomize);
+	  $par2, $par2red, $cpass, $temp, $randomize, $headerCheck);
 }
 
-# takes number+arrayref, returns ref to array of arrays
-sub distribute_files_by_thread {
-    my ($threads, $array) = @_;
 
-    my @parts;
-    my $i = 0;
-    foreach my $elem (@$array) {
-        push @{ $parts[$i++ % $threads] }, $elem;
-    };
-    return \@parts;
-};
+sub _distribute_files_by_connection{
+  my ($threads, $files) = @_;
+  my $blockSize = $Net::NNTP::Uploader::NNTP_MAX_UPLOAD_SIZE;
 
+  my @segments = ();
+  for my $file (@$files) {
+    my $fileSize = -s $file;
+    my $maxParts = ceil($fileSize/$blockSize);
+    for (1..$maxParts) {
+      push @segments, [$file, "$_/$maxParts"];
+    }
+  }
+  
+  my @threadedSegments;
+  my $i = 0;
+  foreach my $elem (@segments) {
+    push @{ $threadedSegments[$i++ % $threads] }, $elem;
+  };
+
+  @segments = sort{ $a->[0] cmp $b->[0]} @threadedSegments;
+  
+  return \@segments;
+}
 

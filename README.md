@@ -24,7 +24,7 @@ This is a completely rewrite of the previous version and some options changed...
 
 It will upload a file or folder to the usenet. 
 If it is a folder it will create a 7zip archive (it can consist of multiple 10MiB file (passworded or not - please check the options)).
-The compressed format will be 7z (although it won't really compress. The level of compression is 0). It can also create parity files.
+The compressed format will be 7z (although it won't really compress. The level of compression is 0). It can also create parity files and perform header checking (sometimes a segment upload will return success, but in reality the upload fail. This feature tries to prevent that).
 A NZB file will be generated for later retrieving.
 
 ## What doesn't do
@@ -52,9 +52,6 @@ When you download you want the same filestructure. Unfortunately the yenc mechan
 
 *2- Why do you split the files in 10 MiB?*
 
-I decided to split, instead of uploading the full file, to make the development of multi connections simpler. If i want to have a full file and multiple connections, the connection threads would need to communicate with each other, through shared memory. This process is usually tricky. with the files being splited a thread will be responsible only for their own file, and it's not required to communicate with the other thread, making the development of this program easier.
-This approach has some problems too: If a file is 11MiB and splitted in 10MiB + 1 MiB, then one thread will upload 10MiB and the other one 1MiB. In this extreme cases the speed achieved is not as good as a trully multi-thread program, however this difference is residual (or there is none) on big files, and IMHO, not enough to change this strategy.
-
 The size 10 MiB, was decided so the download can be supported on more older clients (when decoding you need to load it to memory), and also as a treshold between speed and number of threads, discussed earlier. This size will increase to 50 megs if you're trying to upload more than 10GiB, 120MiB if more than 50GiB, 350MiB if you're trying to upload more than 120GiB.
 The maximum file size allowed is 350 GiB.
 
@@ -66,10 +63,10 @@ I have only 7zip installed and not rar on my system (I tend to use what i have a
 
 #Requirements:
 * Perl (preferably 5.018 or higher)
-* Perl modules: Config::Tiny, IO::Socket::SSL, String::CRC32, XML::LibXML (all other modules should exist on core.)
+* Perl modules: Config::Tiny, IO::Socket::SSL, String::CRC32, (all other modules should exist on core.)
 * 7Zip
 * par2repair
-* Free disk space (Example: If you're uploading a 300MiB file, you'll need at least 301MiB free space)
+* Free disk space (Example: If you're uploading a 300MiB file, you'll need at least 301MiB free space minimum)
 
 # Installation
 1. Check if you have all the requirements installed.
@@ -114,7 +111,8 @@ redundancy= 10 #percentage of redundancy for parity files. Switch -par2red
 
 [generic]
 tmp = /tmp #folder to where the compression and/or par files should go. All the files are removed after upload. Switch -tmp
-randomize = 0 #0 or 1. To disable or enable the name toggle. If this is done, the person who download the files will required the parity files
+randomize = 0 #0 or 1. To disable or enable the name change. If this is done, the person who download the files will required the parity files
+headerCheck= 1 #0 or 1. If this is enable, after each thread finishes their uploads it will check if the header was uploaded to server through a stat command
 ```
 
 

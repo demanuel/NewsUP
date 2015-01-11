@@ -7,7 +7,6 @@
 package NZB::Generator;
 use strict;
 use utf8;
-use XML::LibXML;
 use NZB::File;
 use 5.018;
 
@@ -15,70 +14,58 @@ use 5.018;
 sub new{
 
   my $class = shift;
-
-  my $self = {};
+  my $metadata = shift;
+  my $segments = shift;
+  my $poster = shift;
+  my $groups = shift;
+  my $self = {
+	      segments=>$segments,
+	      metadata=>$metadata,
+	      poster=>$poster,
+	      groups=>$groups,
+	     };
   bless $self, $class;
   return $self;
 }
 
-#Create an NZB file according to the specs found on the internet
-sub create_nzb{
-
+sub write_nzb{
   my $self = shift;
-  my @nzbFileList = @{shift()};
-  my %metadata = %{shift()};
-  
-  my $doc = XML::LibXML::Document->new('1.0','utf-8');
-  my $nzb = $doc->createElementNS('http://www.newzbin.com/DTD/2003/nzb','nzb');
-  $doc->setDocumentElement($nzb);
-  my $head = $doc->createElement('head');
-  $nzb->appendChild($head);
 
-  for my $key (keys %metadata) {
-    my $metadata = $doc->createElement('metadata');
-    $metadata->setAttribute('type'=>$key);
-    $metadata->appendTextNode($metadata{$key});
-    $head->appendChild($metadata);
-  }
-  
+  my %files = ();
 
-  for my $nzbFile (@nzbFileList) {
-    my $file = $doc->createElement('file');
-    $file->setAttribute('poster'=>$nzbFile->{poster});
-    $file->setAttribute('date'=>time());
-    $file->setAttribute('subject'=>$nzbFile->{subject});
-    my $groups = $doc->createElement('groups');
-    $file->appendChild($groups);
-    for my $groupName (@{$nzbFile->{groups}}) {
-      my $group = $doc->createElement('group');
-      $group->appendTextNode($groupName);
-      $groups->appendChild($group);
+  for my $segment (@{$self->{segments}}) {
+    if (!exists $files{$segment->{fileName}}) {
+      $files{$segment->{fileName}} = NZB::File->new(_get_xml_escaped_string('"'.$segment->{fileName}.'" yEnc'),
+						    _get_xml_escaped_string($self->{poster}), $self->{groups});
     }
-
-    my $segments = $doc->createElement('segments');
-    $file->appendChild($segments);
-    my $partNumber=1;    
-    for my $segRef  (@{$nzbFile->{segments}}) {
-      my ($readSize,$segment) = @$segRef;
-      my $seg = $doc->createElement('segment');
-      $seg->setAttribute('number'=>$partNumber);
-      $seg->setAttribute('bytes'=>$readSize);
-      $seg->appendTextNode($segment);
-      $segments->appendChild($seg);
-      $partNumber+=1;
-    }
-
-    $nzb->appendChild($file);
+    my $file = $files{$segment->{fileName}};
+    $file->add_segment($segment);
   }
-  
-  # save
-  my $nzbFileName = time().'.nzb';
-  open my $out, '>', $nzbFileName;
-  binmode $out; # as above
-  $doc->toFH($out);
-  close($out);
-  return $nzbFileName;
-  
+
+  my $xml = '<nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">\r\n';
+  $xml.="<meta type=\"$_\">"._get_xml_escaped_string($self->{metadata}{$_})."</meta>\r\n" for (keys %{$self->{metadata}});
+  $xml.= $files{$_}->get_xml() for  (keys %files);
+  $xml.= '</nzb>';
+
+  my $nzbFile = time().".nzb";
+  open my $ofh, '>', $nzbFile;
+  print $ofh $xml;
+  close $ofh;
+
+  return $nzbFile;
+}
+
+#XML only requires this 5 entities escaped
+sub _get_xml_escaped_string{
+  my $string = shift;
+
+  $string=~ s/</&lt;/g;
+  $string=~ s/>/&gt;/g;
+  $string=~ s/&/&amp;/g;
+  $string=~ s/"/&quot;/g;
+  $string=~ s/'/&apos;/g;
+
+  return $string;
 }
 
 
