@@ -42,7 +42,7 @@ sub new{
   # $self->{port}=$port;
 
 
-  if ($port==995 || $port == 563) {
+  if ($port!= 119 && $port != 80 && $port != 23 ) {
     $self->{ssl}=1;
   }else {
     $self->{ssl}=0;
