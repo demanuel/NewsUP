@@ -6,12 +6,12 @@ It will run on any platform that supports perl that matches the requirements
 
 # Intro
 
-This program will upload binary files to the usenet and generate a NZB file. It supports SSL, multiple connections and parity files.
+This program will upload binary files to the usenet and generate a NZB file. It supports SSL, multiple connections.
 This program is licensed with GPLv3.
 
 
 ## note
-This is a completely rewrite of the previous version and some options changed... but now it supports SSL! :-D
+I dropped the parity files and the 7zip compression. I changed the code to use processes instead of threads to improve performance.
 
 ## Alternatives
 * newsmangler (https://github.com/madcowfred/newsmangler)
@@ -23,50 +23,18 @@ This is a completely rewrite of the previous version and some options changed...
 # What does this program do
 
 It will upload a file or folder to the usenet. 
-If it is a folder it will create a 7zip archive (it can consist of multiple 10MiB file (passworded or not - please check the options)).
-The compressed format will be 7z (although it won't really compress. The level of compression is 0). It can also create parity files and perform header checking (sometimes a segment upload will return success, but in reality the upload fail. This feature tries to prevent that).
+If it is a folder it will search for files inside of the folder.
 A NZB file will be generated for later retrieving.
 
 ## What doesn't do
 
-* Create compressed archive files to upload [1]
-* Create rars [1]
-* Create zips [1]
-
-
-### Notes
-1- If you are uploading a folder, or files bigger than 10MiB. it will create a 7zip file containing the folder and all the files inside. This 7zip will be split in 10 meg volumes. The 7zip will not have compression.
-
-## Decisions and questions
-*1- Why it was decided to compress folders?*
-
-I decided that because, to keep the same file structure. Example if you upload a folder
-```
-my_folder
-|- file1
-|- file2
-```
-
-When you download you want the same filestructure. Unfortunately the yenc mechanism, doesn't allow that. So you would end up with two files (file1 and file2), but no folder.
-
-
-*2- Why do you split the files in 10 MiB?*
-
-The size 10 MiB, was decided so the download can be supported on more older clients (when decoding you need to load it to memory), and also as a treshold between speed and number of threads, discussed earlier. This size will increase to 50 megs if you're trying to upload more than 10GiB, 120MiB if more than 50GiB, 350MiB if you're trying to upload more than 120GiB.
-The maximum file size allowed is 350 GiB.
-
-
-* 3- Why 7zip and not rar?*
-
-I have only 7zip installed and not rar on my system (I tend to use what i have available on my system - rar is shareware and 7zip is opensource). Please note that the archiving is done without any compression.
+* Create compressed archive files to upload (rar, zip, 7zip, etc...)
+* Create parity files [1]
 
 
 #Requirements:
 * Perl (preferably 5.018 or higher)
 * Perl modules: Config::Tiny, IO::Socket::SSL, String::CRC32, (all other modules should exist on core.)
-* 7Zip
-* par2repair
-* Free disk space (Example: If you're uploading a 300MiB file, you'll need at least 301MiB free space minimum)
 
 # Installation
 1. Check if you have all the requirements installed.
@@ -105,13 +73,7 @@ veryWeirdInfoIWantToPutOnTheNZBMetadata= it's really very weird!
 [upload]
 uploader= NewsUP <NewsUp@localhost.localdomain> #To identify de uploader and to receive replies. Usualy it's bogus. Switch -uploader
 
-[parity]
-enabled= 0 #If you want to enable parity creation. Switch -par
-redundancy= 10 #percentage of redundancy for parity files. Switch -par2red
-
 [generic]
-tmp = /tmp #folder to where the compression and/or par files should go. All the files are removed after upload. Switch -tmp
-randomize = 0 #0 or 1. To disable or enable the name change. If this is done, the person who download the files will required the parity files
 headerCheck= 1 #0 or 1. If this is enable, after each thread finishes their uploads it will check if the header was uploaded to server through a stat command
 ```
 
@@ -128,7 +90,7 @@ Check sample newsup.conf for the available options
 
 -port: port. For non SSL upload use 119, for SSL upload use 563 or 995
 
--file: the file or folder you want to upload. You can have as many as you want. If the you're uploading a folder then it will compress it and split it in files of 10Megs for uploading. These temp files are then removed. 
+-file: the file or folder you want to upload. You can have as many as you want. If the you're uploading a folder then it will find the files inside of the folder
 
 -comment: comment. Subject will have your comment. You can use two. The subject created will be something like "[first comment] my file's name [second comment]"
 
@@ -136,17 +98,7 @@ Check sample newsup.conf for the available options
 
 -newsgroup: newsgroups. You can have as many as you want. This will crosspost the file.
 
--tmp: folder. Full path to were the temporary files (the 7zip and par2) will be written. If the path doesn't exist it will be the current folder. All the files are removed after upload.
-
--randomize: If you want to randomly toggle the names of some files. This will require the par2 files to correct the name
-
--par2: enable parity files creation.
-
--par2red: percentage (withouth the % sign). This option represents the redundancy of the parity files.
-
--name: name of the compressed file. The name of the splitted file.
-
--cpass: password of the 7zip file.
+-nzb: name of the NZB file.
 
 -groups: alias for newsgroups option
 

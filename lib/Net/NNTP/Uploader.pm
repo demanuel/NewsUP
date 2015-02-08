@@ -12,29 +12,31 @@ use IO::Socket::INET;
 use IO::Socket::SSL;# qw(debug3);
 use Time::HiRes qw/ time /;
 use POSIX;
-use NZB::Segment;
 use Carp;
 use String::CRC32;
 use Data::Dumper;
 use Digest::MD5 qw(md5_hex);
 use 5.018;
 
-#512Kb - the segment size. I tried with 4 Megs and got a 441. The allowed posting segment size isn't standard
-our $NNTP_MAX_UPLOAD_SIZE=512*1024; 
+#500Kb - the segment size. I tried with 4 Megs and got a 441. The allowed posting segment size isn't standard
+our $NNTP_MAX_UPLOAD_SIZE=500*1024; 
 my $YENC_NNTP_LINESIZE=128;
 $|=1;
 
 sub new{
 
-  my $class = shift;  
+  my $class = shift;
+  my $connectionNumber=shift;
   my $server = shift;
   my $port = shift;
 
   my $username = shift;
   my $userpass = shift;
   
-  my $self = {server=>$server,
+  my $self = {authenticated=>0,
+	      server=>$server,
 	      port=>$port,
+	      connection=>$connectionNumber,
 	      username=>$username,
 	      userpass=>$userpass};
   
@@ -75,7 +77,7 @@ sub _create_socket{
   }
   $socket->autoflush(1);
   sysread($socket, my $output, 8192);
-  
+
   my @array = split ' ', $output;
   
   
@@ -96,9 +98,11 @@ sub _authenticate{
   print $socket sprintf("authinfo user %s\r\n",$self->{username});
   sysread($socket, my $output, 8192);
 
-
+  
   my @status = split(' ', $output);
   if ($status[0] != 381) {
+    $self->{authenticated}=0;
+    shutdown $socket, 2;
     return -1;
   }
 
@@ -106,21 +110,25 @@ sub _authenticate{
   sysread($socket, $output, 8192);
 
 
+  
   @status = split(' ', $output);
   if ($status[0] != 281 && $status[0] != 250) {
+    carp $output;
+    $self->{authenticated}=0;
+    shutdown $socket, 2;
     return -1;
   }
+  $self->{authenticated}=1;
   return 1;
   
 }
 
 #perform the server logout
-sub _logout{
+sub logout{
   my $self = shift;
   my $socket = $self->{socket};
   print $socket "quit\r\n";
-  shutdown $socket, 2;
-  
+  shutdown $socket, 2;  
 }
 
 sub transmit_files{
@@ -131,23 +139,28 @@ sub transmit_files{
   my $endComment=shift;
   my $newsgroupsRef = shift;
 
-  $self->_create_socket;
-  croak "Authentication Failed!" if $self->_authenticate == -1;
-
-  my @nzbSegments = ();
-
+  if ($self->{authenticated}==0) {
+    while ($self->{authenticated} == 0){
+      sleep 30;
+      $self->_create_socket;
+      $self->_authenticate;
+    }
+  }
+  
   for my $filePair (@$filesListRef) {
     open my $ifh, '<:bytes', $filePair->[0] or die "Couldn't open file: $!";
     binmode $ifh;
     my $fileCRC32=crc32( *$ifh);
-    
+
     my $fileSize= -s $filePair->[0];
     my $fileName=(fileparse($filePair->[0]))[0];
     my @temp = split('/',$filePair->[1]);
     my $currentFilePart = $temp[0];
     my $totalFilePart = $temp[1];
+#    say $self->{connection}." ".$filePair->[0]." [".$filePair->[1]."]";
     my $readedData = $self->_get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
     my $subject = sprintf("\"%s\" yenc (%d/%d) [%s]", $fileName,$currentFilePart,$totalFilePart,$fileSize,$fileCRC32);
+#    say "Uploading: $subject";
     my $readSize=bytes::length($readedData);
 
     $subject = "[$initComment] $subject" if defined $initComment;
@@ -156,73 +169,56 @@ sub transmit_files{
 					1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1), $readSize, $readedData);
 
     my $segmentTimer = time();
-    my $messageID;
     my $counter=0;
 
-    do {
-      $messageID = $self->_post($newsgroupsRef, $subject, $content, $from);
-      carp "Upload of segment from file ".$filePair->[0]." failed! Retrying!" if (!defined $messageID);
+    $self->_post($newsgroupsRef, $filePair->[2], $subject, $content, $from);
+#    say "Upload of segment from file ".$filePair->[0]." failed! Retrying segment".$filePair->[1]."!" if (!defined $messageID);
       
-    } while (!defined $messageID);
+
     printf("[%0.2f KBytes/sec]\r", $readSize/(time()-$segmentTimer)/1024);
     close $ifh;
 
-    push @nzbSegments, NZB::Segment->new($fileName, $readSize, $currentFilePart,$totalFilePart,$messageID);
   }
 
-  $self->_logout;
-  return \@nzbSegments;
 }
+
+
 
 #It will perform the header check!
 sub header_check{
   my $self = shift;
-  my $segments = shift;
+  my $filesRef = shift;
   my $newsgroups = shift;
   my $from = shift;
   my $comments=shift;
-  my $temp = shift;
 
-  $self->_create_socket;
-  $self->_authenticate;
+#  $self->_create_socket;
+#  $self->_authenticate;
   
   my $socket = $self->{socket};
-  my $newsgroup = $newsgroups->[0];
+  my $newsgroup = $newsgroups->[0]; #The first newsgroup is enough
   print $socket "group $newsgroup\r\n";
   my $output;
   sysread($socket, $output, 8192);
-  
-  my @missingSegments = ();
-  my @existingElements =();
-  
-  for my $segment (@$segments) {
-    my $messageID = $segment->{messageID};
-    print $socket "stat <$messageID>\r\n";
-    sysread($socket, $output, 8192);
-    my @status = split(' ', $output);
     
-    if ($status[0] == 223) {
-      push @existingElements, $segment;
-    }else {
-      say "Header check: Missing segment found!";
-      push @missingSegments, $segment;
-    }
-
+  for my $fileRef (@$filesRef) {
+    do {
+      my $messageID = $fileRef->[2];
+      print $socket "stat <$messageID>\r\n";
+      sysread($socket, $output, 8192);
+      chop $output;
+      my @status = split(' ', $output);
+      if ($status[0] == 223) {
+	next;
+      }else {
+	say "Header check: Missing segment $messageID [$output]";
+	$self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups);
+      }
+      
+    }while(1);
   }
-  
-  $self->_logout;
-  
-  my @missingParts = ();
-  if (scalar @missingSegments) {
-    for (@missingSegments) {
-      push @missingParts, [$temp.'/'.$_->{fileName}, $_->{number}.'/'.$self->{total}];
-    }
-    
-  }
-  push @existingElements, @{$self->transmit_files(\@missingParts, $from, $comments->[0], $comments->[1], $newsgroups)};
-  return \@existingElements;
-
 }
+
 
 sub _get_file_bytes_by_part{
   my $self = shift;
@@ -268,6 +264,7 @@ sub _post{
 
   my $self = shift;
   my @newsgroups = @{shift()};
+  my $messageID = shift;
   my $subject = shift;
   my $content = shift;
   my $from = shift;
@@ -280,11 +277,9 @@ sub _post{
 
   my @response = split(' ', $output);
   my $outputCode = $response[0];
-  my $messageID;
   
   if ($outputCode==340) {
     $output = '';
-    $messageID = _get_message_id();
     
     eval{
       print $socket sprintf("From: %s\r\n",$from).
@@ -303,37 +298,12 @@ sub _post{
 
     #441 Posting Failed. Message-ID is not unique E1
     #$self->_post(\@newsgroups, $subject, $content, $from) if $output=~ /duplicate/i || $output=~ /not unique/i;
-    $messageID = undef if ($output!~ /240/ );
-    carp $output if ($output =~ /441/);
+    carp $output if ($output!~ /240/);
+#    carp $output if ();
     
-    return $messageID;
   }
 
-  return undef;
 }
-
-sub _get_message_id{
-
-  my $time = _encode_base36(rand(time()),8);
-  my $randomness = _encode_base36(rand(time()),8);
-  
-  return sprintf("newsup.%s.%s@%s",$time,$randomness,
-		 sprintf("%s.%s",substr(md5_hex(rand()),-5,5), substr(md5_hex(time()),-3,3)));
-
-}
-
-
-sub _encode_base36 {
-  my ($val) = @_;
-  my $symbols = join '', '0'..'9', 'A'..'Z';
-  my $b36 = '';
-  while ($val) {
-    $b36 = substr($symbols, $val % 36, 1) . $b36;
-    $val = int $val / 36;
-  }
-  return $b36 || '0';
-}
-
 
 sub _yenc_encode{
   my $self = shift;

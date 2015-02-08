@@ -7,6 +7,7 @@
 package NZB::Generator;
 use strict;
 use utf8;
+use XML::LibXML;
 use NZB::File;
 use 5.018;
 
@@ -14,11 +15,13 @@ use 5.018;
 sub new{
 
   my $class = shift;
+  my $name = shift;
   my $metadata = shift;
   my $segments = shift;
   my $poster = shift;
   my $groups = shift;
   my $self = {
+	      name=>$name,
 	      segments=>$segments,
 	      metadata=>$metadata,
 	      poster=>$poster,
@@ -47,7 +50,15 @@ sub write_nzb{
   $xml.= $files{$_}->get_xml() for  (keys %files);
   $xml.= '</nzb>';
 
-  my $nzbFile = time().".nzb";
+  my $nzbFile = "";
+  if (defined $self->{name}) {
+    $nzbFile = $self->{name};
+  }else {
+    $nzbFile = time();
+  }
+  
+  $nzbFile .= ".nzb";
+  
   open my $ofh, '>', $nzbFile;
   print $ofh $xml;
   close $ofh;
@@ -55,7 +66,6 @@ sub write_nzb{
   return $nzbFile;
 }
 
-#XML only requires this 5 entities escaped
 sub _get_xml_escaped_string{
   my $string = shift;
 
