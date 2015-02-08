@@ -11,7 +11,10 @@ This program is licensed with GPLv3.
 
 
 ## note
-I dropped the parity files and the 7zip compression. I changed the code to use processes instead of threads to improve performance.
+As i realized that most users already have scripts to create rars/7z and parity files i dropped the options to create 7zip and parity files. But if you want them, just send me an email i can restore them.
+
+I changed the code to use processes instead of threads to improve performance.
+
 
 ## Alternatives
 * newsmangler (https://github.com/madcowfred/newsmangler)
@@ -118,23 +121,10 @@ The NZB file It will have on the ```<head>``` tag the childs:
 # Examples
 
 ```bash
-$ perl newsup.pl -group alt.binaries.test -f <bin_file> -par2 -name <some_name>
+$ perl newsup.pl -group alt.binaries.test -f <bin_file> -nzb <some_name>
 ```
-If <bin_file> is bigger than 10 Megs (or it is a folder), it will create a 7zip file with name <some_name>.7z
-If <bin_file> is smaller than 10 Megs and is not a folder a 7zip will NOT be created.
-Parity volumes will then be created, and uploaded. A NZB file will then be created.
-
-
-```bash
-$ perl newsup.pl -group alt.binaries.test -f <bin_file> -par2 -name <some_name> -cpass my_passwd
-```
-It works exactly the same way as the previous example but if a 7zip file is created it will have the password 'my_passwd'
-
-
-```bash
-$ perl newsup.pl -group alt.binaries.test -f <bin_file> -par2
-```
-The same example as the first, but instead it will create a 7zip file with name newsup.7z
+If <bin_file> is a folder, it will transverse the folder searching for files.
+The files will be uploaded. A NZB file with <some_name> will then be created.
 
 
 
