@@ -7,7 +7,6 @@
 package NZB::Segment;
 use strict;
 use utf8;
-use XML::LibXML;
 use 5.018;
 
 

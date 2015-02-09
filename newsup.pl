@@ -65,7 +65,7 @@ sub _parse_command_line{
 	     'nzb=s'=>\$nzbName,
 	     'headerCheck'=>\$headerCheck);
 
-  if (-e $ENV{"HOME"}.'/.config/newsup.conf') {
+  if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
 
     my $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
     %metadata = %{$config->{metadata}};

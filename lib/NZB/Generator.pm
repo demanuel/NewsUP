@@ -7,7 +7,6 @@
 package NZB::Generator;
 use strict;
 use utf8;
-use XML::LibXML;
 use NZB::File;
 use 5.018;
 
