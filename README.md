@@ -2,7 +2,7 @@ NewsUP
 ======
 
 NewsUP a binary usenet uploader/poster. Backup your personal files to the usenet!
-It will run on any platform that supports perl that matches the requirements
+It will run on any platform that supports perl that matches the requirements (check the wiki for on how to run in windows)
 
 # Intro
 
