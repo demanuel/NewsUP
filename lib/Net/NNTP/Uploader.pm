@@ -17,6 +17,7 @@ use String::CRC32;
 use Data::Dumper;
 use Digest::MD5 qw(md5_hex);
 use 5.018;
+#use Benchmark qw(:all);
 
 #500Kb - the segment size. I tried with 4 Megs and got a 441. The allowed posting segment size isn't standard
 our $NNTP_MAX_UPLOAD_SIZE=500*1024; 
@@ -141,9 +142,10 @@ sub transmit_files{
 
   if ($self->{authenticated}==0) {
     while ($self->{authenticated} == 0){
-      sleep 30;
       $self->_create_socket;
       $self->_authenticate;
+      last if($self->{authenticated} == 1);
+      sleep 30;
     }
   }
   
@@ -250,7 +252,14 @@ sub _get_post_body{
   my $content = sprintf("=ybegin part=%d total=%d line=%d size=%d name=%s\r\n",$filePart, $fileMaxParts, $YENC_NNTP_LINESIZE,$readSize,$fileName);
 
   $content .= sprintf("=ypart begin=%d end=%d\r\n",$startingBytes, $startingBytes+$readSize);
+
+#  my $t0 = Benchmark->new;
   $content .= $self->_yenc_encode($bytes);
+#  my $t1 = Benchmark->new;
+#  my $td = timediff($t1, $t0);
+#  print "Yenc coding took:",timestr($td),"\n";
+
+
   $content .= sprintf("\r\n=yend size=%d pcrc32=%x",$readSize, crc32($bytes));
 
   if ($filePart==$fileMaxParts){
@@ -272,9 +281,8 @@ sub _post{
   my $socket = $self->{socket};
 
   print $socket "POST\r\n";
-  my $output;
-  sysread($socket, $output, 8192);
-
+  sysread($socket, my $output, 8192);
+  
   my @response = split(' ', $output);
   my $outputCode = $response[0];
   
@@ -312,38 +320,73 @@ sub _yenc_encode{
   my $content = '';
 
 
-  for(my $i=0; $i<bytes::length($string); $i++){
-    my $byte=bytes::substr($string,$i,1);
-    my $char= (hex (unpack('H*', $byte))+42)%256;
 
+  #first version: slow but better to understand the algorithm
+  # for(my $i=0; $i<bytes::length($string); $i++){
+  #   my $byte=bytes::substr($string,$i,1);
+  #   my $char= (hex (unpack('H*', $byte))+42)%256;
+  #   ....
+  # }
+  
+  my @hexString = unpack('W*',$string); #Converts binary string to hex
+  foreach my $hexChar (@hexString) {
+    my $char= ($hexChar+42)%256;
     if ($char == 0 ||		# null
-	$char == 10 ||		# LF
-	$char == 13 ||		# CR
-	$char == 61 ||		# =
-	(($char == 9 || $char == 32) && ($column == $YENC_NNTP_LINESIZE || $column==0)) || # TAB || SPC
-	($char==46 && $column==0) # . 
+  	$char == 10 ||		# LF
+  	$char == 13 ||		# CR
+  	$char == 61 ||		# =
+  	(($char == 9 || $char == 32) && ($column == $YENC_NNTP_LINESIZE || $column==0)) || # TAB || SPC
+  	($char==46 && $column==0) # . 
        ) {
-    
+      
       $content .= '=';
-    
       $column+=1;
-    
+      
       $char=($char + 64)%256;
-    
     }
-  
     $content .= chr $char;
-
-
+    
     $column+=1;
-  
+    
     if ($column> $YENC_NNTP_LINESIZE ) {
       $column=0;
       $content .= "\r\n";
     }
-
   }
+  
   return $content;
+}
+
+
+sub mycrc32 {
+ my ($input, $init_value, $polynomial) = @_;
+
+ $init_value = 0 unless (defined $init_value);
+ $polynomial = 0xedb88320 unless (defined $polynomial);
+
+ my @lookup_table;
+
+ for (my $i=0; $i<256; $i++) {
+   my $x = $i;
+   for (my $j=0; $j<8; $j++) {
+     if ($x & 1) {
+       $x = ($x >> 1) ^ $polynomial;
+     } else {
+       $x = $x >> 1;
+     }
+   }
+   push @lookup_table, $x;
+ }
+
+ my $crc = $init_value ^ 0xffffffff;
+
+ foreach my $x (unpack ('C*', $input)) {
+   $crc = (($crc >> 8) & 0xffffff) ^ $lookup_table[ ($crc ^ $x) & 0xff ];
+ }
+
+ $crc = $crc ^ 0xffffffff;
+
+ return $crc;
 }
 
 

@@ -30,15 +30,13 @@ use NZB::Generator;
 use Getopt::Long;
 use Config::Tiny;
 use Carp;
-use File::Glob ':bsd_glob';
-use threads;
 use File::Find;
 use File::Basename;
 use POSIX;
 use Data::Dumper;
-use File::Copy;
 use Digest::MD5 qw/md5_hex/;
 use POSIX ":sys_wait_h";
+use Time::HiRes qw/gettimeofday/;
 
 #Returns a bunch of options that it will be used on the upload. Options passed through command line have precedence over
 #options on the config file
@@ -133,8 +131,10 @@ sub _distribute_files_by_connection{
 
 sub _get_message_id{
 
-  my $time = _encode_base36(time(),8);
-  my $randomness = _encode_base36(rand(time()),8);
+  (my $s, my $usec) = gettimeofday();
+  
+  my $time = _encode_base36("$s$usec",8);
+  my $randomness = _encode_base36(rand("$s$usec"),8);
   
   return sprintf("newsup.%s.%s@%s",$time,$randomness,
 		 sprintf("%s.%s",substr(md5_hex(rand()),-5,5), substr(md5_hex(time()),-3,3)));
@@ -277,5 +277,9 @@ sub _transmit_files{
 #  return @$segments;
 }
 
-
+use Benchmark qw(:all);
+my $t0 = Benchmark->new;
 main();
+my $t1 = Benchmark->new;
+my $td = timediff($t1, $t0);
+print "the code took:",timestr($td),"\n";
