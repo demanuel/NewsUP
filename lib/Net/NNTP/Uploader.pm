@@ -19,8 +19,8 @@ use Digest::MD5 qw(md5_hex);
 use 5.018;
 #use Benchmark qw(:all);
 
-#500Kb - the segment size. I tried with 4 Megs and got a 441. The allowed posting segment size isn't standard
-our $NNTP_MAX_UPLOAD_SIZE=500*1024; 
+#750Kb - the segment size. I tried with 4 Megs and got a 441. The allowed posting segment size isn't standard
+our $NNTP_MAX_UPLOAD_SIZE=750*1024; 
 my $YENC_NNTP_LINESIZE=128;
 $|=1;
 
@@ -148,25 +148,38 @@ sub transmit_files{
       sleep 30;
     }
   }
-  
+
+  my %fileCRC32 = ();
   for my $filePair (@$filesListRef) {
     open my $ifh, '<:bytes', $filePair->[0] or die "Couldn't open file: $!";
     binmode $ifh;
-    my $fileCRC32=crc32( *$ifh);
 
+    my $fileCRC32;
+    #To avoid calculating the CRC32 hash everytime;
+    if(exists $fileCRC32{$filePair->[0]}){
+      $fileCRC32 = $fileCRC32{$filePair->[0]}
+    }else {
+      $fileCRC32 = crc32( *$ifh);
+      $fileCRC32{$filePair->[0]}=$fileCRC32;
+    } 
+    
     my $fileSize= -s $filePair->[0];
     my $fileName=(fileparse($filePair->[0]))[0];
     my @temp = split('/',$filePair->[1]);
     my $currentFilePart = $temp[0];
     my $totalFilePart = $temp[1];
-#    say $self->{connection}." ".$filePair->[0]." [".$filePair->[1]."]";
+    #    say $self->{connection}." ".$filePair->[0]." [".$filePair->[1]."]";
+        
     my $readedData = $self->_get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
+
     my $subject = sprintf("\"%s\" yenc (%d/%d) [%s]", $fileName,$currentFilePart,$totalFilePart,$fileSize,$fileCRC32);
 #    say "Uploading: $subject";
     my $readSize=bytes::length($readedData);
 
     $subject = "[$initComment] $subject" if defined $initComment;
     $subject = "$subject [$endComment]" if defined $endComment;
+
+
     my $content = $self->_get_post_body($currentFilePart, $totalFilePart, $fileName,
 					1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1), $readSize, $readedData);
 
@@ -176,10 +189,8 @@ sub transmit_files{
     $self->_post($newsgroupsRef, $filePair->[2], $subject, $content, $from);
 #    say "Upload of segment from file ".$filePair->[0]." failed! Retrying segment".$filePair->[1]."!" if (!defined $messageID);
       
-
     printf("[%0.2f KBytes/sec]\r", $readSize/(time()-$segmentTimer)/1024);
     close $ifh;
-
   }
 
 }
@@ -253,14 +264,10 @@ sub _get_post_body{
 
   $content .= sprintf("=ypart begin=%d end=%d\r\n",$startingBytes, $startingBytes+$readSize);
 
-#  my $t0 = Benchmark->new;
   $content .= $self->_yenc_encode($bytes);
-#  my $t1 = Benchmark->new;
-#  my $td = timediff($t1, $t0);
-#  print "Yenc coding took:",timestr($td),"\n";
-
-
-  $content .= sprintf("\r\n=yend size=%d pcrc32=%x",$readSize, crc32($bytes));
+ 
+  my $crc32=crc32($bytes);
+  $content .= sprintf("\r\n=yend size=%d pcrc32=%x",$readSize, $crc32);
 
   if ($filePart==$fileMaxParts){
     $content .= sprintf(" crc32=", $fileCRC32);
@@ -290,6 +297,7 @@ sub _post{
     $output = '';
     
     eval{
+
       print $socket sprintf("From: %s\r\n",$from).
        	sprintf("Newsgroups: %s\r\n",join(', ',@newsgroups)).
        	sprintf("Subject: %s\r\n", $subject).
@@ -298,6 +306,7 @@ sub _post{
       
       sysread($socket, $output, 8192);
 
+      
     };
     if ($@){
       carp "Error: $@";
@@ -327,10 +336,11 @@ sub _yenc_encode{
   #   my $char= (hex (unpack('H*', $byte))+42)%256;
   #   ....
   # }
-  
+
   my @hexString = unpack('W*',$string); #Converts binary string to hex
   foreach my $hexChar (@hexString) {
     my $char= ($hexChar+42)%256;
+  
     if ($char == 0 ||		# null
   	$char == 10 ||		# LF
   	$char == 13 ||		# CR

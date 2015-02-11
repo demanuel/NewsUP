@@ -274,12 +274,11 @@ sub _transmit_files{
   $uploader->logout;
   
   exit 0;
-#  return @$segments;
 }
 
-use Benchmark qw(:all);
-my $t0 = Benchmark->new;
+#use Benchmark qw(:all);
+#my $t0 = Benchmark->new;
 main();
-my $t1 = Benchmark->new;
-my $td = timediff($t1, $t0);
-print "the code took:",timestr($td),"\n";
+#my $t1 = Benchmark->new;
+#my $td = timediff($t1, $t0);
+#print "Uploading took:",timestr($td),"\n";
