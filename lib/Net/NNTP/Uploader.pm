@@ -17,22 +17,20 @@ use String::CRC32;
 use Data::Dumper;
 use Digest::MD5 qw(md5_hex);
 use 5.018;
-#use Benchmark qw(:all);
+use Benchmark qw(:all);
 
 #750Kb - the segment size. I tried with 4 Megs and got a 441. The allowed posting segment size isn't standard
 our $NNTP_MAX_UPLOAD_SIZE=750*1024; 
 my $YENC_NNTP_LINESIZE=128;
 $|=1;
 
+my @YENC_CHAR_MAP = map{($_+42)%256} (0..0xffff);
+
+
+
 sub new{
 
-  my $class = shift;
-  my $connectionNumber=shift;
-  my $server = shift;
-  my $port = shift;
-
-  my $username = shift;
-  my $userpass = shift;
+  my ($class, $connectionNumber, $server, $port, $username, $userpass) = @_;
   
   my $self = {authenticated=>0,
 	      server=>$server,
@@ -41,9 +39,6 @@ sub new{
 	      username=>$username,
 	      userpass=>$userpass};
   
-  # $self->{server}=$server;
-  # $self->{port}=$port;
-
 
   if ($port!= 119 && $port != 80 && $port != 23 ) {
     $self->{ssl}=1;
@@ -58,7 +53,7 @@ sub new{
 #Creates the socket to be used on the communication with the server
 sub _create_socket{
 
-  my $self = shift;
+  my ($self) = @_;
   my $socket;
   
   if ($self->{ssl}) {
@@ -79,10 +74,7 @@ sub _create_socket{
   $socket->autoflush(1);
   sysread($socket, my $output, 8192);
 
-  my @array = split ' ', $output;
-  
-  
-  if ($array[0]==200) {
+  if (substr($output,0,3)==200) {
     $self->{postok}=1;
   }else {
     $self->{postok}=0;
@@ -94,26 +86,27 @@ sub _create_socket{
 #performs the server authentication
 sub _authenticate{
 
-  my $self = shift;
+  my ($self) = @_;
   my $socket = $self->{socket};
-  print $socket sprintf("authinfo user %s\r\n",$self->{username});
+  my $username = $self->{username};
+  print $socket "authinfo user $username\r\n";
   sysread($socket, my $output, 8192);
 
   
-  my @status = split(' ', $output);
-  if ($status[0] != 381) {
+  my $status = substr($output,0,3);
+  if ($status != 381) {
     $self->{authenticated}=0;
     shutdown $socket, 2;
     return -1;
   }
-
-  print $socket sprintf("authinfo pass %s\r\n",$self->{userpass});
+  my $password=$self->{userpass};
+  print $socket "authinfo pass $password\r\n";
   sysread($socket, $output, 8192);
 
 
   
-  @status = split(' ', $output);
-  if ($status[0] != 281 && $status[0] != 250) {
+  $status = substr($output,0,3);
+  if ($status != 281 && $status != 250) {
     carp $output;
     $self->{authenticated}=0;
     shutdown $socket, 2;
@@ -126,19 +119,14 @@ sub _authenticate{
 
 #perform the server logout
 sub logout{
-  my $self = shift;
+  my ($self) = @_;
   my $socket = $self->{socket};
   print $socket "quit\r\n";
   shutdown $socket, 2;  
 }
 
 sub transmit_files{
-  my $self = shift;
-  my $filesListRef = shift;
-  my $from = shift;
-  my $initComment=shift;
-  my $endComment=shift;
-  my $newsgroupsRef = shift;
+  my ($self, $filesListRef, $from, $initComment, $endComment, $newsgroupsRef) = @_;
 
   if ($self->{authenticated}==0) {
     while ($self->{authenticated} == 0){
@@ -149,33 +137,20 @@ sub transmit_files{
     }
   }
 
-  my %fileCRC32 = ();
   for my $filePair (@$filesListRef) {
     open my $ifh, '<:bytes', $filePair->[0] or die "Couldn't open file: $!";
     binmode $ifh;
 
-    my $fileCRC32;
-    #To avoid calculating the CRC32 hash everytime;
-    if(exists $fileCRC32{$filePair->[0]}){
-      $fileCRC32 = $fileCRC32{$filePair->[0]}
-    }else {
-      $fileCRC32 = crc32( *$ifh);
-      $fileCRC32{$filePair->[0]}=$fileCRC32;
-    } 
-    
-    my $fileSize= -s $filePair->[0];
-    my $fileName=(fileparse($filePair->[0]))[0];
     my @temp = split('/',$filePair->[1]);
     my $currentFilePart = $temp[0];
     my $totalFilePart = $temp[1];
-    #    say $self->{connection}." ".$filePair->[0]." [".$filePair->[1]."]";
-        
-    my $readedData = $self->_get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
 
-    my $subject = sprintf("\"%s\" yenc (%d/%d) [%s]", $fileName,$currentFilePart,$totalFilePart,$fileSize,$fileCRC32);
-#    say "Uploading: $subject";
-    my $readSize=bytes::length($readedData);
+    my $fileSize= -s $filePair->[0];
+    my $fileName=(fileparse($filePair->[0]))[0];
+    my ($readedData, $readSize) = $self->_get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
 
+    my $subject = "\"$fileName\" yenc ($currentFilePart/$totalFilePart) [$fileSize]";
+    
     $subject = "[$initComment] $subject" if defined $initComment;
     $subject = "$subject [$endComment]" if defined $endComment;
 
@@ -183,33 +158,24 @@ sub transmit_files{
     my $content = $self->_get_post_body($currentFilePart, $totalFilePart, $fileName,
 					1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1), $readSize, $readedData);
 
-    my $segmentTimer = time();
-    my $counter=0;
-
     $self->_post($newsgroupsRef, $filePair->[2], $subject, $content, $from);
-#    say "Upload of segment from file ".$filePair->[0]." failed! Retrying segment".$filePair->[1]."!" if (!defined $messageID);
-      
-    printf("[%0.2f KBytes/sec]\r", $readSize/(time()-$segmentTimer)/1024);
-    close $ifh;
-  }
 
+    close $ifh;
+    # my $t1 = Benchmark->new;
+    # my $td = timediff($t1, $t0);
+    # print "the code took:",timestr($td),"\n";
+
+  }
 }
 
 
 
 #It will perform the header check!
 sub header_check{
-  my $self = shift;
-  my $filesRef = shift;
-  my $newsgroups = shift;
-  my $from = shift;
-  my $comments=shift;
+  my ($self, $filesRef, $newsgroups, $from, $comments)=@_;
 
-#  $self->_create_socket;
-#  $self->_authenticate;
-  
   my $socket = $self->{socket};
-  my $newsgroup = $newsgroups->[0]; #The first newsgroup is enough
+  my $newsgroup = $newsgroups->[0]; #The first newsgroup is enough to check if the segment was uploaded correctly
   print $socket "group $newsgroup\r\n";
   my $output;
   sysread($socket, $output, 8192);
@@ -220,89 +186,82 @@ sub header_check{
       print $socket "stat <$messageID>\r\n";
       sysread($socket, $output, 8192);
       chop $output;
-      my @status = split(' ', $output);
-      if ($status[0] == 223) {
+
+      if (substr($output,0,3) == 223) {
 	next;
       }else {
 	say "Header check: Missing segment $messageID [$output]";
 	$self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups);
       }
-      
     }while(1);
   }
 }
 
 
 sub _get_file_bytes_by_part{
-  my $self = shift;
-  my $fileNameHandle = shift;
-  my $part = shift;
+  my ($self, $fileNameHandle, $part) = @_;
 
   my $correctPosition = $NNTP_MAX_UPLOAD_SIZE*$part;
 
   seek ($fileNameHandle, $correctPosition, 0);
 
   my $bytes;
-  read($fileNameHandle, $bytes, $NNTP_MAX_UPLOAD_SIZE);
-  
-  return $bytes;
+  my $readSize = read($fileNameHandle, $bytes, $NNTP_MAX_UPLOAD_SIZE);
+  return ($bytes, $readSize);
 }
 
 
 sub _get_post_body{
 
-  my $self = shift;
-  my $filePart = shift;
-  my $fileMaxParts = shift;
-  my $fileName = shift;
-  my $startingBytes=shift;
-  my $readSize = shift;
-  my $bytes = shift;
-  my $fileCRC32 = shift;
+  my ($self, $filePart, $fileMaxParts, $fileName, $startingBytes, $readSize, $bytes)=@_;
 
-  my $content = sprintf("=ybegin part=%d total=%d line=%d size=%d name=%s\r\n",$filePart, $fileMaxParts, $YENC_NNTP_LINESIZE,$readSize,$fileName);
+  my $yencBody=$self->_yenc_encode($bytes);
+  #some clients will complain if this is missing
+  my $pcrc32 = sprintf("%x", crc32($bytes));
+  
+  my $endPosition= $startingBytes+$readSize;
+  my $content = <<"EOF";
+=ybegin part=$filePart total=$fileMaxParts line=$YENC_NNTP_LINESIZE size=$readSize name=$fileName\r
+=ypart begin=$startingBytes end=$endPosition\r
+$yencBody\r
+=yend size=$readSize pcrc32=$pcrc32
+EOF
 
-  $content .= sprintf("=ypart begin=%d end=%d\r\n",$startingBytes, $startingBytes+$readSize);
-
-  $content .= $self->_yenc_encode($bytes);
- 
-  my $crc32=crc32($bytes);
-  $content .= sprintf("\r\n=yend size=%d pcrc32=%x",$readSize, $crc32);
-
-  if ($filePart==$fileMaxParts){
-    $content .= sprintf(" crc32=", $fileCRC32);
+  #We only need this on the last part
+  if ($filePart == $fileMaxParts) {
+    $content = $content." crc32=".crc32($bytes);
   }
 
+  
   return $content;
 }
 
 sub _post{
 
-  my $self = shift;
-  my @newsgroups = @{shift()};
-  my $messageID = shift;
-  my $subject = shift;
-  my $content = shift;
-  my $from = shift;
+  my ($self, $newsgroupsRef, $messageID, $subject, $content, $from) =@_;
+  
+  my @newsgroups = @{$newsgroupsRef};
 
   my $socket = $self->{socket};
 
   print $socket "POST\r\n";
   sysread($socket, my $output, 8192);
-  
-  my @response = split(' ', $output);
-  my $outputCode = $response[0];
-  
-  if ($outputCode==340) {
+
+  if (substr($output,0,3)==340) {
     $output = '';
     
     eval{
 
-      print $socket sprintf("From: %s\r\n",$from).
-       	sprintf("Newsgroups: %s\r\n",join(', ',@newsgroups)).
-       	sprintf("Subject: %s\r\n", $subject).
-       	sprintf("Message-ID: <%s>\r\n", $messageID).
-       	"\r\n$content\r\n.\r\n";
+      my $newsgroups = join(', ',@newsgroups);
+      print $socket <<"END";
+From: $from\r
+Newsgroups: $newsgroups\r
+Subject: $subject\r
+Message-ID: <$messageID>\r
+\r
+$content\r
+.\r
+END
       
       sysread($socket, $output, 8192);
 
@@ -314,20 +273,16 @@ sub _post{
     }
 
     #441 Posting Failed. Message-ID is not unique E1
-    #$self->_post(\@newsgroups, $subject, $content, $from) if $output=~ /duplicate/i || $output=~ /not unique/i;
     carp $output if ($output!~ /240/);
-#    carp $output if ();
     
   }
 
 }
 
 sub _yenc_encode{
-  my $self = shift;
-  my $string = shift;
+  my ($self, $string) = @_;
   my $column = 0;
   my $content = '';
-
 
 
   #first version: slow but better to understand the algorithm
@@ -337,66 +292,49 @@ sub _yenc_encode{
   #   ....
   # }
 
+  my @characterList = ();
   my @hexString = unpack('W*',$string); #Converts binary string to hex
+
   foreach my $hexChar (@hexString) {
-    my $char= ($hexChar+42)%256;
-  
-    if ($char == 0 ||		# null
+    my $char= $YENC_CHAR_MAP[$hexChar];
+
+    if ($column == 0) {
+      if ($char == 9 || $char == 32 || $char == 46) { # TAB SPACE .
+    	$content = $content .'=';
+    	$column++;
+    	$char=($char + 64);#%256; -> this division doesn't change nothing since char + 64 will be always less than 256
+      }
+    }elsif ($column == $YENC_NNTP_LINESIZE) {
+      if ($char == 9 || $char == 32) { # TAB #SPACE
+    	$content = $content .'=';
+    	$column++;
+    	$char=($char + 64);#%256;  -> this division doesn't change nothing since char + 64 will be always less than 256
+      }
+
+    }
+    if (
+	$char == 0 ||		# null
   	$char == 10 ||		# LF
   	$char == 13 ||		# CR
-  	$char == 61 ||		# =
-  	(($char == 9 || $char == 32) && ($column == $YENC_NNTP_LINESIZE || $column==0)) || # TAB || SPC
-  	($char==46 && $column==0) # . 
+  	$char == 61 		# =
        ) {
+
+      $content = $content .'=';
+      $column++;
       
-      $content .= '=';
-      $column+=1;
-      
-      $char=($char + 64)%256;
+      $char=($char + 64);#%256; -> this division doesn't change nothing since char + 64 will be always less than 256
     }
-    $content .= chr $char;
-    
-    $column+=1;
+
+    $content = $content .chr $char;
+    $column++;
     
     if ($column> $YENC_NNTP_LINESIZE ) {
       $column=0;
-      $content .= "\r\n";
+      $content = $content ."\r\n"; 
     }
   }
-  
+
   return $content;
-}
-
-
-sub mycrc32 {
- my ($input, $init_value, $polynomial) = @_;
-
- $init_value = 0 unless (defined $init_value);
- $polynomial = 0xedb88320 unless (defined $polynomial);
-
- my @lookup_table;
-
- for (my $i=0; $i<256; $i++) {
-   my $x = $i;
-   for (my $j=0; $j<8; $j++) {
-     if ($x & 1) {
-       $x = ($x >> 1) ^ $polynomial;
-     } else {
-       $x = $x >> 1;
-     }
-   }
-   push @lookup_table, $x;
- }
-
- my $crc = $init_value ^ 0xffffffff;
-
- foreach my $x (unpack ('C*', $input)) {
-   $crc = (($crc >> 8) & 0xffffff) ^ $lookup_table[ ($crc ^ $x) & 0xff ];
- }
-
- $crc = $crc ^ 0xffffffff;
-
- return $crc;
 }
 
 

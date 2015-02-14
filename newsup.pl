@@ -135,9 +135,9 @@ sub _get_message_id{
   
   my $time = _encode_base36("$s$usec",8);
   my $randomness = _encode_base36(rand("$s$usec"),8);
-  
-  return sprintf("newsup.%s.%s@%s",$time,$randomness,
-		 sprintf("%s.%s",substr(md5_hex(rand()),-5,5), substr(md5_hex(time()),-3,3)));
+  my $md5Rand = substr(md5_hex(rand()),-5,5);
+  my $md5Time=substr(md5_hex(time()),-3,3);
+  return "newsup.$time.$randomness\@$md5Rand.$md5Time";
   
 }
 
@@ -191,11 +191,13 @@ sub main{
 
   
   my $tempFilesRef = _get_files_to_upload($filesToUploadRef);
-  
+  my $totalSize=0;
+
+  $totalSize +=-s $_ for (@$tempFilesRef);
   
   $tempFilesRef = _distribute_files_by_connection ($connections, $tempFilesRef); 
   
-  
+  my $timer = time();
   my @threadsList = ();
   for (my $i = 0; $i<$connections; $i++) {
     say 'Starting connection '.($i+1).' for uploading';
@@ -214,6 +216,9 @@ sub main{
     say "Parent: Child $child was reaped - ", scalar localtime, ".";
   }
 
+  printf("Transfer speed: [%0.2f KBytes/sec]\r\n", $totalSize/(time()-$timer)/1024);
+
+  
   my @nzbSegmentsList = ();
   for my $connectionFiles (@$tempFilesRef) {
     for my $file (@$connectionFiles) {
@@ -233,19 +238,9 @@ sub main{
   }
   
 
-  #  my @nzbSegmentsList = ();
-  #  for (my $i = 0; $i<$connections; $i++){
-  #    push @nzbSegmentsList, $threadsList[$i]->join();
-  #  }
-  
-  # my %filesToRemove = ();
-  # for my $tempFileNameSegment (@$tempFilesRef) {
-  #   $filesToRemove{$_->[0]}=1 for (@$tempFileNameSegment);
-  # }
-  # unlink keys %filesToRemove;
   
   my $nzbGen = NZB::Generator->new($nzbName, $meta, \@nzbSegmentsList, $from, $newsGroupsRef);
-  say 'File '.$nzbGen->write_nzb . " created!\r\n";
+  say 'NZB file '.$nzbGen->write_nzb . " created!\r\n";
   
 }
 
@@ -282,3 +277,4 @@ main();
 #my $t1 = Benchmark->new;
 #my $td = timediff($t1, $t0);
 #print "Uploading took:",timestr($td),"\n";
+
