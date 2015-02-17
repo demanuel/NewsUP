@@ -15,6 +15,16 @@ As i realized that most users already have scripts to create rars/7z and parity 
 
 I changed the code to use processes instead of threads to improve performance.
 
+## Scritps
+The folder scripts is a folder where NewsUP functionalities can be extended (please check the configuration section).
+Scripts available:
+*- uploadit.pl - this script will create splitted RARs, PAR2 files, a sfv file and a NZB file.
+To run it you just need to:
+```
+perl uploadit.pl -f file_to_upload -name my_file -group alt.binaries.test
+```
+This will create a bunch of rars (check the configuration section for the split size) of file "file_to_upload" (you can have multiple -f switches). The name prefix of the RAR,NZB and SFV will be "my_name" (switch -name). And these files will be posted to group "alt.binaries.test" (you can have multiple -g switches)
+
 
 ## Alternatives
 * newsmangler (https://github.com/madcowfred/newsmangler)
@@ -78,6 +88,38 @@ uploader= NewsUP <NewsUp@localhost.localdomain> #To identify de uploader and to 
 
 [generic]
 headerCheck= 1 #0 or 1. If this is enable, after each thread finishes their uploads it will check if the header was uploaded to server through a stat command
+
+
+[script_vars]
+############################
+#
+# This section is variables only used by the scripts on the script folder
+# The newsup.pl script doesn't use any of the variables here
+############################
+# Path to newsup script. Please make sure that the script is executable. Check it's permissions
+PATH_TO_UPLOADER=../newsup.pl
+# Path to RAR executable
+PATH_TO_RAR=/usr/bin/rar
+# RAR volume size in megabytes 
+RAR_VOLUME_SIZE=50
+# RAR compression level
+RAR_COMPRESSION=0
+# RAR Password
+RAR_PASSWORD=newsup
+# Path to PAR2 executable
+PATH_TO_PAR2=/usr/bin/par2
+# Folder to where the scripts files should be written
+# It's obigatory to terminate on the separator folder char.
+TEMP_DIR=/tmp/
+# Par recovery %
+PAR_REDUNDANCY=10
+# Randomize Names
+# The names are toggled. Imagine 3 files: a, b and c. The file a will keep the name. The file b  will exchange name with file c. This is done randomly.
+RANDOMIZE_NAMES=1
+
+
+
+
 ```
 
 

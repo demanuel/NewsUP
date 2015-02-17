@@ -18,14 +18,14 @@ use Data::Dumper;
 use Digest::MD5 qw(md5_hex);
 use 5.018;
 use Benchmark qw(:all);
+use POSIX qw(floor);
 
 #750Kb - the segment size. I tried with 4 Megs and got a 441. The allowed posting segment size isn't standard
-our $NNTP_MAX_UPLOAD_SIZE=750*1024; 
+our $NNTP_MAX_UPLOAD_SIZE=512*1024; 
 my $YENC_NNTP_LINESIZE=128;
 $|=1;
 
-my @YENC_CHAR_MAP = map{($_+42)%256} (0..0xffff);
-
+my @YENC_CHAR_MAP = map{($_+42)%256;} (0..0xffff);
 
 
 sub new{
@@ -91,7 +91,6 @@ sub _authenticate{
   my $username = $self->{username};
   print $socket "authinfo user $username\r\n";
   sysread($socket, my $output, 8192);
-
   
   my $status = substr($output,0,3);
   if ($status != 381) {
@@ -103,8 +102,6 @@ sub _authenticate{
   print $socket "authinfo pass $password\r\n";
   sysread($socket, $output, 8192);
 
-
-  
   $status = substr($output,0,3);
   if ($status != 281 && $status != 250) {
     carp $output;
@@ -138,6 +135,7 @@ sub transmit_files{
   }
 
   for my $filePair (@$filesListRef) {
+    my $initTime = time();
     open my $ifh, '<:bytes', $filePair->[0] or die "Couldn't open file: $!";
     binmode $ifh;
 
@@ -147,7 +145,7 @@ sub transmit_files{
 
     my $fileSize= -s $filePair->[0];
     my $fileName=(fileparse($filePair->[0]))[0];
-    my ($readedData, $readSize) = $self->_get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
+    my ($readedData, $readSize) = _get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
 
     my $subject = "\"$fileName\" yenc ($currentFilePart/$totalFilePart) [$fileSize]";
     
@@ -155,20 +153,15 @@ sub transmit_files{
     $subject = "$subject [$endComment]" if defined $endComment;
 
 
-    my $content = $self->_get_post_body($currentFilePart, $totalFilePart, $fileName,
-					1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1), $readSize, $readedData);
+    my $content = _get_post_body($currentFilePart, $totalFilePart, $fileName,
+				 1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1), $readSize, $readedData);
 
     $self->_post($newsgroupsRef, $filePair->[2], $subject, $content, $from);
-
     close $ifh;
-    # my $t1 = Benchmark->new;
-    # my $td = timediff($t1, $t0);
-    # print "the code took:",timestr($td),"\n";
-
+    my $speed = floor($readSize/1024/(time()-$initTime));
+    print "[$speed KBytes/sec]\r";
   }
 }
-
-
 
 #It will perform the header check!
 sub header_check{
@@ -199,7 +192,7 @@ sub header_check{
 
 
 sub _get_file_bytes_by_part{
-  my ($self, $fileNameHandle, $part) = @_;
+  my ($fileNameHandle, $part) = @_;
 
   my $correctPosition = $NNTP_MAX_UPLOAD_SIZE*$part;
 
@@ -213,9 +206,8 @@ sub _get_file_bytes_by_part{
 
 sub _get_post_body{
 
-  my ($self, $filePart, $fileMaxParts, $fileName, $startingBytes, $readSize, $bytes)=@_;
-
-  my $yencBody=$self->_yenc_encode($bytes);
+  my ($filePart, $fileMaxParts, $fileName, $startingBytes, $readSize, $bytes)=@_;
+  my $yencBody=_yenc_encode($bytes);
   #some clients will complain if this is missing
   my $pcrc32 = sprintf("%x", crc32($bytes));
   
@@ -264,7 +256,6 @@ $content\r
 END
       
       sysread($socket, $output, 8192);
-
       
     };
     if ($@){
@@ -274,17 +265,50 @@ END
 
     #441 Posting Failed. Message-ID is not unique E1
     carp $output if ($output!~ /240/);
-    
   }
 
 }
 
 sub _yenc_encode{
-  my ($self, $string) = @_;
+  my ($string) = @_;
   my $column = 0;
   my $content = '';
 
 
+  my @hexString = unpack('W*',$string); #Converts binary string to hex
+ 
+  for my $hexChar (@hexString) {
+    my $char= $YENC_CHAR_MAP[$hexChar];
+
+    if ($char == 0 ||		# null
+  	$char == 10 ||		# LF
+  	$char == 13 ||		# CR
+  	$char == 61 ||		# =
+  	(($char == 9 || $char == 32) && ($column == $YENC_NNTP_LINESIZE || $column==0)) || # TAB || SPC
+  	($char==46 && $column==0) # . 
+       ) {
+      
+      $content =$content. '=';
+      $column+=1;
+      
+      $char=($char + 64);#%256;
+    }
+    $content = $content.chr $char;
+    
+    $column+=1;
+    
+    if ($column> $YENC_NNTP_LINESIZE ) {
+      $column=0;
+      $content = $content."\r\n";
+    }
+
+  }
+
+  return $content;
+  
+
+
+  
   #first version: slow but better to understand the algorithm
   # for(my $i=0; $i<bytes::length($string); $i++){
   #   my $byte=bytes::substr($string,$i,1);
@@ -292,49 +316,49 @@ sub _yenc_encode{
   #   ....
   # }
 
-  my @characterList = ();
-  my @hexString = unpack('W*',$string); #Converts binary string to hex
+  # my @characterList = ();
+  # my @hexString = unpack('W*',$string); #Converts binary string to hex
 
-  foreach my $hexChar (@hexString) {
-    my $char= $YENC_CHAR_MAP[$hexChar];
+  # foreach my $hexChar (@hexString) {
+  #   my $char= $YENC_CHAR_MAP[$hexChar];
 
-    if ($column == 0) {
-      if ($char == 9 || $char == 32 || $char == 46) { # TAB SPACE .
-    	$content = $content .'=';
-    	$column++;
-    	$char=($char + 64);#%256; -> this division doesn't change nothing since char + 64 will be always less than 256
-      }
-    }elsif ($column == $YENC_NNTP_LINESIZE) {
-      if ($char == 9 || $char == 32) { # TAB #SPACE
-    	$content = $content .'=';
-    	$column++;
-    	$char=($char + 64);#%256;  -> this division doesn't change nothing since char + 64 will be always less than 256
-      }
+  #   if ($column == 0) {
+  #     if ($char == 9 || $char == 32 || $char == 46) { # TAB SPACE .
+  #   	$content = $content .'=';
+  #   	$column++;
+  #   	$char=($char + 64);#%256; -> this division doesn't change nothing since char + 64 will be always less than 256
+  #     }
+  #   }elsif ($column == $YENC_NNTP_LINESIZE) {
+  #     if ($char == 9 || $char == 32) { # TAB #SPACE
+  #   	$content = $content .'=';
+  #   	$column++;
+  #   	$char=($char + 64);#%256;  -> this division doesn't change nothing since char + 64 will be always less than 256
+  #     }
 
-    }
-    if (
-	$char == 0 ||		# null
-  	$char == 10 ||		# LF
-  	$char == 13 ||		# CR
-  	$char == 61 		# =
-       ) {
+  #   }
+  #   if (
+  # 	$char == 0 ||		# null
+  # 	$char == 10 ||		# LF
+  # 	$char == 13 ||		# CR
+  # 	$char == 61 		# =
+  #      ) {
 
-      $content = $content .'=';
-      $column++;
+  #     $content = $content .'=';
+  #     $column++;
       
-      $char=($char + 64);#%256; -> this division doesn't change nothing since char + 64 will be always less than 256
-    }
+  #     $char=($char + 64);#%256; -> this division doesn't change nothing since char + 64 will be always less than 256
+  #   }
 
-    $content = $content .chr $char;
-    $column++;
+  #   $content = $content .chr $char;
+  #   $column++;
     
-    if ($column> $YENC_NNTP_LINESIZE ) {
-      $column=0;
-      $content = $content ."\r\n"; 
-    }
-  }
+  #   if ($column> $YENC_NNTP_LINESIZE ) {
+  #     $column=0;
+  #     $content = $content ."\r\n"; 
+  #   }
+  # }
 
-  return $content;
+  # return $content;
 }
 
 
