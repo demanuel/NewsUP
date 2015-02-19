@@ -69,10 +69,10 @@ sub main{
     say "Creating parity files";  
     my $filesToUpload = create_parity_archives($checkSumFiles, \%script_vars);
     
-    $filesToUpload = randomize_archives($checkSumFiles, \%script_vars);
+    randomize_archives($checkSumFiles, \%script_vars);
     
     say "Starting upload";
-    #upload_files($filesToUpload,\%script_vars);
+    upload_files($filesToUpload,\%script_vars);
     unlink @$filesToUpload;
 
   }else {
@@ -90,13 +90,12 @@ sub upload_files{
   }else {
     say "No files to upload!";
   }
-
 }
 
 sub randomize_archives{
   my ($compressedFiles,$scriptVarsRef) = @_;
   
-  return $compressedFiles if ($scriptVarsRef->{RANDOMIZE_NAMES}==0);
+  return $compressedFiles if ($scriptVarsRef->{RANDOMIZE_NAMES}==0 || @$compressedFiles > 1);
 
   my @notParityFiles = ();
   for (@$compressedFiles) {
@@ -107,7 +106,7 @@ sub randomize_archives{
     my $number2 = int(rand(@notParityFiles));
     $number2 = int(rand(@notParityFiles)) while ($number2 == $number1);
 
-    my $time = time;
+    my $time = time();
     my $file1 = $notParityFiles[$number1];
     my $file2 = $notParityFiles[$number2];
     mv($file1, "$file1.$time");
@@ -127,7 +126,7 @@ sub create_sfv_file{
     my $file = $_;
     my $fileName=(fileparse($file))[0];
     open my $ifh, '<', $file;
-    my $crc32 = crc32(*$ifh);
+    my $crc32 = sprintf("%08x",crc32($ifh));
     print $ofh "$fileName $crc32\r\n";
     close $ifh;
   }
@@ -153,10 +152,10 @@ sub create_parity_archives{
   }
   
   my $globString = $scriptVarsRef->{TEMP_DIR}."$NAME*par2";
-  my @parFiles = <"$globString">;  
-  my @files = ();
+
+  my @files=();
   push @files, $_ for(@$compressedFiles); 
-  push @files, $_ for(@parFiles);
+  push @files, $_ for <"$globString">;
 
   return \@files;
   

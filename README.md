@@ -11,9 +11,7 @@ This program is licensed with GPLv3.
 
 
 ## note
-As i realized that most users already have scripts to create rars/7z and parity files i dropped the options to create 7zip and parity files. But if you want them, just send me an email i can restore them.
-
-I changed the code to use processes instead of threads to improve performance.
+As i realized that most users already have scripts to create rars/7z and parity files i dropped the options to create 7zip and parity files. But if you want them, just send me an email i can restore them. However the best option is to use one of the scripts on the Scripts folder.
 
 ## Scritps
 The folder scripts is a folder where NewsUP functionalities can be extended (please check the configuration section).
