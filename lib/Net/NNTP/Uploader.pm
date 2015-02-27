@@ -37,7 +37,8 @@ sub new{
 	      port=>$port,
 	      connection=>$connectionNumber,
 	      username=>$username,
-	      userpass=>$userpass};
+	      userpass=>$userpass,
+	      parentChannel => IO::Socket::INET->new(Proto => 'udp',PeerAddr=>'127.0.0.1:8675')};
   
 
   if ($port!= 119 && $port != 80 && $port != 23 ) {
@@ -135,7 +136,7 @@ sub transmit_files{
   }
 
   for my $filePair (@$filesListRef) {
-    my $initTime = time();
+ #   my $initTime = time();
     open my $ifh, '<:bytes', $filePair->[0] or die "Couldn't open file: $!";
     binmode $ifh;
 
@@ -158,8 +159,11 @@ sub transmit_files{
 
     $self->_post($newsgroupsRef, $filePair->[2], $subject, $content, $from);
     close $ifh;
-    my $speed = floor($readSize/1024/(time()-$initTime));
-    print "[$speed KBytes/sec]\r";
+    #    my $speed = floor($readSize/1024/(time()-$initTime));
+    #    print "[$speed KBytes/sec]\r";
+
+    $|=1;
+    $self->{parentChannel}->send("$readSize");
   }
 }
 
@@ -174,17 +178,20 @@ sub header_check{
   sysread($socket, $output, 8192);
     
   for my $fileRef (@$filesRef) {
+    my $count = 0;
     do {
       my $messageID = $fileRef->[2];
       print $socket "stat <$messageID>\r\n";
       sysread($socket, $output, 8192);
       chop $output;
-
-      if (substr($output,0,3) == 223) {
+      
+      if (substr($output,0,3) == 223 || $count==5) {
+	say "Aborting! Header $messageID not found on the server! Please check for issues on the server." if $count == 5;
 	next;
       }else {
 	say "Header check: Missing segment $messageID [$output]";
 	$self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups);
+	$count=$count+1;
       }
     }while(1);
   }

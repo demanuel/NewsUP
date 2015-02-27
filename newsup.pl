@@ -36,7 +36,8 @@ use POSIX;
 use Data::Dumper;
 use Digest::MD5 qw/md5_hex/;
 use POSIX ":sys_wait_h";
-use Time::HiRes qw/gettimeofday/;
+use Time::HiRes qw/gettimeofday tv_interval/;
+use IO::Socket::INET;
 
 #Returns a bunch of options that it will be used on the upload. Options passed through command line have precedence over
 #options on the config file
@@ -44,7 +45,7 @@ sub _parse_command_line{
 
   my ($server, $port, $username,$userpasswd,
       @filesToUpload, $threads, @comments,
-      $from, $headerCheck, $nzbName);
+      $from, $headerCheck, $nzbName, $monitoringPort);
 
   
   my @newsGroups = ();
@@ -61,7 +62,8 @@ sub _parse_command_line{
 	     'connections=i'=>\$threads,
 	     'metadata=s'=>\%metadata,
 	     'nzb=s'=>\$nzbName,
-	     'headerCheck'=>\$headerCheck);
+	     'headerCheck'=>\$headerCheck,
+	     'monitoringPort'=>\$monitoringPort);
 
   if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
 
@@ -93,6 +95,9 @@ sub _parse_command_line{
     if (!defined $headerCheck) {
       $headerCheck = $config->{generic}{headerCheck} if exists $config->{generic}{headerCheck};
     }
+    if (!defined $monitoringPort) {
+      $monitoringPort = $config->{generic}{monitoringPort} if exists $config->{generic}{monitoringPort};
+    }
   }
   
   if (!defined $server || !defined $port || !defined $username || !defined $from || @newsGroups==0) {
@@ -101,7 +106,8 @@ sub _parse_command_line{
 
   return ($server, $port, $username, $userpasswd, 
 	  \@filesToUpload, $threads, \@newsGroups, 
-	  \@comments, $from, \%metadata, $headerCheck, $nzbName);
+	  \@comments, $from, \%metadata, $headerCheck,
+	  $nzbName,$monitoringPort);
 }
 
 sub _distribute_files_by_connection{
@@ -177,27 +183,27 @@ sub _get_files_to_upload{
 }
 
 
-
-
-
-
-
-
 sub main{
 
   my ($server, $port, $username, $userpasswd, 
       $filesToUploadRef, $connections, $newsGroupsRef, 
-      $commentsRef, $from, $meta, $headerCheck, $nzbName)=_parse_command_line();
+      $commentsRef, $from, $meta, $headerCheck,
+      $nzbName, $monitoringPort)=_parse_command_line();
 
   
   my $tempFilesRef = _get_files_to_upload($filesToUploadRef);
   my $totalSize=0;
 
+  
   $totalSize +=-s $_ for (@$tempFilesRef);
   
-  $tempFilesRef = _distribute_files_by_connection ($connections, $tempFilesRef); 
+  $tempFilesRef = _distribute_files_by_connection ($connections, $tempFilesRef);
+
+  my $lastChild = _monitoring_server_start($monitoringPort, $connections,
+					   ceil($totalSize/$Net::NNTP::Uploader::NNTP_MAX_UPLOAD_SIZE));
   
   my $timer = time();
+  
   my @threadsList = ();
   for (my $i = 0; $i<$connections; $i++) {
     say 'Starting connection '.($i+1).' for uploading';
@@ -209,12 +215,13 @@ sub main{
   }
 
 
-  while (1) {
-    my $child = waitpid(-1, 0);
-    last if $child == -1;       # No more outstanding children
-    
+  for (@threadsList) {
+    my $child = $_;
+    waitpid($child,0);
     say "Parent: Child $child was reaped - ", scalar localtime, ".";
   }
+  #all the kids died. There's no point in keeping the last child - the monitoring server
+  kill 'KILL', $lastChild;
 
   printf("Transfer speed: [%0.2f KBytes/sec]\r\n", $totalSize/(time()-$timer)/1024);
 
@@ -237,8 +244,6 @@ sub main{
     }
   }
   
-
-  
   my $nzbGen = NZB::Generator->new($nzbName, $meta, \@nzbSegmentsList, $from, $newsGroupsRef);
   say 'NZB file '.$nzbGen->write_nzb . " created!\r\n";
   
@@ -248,6 +253,7 @@ sub main{
 sub _transmit_files{
 
   my $pid;
+
   unless (defined($pid = fork())) {
     carp "cannot fork: $!";
     return -1;
@@ -270,6 +276,56 @@ sub _transmit_files{
   
   exit 0;
 }
+
+
+sub _monitoring_server_start {
+#  my $kernel = $_[KERNEL];
+  my ($monitoringPort, $connections, $maxParts)=@_;
+
+  my $pid;
+  unless (defined($pid = fork())) {
+    carp "cannot fork: $!";
+    return -1;
+  }
+  elsif ($pid) {
+    return $pid; # I'm the parent
+  }
+
+  my $socket = IO::Socket::INET->new(
+				     Proto    => 'udp',
+				     LocalPort => $monitoringPort,
+				    );
+  die "Couldn't create Monitoring server: $!\r\nThe program will continue without monitoring!" unless $socket;
+  my $count=0;
+  my $t0 = [gettimeofday];
+  my $size=0;
+  while ($socket->recv(my $msg, 1024)) {
+    $count=$count+1;
+    $size+=$msg;
+    if ($count % $connections==0) {#To avoid peaks;
+      my $elapsed = tv_interval($t0);
+      $t0 = [gettimeofday];
+      my $speed = floor($size/1024/$elapsed);
+      my $percentage=floor($count/$maxParts*100);
+
+      printf( "%3d%% [%-10d KBytes/sec]\r", $percentage, $speed);# "$percentage\% [$speed KBytes/sec]\r";
+      $size=0;
+    }
+  }
+
+  #$kernel->select_read($socket, "get_datagram");
+}
+
+# sub server_read {
+#   my ($kernel, $socket) = @_[KERNEL, ARG0];
+#   recv($socket, my $message = "1", 1024, 0);
+
+#   my $speed = floor($message/1024/(time()-$_[HEAP]{ts_start}));
+#   print "[$speed KBytes/sec]\r";
+  
+#   $_[HEAP]{ts_start}=time();
+# }
+
 
 #use Benchmark qw(:all);
 #my $t0 = Benchmark->new;
