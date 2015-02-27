@@ -278,8 +278,8 @@ sub _transmit_files{
 }
 
 
+# Launches a process only to collect upload statistics and display on stdout
 sub _monitoring_server_start {
-#  my $kernel = $_[KERNEL];
   my ($monitoringPort, $connections, $maxParts)=@_;
 
   my $pid;
