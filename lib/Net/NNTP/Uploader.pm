@@ -30,7 +30,7 @@ my @YENC_CHAR_MAP = map{($_+42)%256;} (0..0xffff);
 
 sub new{
 
-  my ($class, $connectionNumber, $server, $port, $username, $userpass) = @_;
+  my ($class, $connectionNumber, $server, $port, $username, $userpass,$monitoringPort) = @_;
   
   my $self = {authenticated=>0,
 	      server=>$server,
@@ -38,8 +38,7 @@ sub new{
 	      connection=>$connectionNumber,
 	      username=>$username,
 	      userpass=>$userpass,
-	      parentChannel => IO::Socket::INET->new(Proto => 'udp',PeerAddr=>'127.0.0.1:8675')};
-  
+	      parentChannel => IO::Socket::INET->new(Proto => 'udp',PeerAddr=>"localhost:$monitoringPort")};
 
   if ($port!= 119 && $port != 80 && $port != 23 ) {
     $self->{ssl}=1;
@@ -194,7 +193,7 @@ sub header_check{
 	say "Aborting! Header $messageID not found on the server! Please check for issues on the server." if $count == 5;
 	next;
       }else {
-	say "Header check: Missing segment $messageID [$output]";
+	print "\rHeader check: Missing segment $messageID [$output]\r\n";
 	$self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups);
 	$count=$count+1;
       }
@@ -276,7 +275,7 @@ END
     }
 
     #441 Posting Failed. Message-ID is not unique E1
-    carp $output if ($output!~ /240/);
+    say $output if ($output!~ /240/);
   }
 
 }
@@ -328,49 +327,6 @@ sub _yenc_encode{
   #   ....
   # }
 
-  # my @characterList = ();
-  # my @hexString = unpack('W*',$string); #Converts binary string to hex
-
-  # foreach my $hexChar (@hexString) {
-  #   my $char= $YENC_CHAR_MAP[$hexChar];
-
-  #   if ($column == 0) {
-  #     if ($char == 9 || $char == 32 || $char == 46) { # TAB SPACE .
-  #   	$content = $content .'=';
-  #   	$column++;
-  #   	$char=($char + 64);#%256; -> this division doesn't change nothing since char + 64 will be always less than 256
-  #     }
-  #   }elsif ($column == $YENC_NNTP_LINESIZE) {
-  #     if ($char == 9 || $char == 32) { # TAB #SPACE
-  #   	$content = $content .'=';
-  #   	$column++;
-  #   	$char=($char + 64);#%256;  -> this division doesn't change nothing since char + 64 will be always less than 256
-  #     }
-
-  #   }
-  #   if (
-  # 	$char == 0 ||		# null
-  # 	$char == 10 ||		# LF
-  # 	$char == 13 ||		# CR
-  # 	$char == 61 		# =
-  #      ) {
-
-  #     $content = $content .'=';
-  #     $column++;
-      
-  #     $char=($char + 64);#%256; -> this division doesn't change nothing since char + 64 will be always less than 256
-  #   }
-
-  #   $content = $content .chr $char;
-  #   $column++;
-    
-  #   if ($column> $YENC_NNTP_LINESIZE ) {
-  #     $column=0;
-  #     $content = $content ."\r\n"; 
-  #   }
-  # }
-
-  # return $content;
 }
 
 

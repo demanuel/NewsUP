@@ -46,7 +46,8 @@ sub _parse_command_line{
   my ($server, $port, $username,$userpasswd,
       @filesToUpload, $threads, @comments,
       $from, $headerCheck, $nzbName, $monitoringPort);
-
+	  
+  $monitoringPort=8675;
   
   my @newsGroups = ();
   my %metadata=();
@@ -100,8 +101,8 @@ sub _parse_command_line{
     }
   }
   
-  if (!defined $server || !defined $port || !defined $username || !defined $from || @newsGroups==0) {
-    croak "Please check the parameters ('server', 'port', 'username'/'password', 'from' and 'newsgoup')";
+  if (!defined $server || !defined $port || !defined $username || !defined $from || @newsGroups==0 || !defined $threads) {
+    croak "Please check the parameters ('server', 'port', 'username'/'password', 'connections','uploader' and 'newsgoup')";
   }
 
   return ($server, $port, $username, $userpasswd, 
@@ -185,7 +186,6 @@ sub main{
       $filesToUploadRef, $connections, $newsGroupsRef, 
       $commentsRef, $from, $meta, $headerCheck,
       $nzbName, $monitoringPort)=_parse_command_line();
-
   
   my $tempFilesRef = _get_files_to_upload($filesToUploadRef);
   my $totalSize=0;
@@ -203,10 +203,11 @@ sub main{
   my @threadsList = ();
   for (my $i = 0; $i<$connections; $i++) {
     say 'Starting connection '.($i+1).' for uploading';
+	
     push @threadsList, _transmit_files($i,
 				       $server, $port, $username, $userpasswd, 
 				       $tempFilesRef->[$i], $connections, $newsGroupsRef, 
-				       $commentsRef, $from, $headerCheck);
+				       $commentsRef, $from, $headerCheck, $monitoringPort);
 
   }
 
@@ -257,16 +258,16 @@ sub _transmit_files{
   elsif ($pid) {
     return $pid; # I'm the parent
   }
-  
+
   my ($connectionNumber, $server, $port, $username, $userpasswd, 
       $filesRef, $connections, $newsGroupsRef, 
-      $commentsRef, $from, $headerCheck, $temp) = @_;
-
-  my $uploader = Net::NNTP::Uploader->new($connectionNumber, $server, $port, $username, $userpasswd);
+      $commentsRef, $from, $headerCheck, $monitoringPort) = @_;
+	  
+  my $uploader = Net::NNTP::Uploader->new($connectionNumber, $server, $port, $username, $userpasswd, $monitoringPort);
   $uploader->transmit_files($filesRef, $from, $commentsRef->[0], $commentsRef->[1], $newsGroupsRef);
   
   if ($headerCheck){
-    $uploader->header_check($filesRef, $newsGroupsRef, $from, $commentsRef, $temp);
+    $uploader->header_check($filesRef, $newsGroupsRef, $from, $commentsRef);
   }
   $uploader->logout;
   
@@ -290,7 +291,8 @@ sub _monitoring_server_start {
   my $socket = IO::Socket::INET->new(
 				     Proto    => 'udp',
 				     LocalPort => $monitoringPort,
-				     Blocking => 1,
+				     Blocking => '1',
+					 LocalAddr => 'localhost'
 				    );
   die "Couldn't create Monitoring server: $!\r\nThe program will continue without monitoring!" unless $socket;
   my $count=0;
@@ -298,6 +300,7 @@ sub _monitoring_server_start {
   my $size=0;
   while (1) {
     $socket->recv(my $msg, 1024);
+	
     $count=$count+1;
     $size+=$msg;
     if ($count % $connections==0) {#To avoid peaks;
