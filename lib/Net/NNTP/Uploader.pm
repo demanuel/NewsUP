@@ -147,7 +147,7 @@ sub transmit_files{
     my $fileSize= -s $filePair->[0];
     my $fileName=(fileparse($filePair->[0]))[0];
     my ($readedData, $readSize) = _get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
-
+    close $ifh;
     my $subject = "\"$fileName\" yenc ($currentFilePart/$totalFilePart) [$fileSize]";
     
     $subject = "[$initComment] $subject" if defined $initComment;
@@ -157,8 +157,13 @@ sub transmit_files{
     my $content = _get_post_body($currentFilePart, $totalFilePart, $fileName,
 				 1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1), $readSize, $readedData);
 
+    #Free readed data
+    undef $readedData;
+    
     $self->_post($newsgroupsRef, $filePair->[2], $subject, $content, $from);
-    close $ifh;
+    #Free readed data
+    undef $content;
+    
     #    my $speed = floor($readSize/1024/(time()-$initTime));
     #    print "[$speed KBytes/sec]\r";
 

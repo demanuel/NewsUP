@@ -122,7 +122,6 @@ sub _distribute_files_by_connection{
       push @segments, [$file, "$_/$maxParts", _get_message_id()];
     }
   }
-  
   my @threadedSegments;
   my $i = 0;
   foreach my $elem (@segments) {
@@ -138,13 +137,10 @@ sub _distribute_files_by_connection{
 sub _get_message_id{
 
   (my $s, my $usec) = gettimeofday();
+  my $time = _encode_base36("$s$usec");
+  my $randomness = _encode_base36(rand("$s$usec"));
   
-  my $time = _encode_base36("$s$usec",8);
-  my $randomness = _encode_base36(rand("$s$usec"),8);
-  my $md5Rand = substr(md5_hex(rand()),-5,5);
-  my $md5Time=substr(md5_hex(time()),-3,3);
-  return "newsup.$time.$randomness\@$md5Rand.$md5Time";
-  
+  return "$s$usec.$randomness\@$time.newsup";
 }
 
 
