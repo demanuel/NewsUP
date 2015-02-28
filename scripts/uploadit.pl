@@ -167,7 +167,7 @@ sub compress_files{
 
   my $rarCmd=$scriptVarsRef->{PATH_TO_RAR}." a -m0 ";
   $rarCmd .= "-p".$scriptVarsRef->{RAR_PASSWORD} if defined $scriptVarsRef->{RAR_PASSWORD};
-  $rarCmd .=" -v".($scriptVarsRef->{RAR_VOLUME_SIZE})."M ".$scriptVarsRef->{TEMP_DIR}."$NAME -r ".join(' ',@FILES);
+  $rarCmd .=" -v".($scriptVarsRef->{RAR_VOLUME_SIZE})."M -ep ".$scriptVarsRef->{TEMP_DIR}."$NAME -r ".join(' ',@FILES);
 
   my $globString = $scriptVarsRef->{TEMP_DIR}."$NAME*";
   `$rarCmd`;
