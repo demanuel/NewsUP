@@ -292,7 +292,7 @@ sub _monitoring_server_start {
 				     Proto    => 'udp',
 				     LocalPort => $monitoringPort,
 				     Blocking => '1',
-					 LocalAddr => 'localhost'
+				     LocalAddr => 'localhost'
 				    );
   die "Couldn't create Monitoring server: $!\r\nThe program will continue without monitoring!" unless $socket;
   my $count=0;
