@@ -290,12 +290,14 @@ sub _monitoring_server_start {
   my $socket = IO::Socket::INET->new(
 				     Proto    => 'udp',
 				     LocalPort => $monitoringPort,
+				     Blocking => 1,
 				    );
   die "Couldn't create Monitoring server: $!\r\nThe program will continue without monitoring!" unless $socket;
   my $count=0;
   my $t0 = [gettimeofday];
   my $size=0;
-  while ($socket->recv(my $msg, 1024)) {
+  while (1) {
+    $socket->recv(my $msg, 1024);
     $count=$count+1;
     $size+=$msg;
     if ($count % $connections==0) {#To avoid peaks;
@@ -304,23 +306,13 @@ sub _monitoring_server_start {
       my $speed = floor($size/1024/$elapsed);
       my $percentage=floor($count/$maxParts*100);
 
-      printf( "%3d%% [%-10d KBytes/sec]\r", $percentage, $speed);# "$percentage\% [$speed KBytes/sec]\r";
+      printf( "%3d%% [%-8d KBytes/sec]\r", $percentage, $speed);# "$percentage\% [$speed KBytes/sec]\r";
       $size=0;
     }
   }
 
-  #$kernel->select_read($socket, "get_datagram");
+  exit 0;#Just to be sure that the process doesn't go further than this.
 }
-
-# sub server_read {
-#   my ($kernel, $socket) = @_[KERNEL, ARG0];
-#   recv($socket, my $message = "1", 1024, 0);
-
-#   my $speed = floor($message/1024/(time()-$_[HEAP]{ts_start}));
-#   print "[$speed KBytes/sec]\r";
-  
-#   $_[HEAP]{ts_start}=time();
-# }
 
 
 #use Benchmark qw(:all);
