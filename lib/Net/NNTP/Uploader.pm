@@ -165,9 +165,10 @@ sub transmit_files{
     
     #    my $speed = floor($readSize/1024/(time()-$initTime));
     #    print "[$speed KBytes/sec]\r";
-
-    $|=1;
-    $self->{parentChannel}->send("$readSize");
+    if (!$isHeaderCheck) {
+      $|=1;
+      $self->{parentChannel}->send("$readSize");
+    }
   }
 }
 
