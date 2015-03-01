@@ -165,10 +165,9 @@ sub transmit_files{
     
     #    my $speed = floor($readSize/1024/(time()-$initTime));
     #    print "[$speed KBytes/sec]\r";
-    if (!$isHeaderCheck) {
-      $|=1;
-      $self->{parentChannel}->send("$readSize");
-    }
+    $|=1;
+    $self->{parentChannel}->send("$readSize");
+
   }
 }
 
@@ -280,7 +279,7 @@ END
     
     #441 Posting Failed. Message-ID is not unique E1
     if ($isHeaderCheck) {
-      say $output if ($output!~ /240/ && $output!~ /441/)
+      say 'Header Checking: '.$output if ($output!~ /240/ && $output!~ /441/)
     }else {
       say $output if ($output!~ /240/);      
     }
