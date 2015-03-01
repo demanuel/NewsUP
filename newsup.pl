@@ -46,7 +46,8 @@ sub _parse_command_line{
   my ($server, $port, $username,$userpasswd,
       @filesToUpload, $threads, @comments,
       $from, $headerCheck, $nzbName, $monitoringPort);
-	  
+
+  #default value
   $monitoringPort=8675;
   
   my @newsGroups = ();

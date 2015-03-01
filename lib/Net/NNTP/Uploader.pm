@@ -236,7 +236,7 @@ EOF
   if ($filePart == $fileMaxParts) {
     $content = $content." crc32=".crc32($bytes);
   }
-
+  undef $bytes;
   
   return $content;
 }
@@ -275,7 +275,7 @@ END
       carp "Error: $@";
       return undef;
     }
-
+    
     #441 Posting Failed. Message-ID is not unique E1
     if ($isHeaderCheck) {
       say $output if ($output!~ /240/ && $output!~ /441/)
