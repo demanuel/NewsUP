@@ -190,14 +190,16 @@ sub header_check{
       sysread($socket, $output, 8192);
       chop $output;
       
-      if (substr($output,0,3) == 223 || $count==5) {
-	say "Aborting! Header $messageID not found on the server! Please check for issues on the server." if $count == 5;
+      if (substr($output,0,3) == 223) {
+	next;
+      }elsif ($count==5) {
+	say "Aborting! Header $messageID not found on the server! Please check for issues on the server.";
 	next;
       }else {
 	#print "\rHeader check: Missing segment $messageID [$output]\r\n";
 	$self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups, 1);
 	$count=$count+1;
-	sleep(5);
+	sleep 20;
       }
     }while(1);
   }
