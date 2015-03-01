@@ -123,7 +123,7 @@ sub logout{
 }
 
 sub transmit_files{
-  my ($self, $filesListRef, $from, $initComment, $endComment, $newsgroupsRef) = @_;
+  my ($self, $filesListRef, $from, $initComment, $endComment, $newsgroupsRef, $isHeaderCheck) = @_;
 
   if ($self->{authenticated}==0) {
     while ($self->{authenticated} == 0){
@@ -159,7 +159,7 @@ sub transmit_files{
     #Free readed data
     undef $readedData;
     
-    $self->_post($newsgroupsRef, $filePair->[2], $subject, $content, $from);
+    $self->_post($newsgroupsRef, $filePair->[2], $subject, $content, $from, $isHeaderCheck);
     #Free readed data
     undef $content;
     
@@ -193,9 +193,10 @@ sub header_check{
 	say "Aborting! Header $messageID not found on the server! Please check for issues on the server." if $count == 5;
 	next;
       }else {
-	print "\rHeader check: Missing segment $messageID [$output]\r\n";
-	$self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups);
+	#print "\rHeader check: Missing segment $messageID [$output]\r\n";
+	$self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups, 1);
 	$count=$count+1;
+	sleep(5);
       }
     }while(1);
   }
@@ -241,7 +242,7 @@ EOF
 
 sub _post{
 
-  my ($self, $newsgroupsRef, $messageID, $subject, $content, $from) =@_;
+  my ($self, $newsgroupsRef, $messageID, $subject, $content, $from, $isHeaderCheck) =@_;
   
   my @newsgroups = @{$newsgroupsRef};
 
@@ -275,7 +276,11 @@ END
     }
 
     #441 Posting Failed. Message-ID is not unique E1
-    say $output if ($output!~ /240/);
+    if ($isHeaderCheck) {
+      say $output if ($output!~ /240/ && $output!~ /441/)
+    }else {
+      say $output if ($output!~ /240/);      
+    }
   }
 
 }
