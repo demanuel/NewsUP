@@ -47,7 +47,9 @@ sub get_xml{
   $xml.= "<groups>\r\n";
   $xml.= "<group>$_</group>\r\n" for (@{$self->{groups}});
   $xml.= "</groups>\r\n";
+  $xml.= "<segments>\r\n";
   $xml.= $_->get_xml() for (@{$self->{segments}});
+  $xml.= "</segments>\r\n";
   $xml.= "</file>\r\n";
 
   return $xml;
