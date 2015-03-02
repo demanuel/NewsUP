@@ -11,13 +11,8 @@ use File::Basename;
 use IO::Socket::INET;
 use IO::Socket::SSL;# qw(debug3);
 use Time::HiRes qw/ time /;
-use POSIX;
-use Carp;
 use String::CRC32;
-use Data::Dumper;
-use Digest::MD5 qw(md5_hex);
 use 5.018;
-use Benchmark qw(:all);
 use POSIX qw(floor);
 
 #750Kb - the segment size. I tried with 4 Megs and got a 441. The allowed posting segment size isn't standard
@@ -104,7 +99,7 @@ sub _authenticate{
 
   $status = substr($output,0,3);
   if ($status != 281 && $status != 250) {
-    carp $output;
+    say $output;
     $self->{authenticated}=0;
     shutdown $socket, 2;
     return -1;
@@ -273,7 +268,7 @@ END
       
     };
     if ($@){
-      carp "Error: $@";
+      say "Error: $@";
       return undef;
     }
     

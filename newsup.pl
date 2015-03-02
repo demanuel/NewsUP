@@ -29,13 +29,9 @@ use Net::NNTP::Uploader;
 use NZB::Generator;
 use Getopt::Long;
 use Config::Tiny;
-use Carp;
 use File::Find;
 use File::Basename;
-use POSIX;
-use Data::Dumper;
-use Digest::MD5 qw/md5_hex/;
-use POSIX ":sys_wait_h";
+use POSIX qw /sys_wait_h ceil floor/;
 use Time::HiRes qw/gettimeofday tv_interval/;
 use IO::Socket::INET;
 
@@ -91,7 +87,7 @@ sub _parse_command_line{
       $threads = $config->{server}{connections} if exists $config->{server}{connections};
     }
     if ($threads < 1) {
-      croak "Please specify a correct number of connections!";    
+      say "Please specify a correct number of connections!";    
     }
 
     if (!defined $headerCheck) {
@@ -100,10 +96,12 @@ sub _parse_command_line{
     if (!defined $monitoringPort) {
       $monitoringPort = $config->{generic}{monitoringPort} if exists $config->{generic}{monitoringPort};
     }
+    
+    undef $config;
   }
   
   if (!defined $server || !defined $port || !defined $username || !defined $from || @newsGroups==0 || !defined $threads) {
-    croak "Please check the parameters ('server', 'port', 'username'/'password', 'connections','uploader' and 'newsgoup')";
+    say "Please check the parameters ('server', 'port', 'username'/'password', 'connections','uploader' and 'newsgoup')";
   }
 
   return ($server, $port, $username, $userpasswd, 
@@ -252,7 +250,7 @@ sub _transmit_files{
   my $pid;
 
   unless (defined($pid = fork())) {
-    carp "cannot fork: $!";
+    say "cannot fork: $!";
     return -1;
   }
   elsif ($pid) {
@@ -281,7 +279,7 @@ sub _monitoring_server_start {
 
   my $pid;
   unless (defined($pid = fork())) {
-    carp "cannot fork: $!";
+    say "cannot fork: $!";
     return -1;
   }
   elsif ($pid) {
