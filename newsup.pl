@@ -209,7 +209,6 @@ sub main{
 				       $server, $port, $username, $userpasswd, 
 				       $tempFilesRef->[$i], $connections, $newsGroupsRef, 
 				       $commentsRef, $from, $headerCheck, $monitoringPort);
-
   }
 
 

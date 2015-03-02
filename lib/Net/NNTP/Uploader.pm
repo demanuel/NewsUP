@@ -143,11 +143,11 @@ sub transmit_files{
     my $currentFilePart = $temp[0];
     my $totalFilePart = $temp[1];
 
-    my $fileSize= -s $filePair->[0];
+    #my $fileSize= -s $filePair->[0];
     my $fileName=(fileparse($filePair->[0]))[0];
     my ($readedData, $readSize) = _get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
     close $ifh;
-    my $subject = "\"$fileName\" yenc ($currentFilePart/$totalFilePart) [$fileSize]";
+    my $subject = "\"$fileName\" yenc ($currentFilePart/$totalFilePart)";
     
     $subject = "[$initComment] $subject" if defined $initComment;
     $subject = "$subject [$endComment]" if defined $endComment;
@@ -268,7 +268,7 @@ Message-ID: <$messageID>\r
 $content\r
 .\r
 END
-      
+      undef $content;
       sysread($socket, $output, 8192);
       
     };
