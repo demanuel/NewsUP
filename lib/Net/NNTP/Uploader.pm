@@ -13,7 +13,6 @@ use IO::Socket::SSL;# qw(debug3);
 use Time::HiRes qw/ time /;
 use String::CRC32;
 use 5.018;
-use POSIX qw(floor);
 
 #750Kb - the segment size. I tried with 4 Megs and got a 441. The allowed posting segment size isn't standard
 our $NNTP_MAX_UPLOAD_SIZE=512*1024; 

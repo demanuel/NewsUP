@@ -35,6 +35,7 @@ use POSIX qw /sys_wait_h ceil floor/;
 use Time::HiRes qw/gettimeofday tv_interval/;
 use IO::Socket::INET;
 
+
 #Returns a bunch of options that it will be used on the upload. Options passed through command line have precedence over
 #options on the config file
 sub _parse_command_line{
