@@ -20,6 +20,7 @@ For windows installation, or another stuff more specific to some environment/scr
 ## Scritps
 The folder scripts is a folder where NewsUP functionalities can be extended (please check the configuration section).
 Scripts available:
+
 *- uploadit.pl - this script will create splitted RARs, PAR2 files, a sfv file and a NZB file.
 To run it you just need to:
 ```
@@ -41,7 +42,7 @@ It will upload a file or folder to the usenet.
 If it is a folder it will search for files inside of the folder.
 A NZB file will be generated for later retrieving.
 
-## What doesn't do
+## What doesn't do (it may exist a script on the scripts folder)
 
 * Create compressed archive files to upload (rar, zip, 7zip, etc...)
 * Create parity files [1]
