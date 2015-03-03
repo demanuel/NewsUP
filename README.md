@@ -42,10 +42,11 @@ It will upload a file or folder to the usenet.
 If it is a folder it will search for files inside of the folder.
 A NZB file will be generated for later retrieving.
 
-## What doesn't do (it may exist a script on the scripts folder)
+## What doesn't do 
+But it may exist a script with these functionalities on the scripts folder.
 
 * Create compressed archive files to upload (rar, zip, 7zip, etc...)
-* Create parity files [1]
+* Create parity files
 
 
 #Requirements:
