@@ -173,6 +173,10 @@ If <bin_file> is a folder, it will transverse the folder searching for files.
 The files will be uploaded. A NZB file with <some_name> will then be created.
 
 
+# Acknowledgements
+* Cavalia88 <cavalier2888 AT outlook DOT com> for his suggesions and his testing on windows platform.
+
+
 
 # END
 
