@@ -9,24 +9,9 @@ It will run on any platform that supports perl that matches the requirements (ch
 This program will upload binary files to the usenet and generate a NZB file. It supports SSL, multiple connections.
 This program is licensed with GPLv3.
 
-
-## note
-As i realized that most users already have scripts to create rars/7z and parity files i dropped the options to create 7zip and parity files. But if you want them, just send me an email i can restore them. However the best option is to use one of the scripts on the Scripts folder.
-
-## note 2
+## note 
 This readme contains the basic info on how to run newsup and it's options.
 For windows installation, or another stuff more specific to some environment/script please check the wiki.
-
-## Scritps
-The folder scripts is a folder where NewsUP functionalities can be extended (please check the configuration section).
-Scripts available:
-
-*- uploadit.pl - this script will create splitted RARs, PAR2 files, a sfv file and a NZB file.
-To run it you just need to:
-```
-perl uploadit.pl -f file_to_upload -name my_file -group alt.binaries.test
-```
-This will create a bunch of rars (check the configuration section for the split size) of file "file_to_upload" (you can have multiple -f switches). The name prefix of the RAR,NZB and SFV will be "my_name" (switch -name). And these files will be posted to group "alt.binaries.test" (you can have multiple -g switches)
 
 
 ## Alternatives
@@ -47,6 +32,19 @@ But it may exist a script with these functionalities on the scripts folder.
 
 * Create compressed archive files to upload (rar, zip, 7zip, etc...)
 * Create parity files
+
+
+## Scripts
+The folder scripts is a folder where NewsUP functionalities can be extended (please check the configuration section).
+Scripts available:
+
+*- uploadit.pl - this script will create splitted RARs, PAR2 files, a sfv file and a NZB file.
+To run it you just need to:
+```
+perl uploadit.pl -f file_to_upload -name my_file -group alt.binaries.test
+```
+This will create a bunch of rars (check the configuration section for the split size) of file "file_to_upload" (you can have multiple -f switches). The name prefix of the RAR,NZB and SFV will be "my_name" (switch -name). And these files will be posted to group "alt.binaries.test" (you can have multiple -g switches)
+You can also add a -comment switch
 
 
 #Requirements:
