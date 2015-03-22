@@ -27,14 +27,15 @@ use 5.018;
 use Data::Dumper;
 use String::CRC32;
 use File::Basename;
-use File::Copy qw/mv/;
+use File::Find;
+use File::Copy qw/mv cp/;
 use Time::HiRes qw /time/;
 my @FILES=();
 my $NAME='';
 my @GROUPS=();
 
 GetOptions('file=s'=>\@FILES,
-	   'name=s',=>\$NAME,
+	   'name=s'=>\$NAME,
 	   'group=s'=>\@GROUPS);
 
 sub main{
@@ -42,13 +43,22 @@ sub main{
     
     say "You need to configure the switches -file, -name and -group";
     exit 0;
+    
+  }else {
+    my $validFiles = 0;
+    for (@FILES){
+      if(!-e $_){
+	say "File $_ not found!";
+	exit 0;
+      }
+    }    
   }
   
   if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
     my $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
     my %script_vars = %{$config->{script_vars}};
     
-  if (! -e $script_vars{PATH_TO_RAR}) {
+  if (! -e $script_vars{PATH_TO_RAR} && $script_vars{RAR_COMPRESSION} !=-1) {
     say "You need to define a valid path to the rar program. Please change the variable RAR_PATH on the newsup.conf file.";
     exit 0;
   }
@@ -73,7 +83,9 @@ sub main{
     
     say "Starting upload";
     upload_files($filesToUpload,\%script_vars);
-    unlink @$filesToUpload;
+    if ($script_vars{RAR_COMPRESSION} !=-1) {
+      unlink @$filesToUpload;
+    }
 
   }else {
     say "Unable to find newsup.conf file. Please check if the environment variable HOME is installed!";
@@ -141,10 +153,12 @@ sub create_parity_archives{
   my ($compressedFiles,$scriptVarsRef) = @_;
 
   return $compressedFiles if ($scriptVarsRef->{PAR_REDUNDANCY}==0);
-
+#  say Dumper($compressedFiles);
   my $parCmd =$scriptVarsRef->{PATH_TO_PAR2}." c -r".$scriptVarsRef->{PAR_REDUNDANCY}." ".
     $scriptVarsRef->{TEMP_DIR}."$NAME ".join(' ',@$compressedFiles);
 
+#  say "$parCmd";
+  
   `$parCmd`;
   if ($? != 0) {
     say  $!;
@@ -164,24 +178,50 @@ sub create_parity_archives{
 
 sub compress_files{
   my ($scriptVarsRef) = @_;
-
-  my $rarCmd=$scriptVarsRef->{PATH_TO_RAR}." a -m0 ";
-  $rarCmd .= "-p".$scriptVarsRef->{RAR_PASSWORD} if defined $scriptVarsRef->{RAR_PASSWORD};
-  $rarCmd .=" -v".($scriptVarsRef->{RAR_VOLUME_SIZE})."M -ep ".$scriptVarsRef->{TEMP_DIR}."$NAME -r ".join(' ',@FILES);
-
+  my @compressedFiles;
   my $globString = $scriptVarsRef->{TEMP_DIR}."$NAME*";
-  `$rarCmd`;
-  if ($? != 0) {
-    say  $!;
-    say "Potencial conflicts:";
-    say "\t$_" for <"$globString">;
-    return [];
+  if ($scriptVarsRef->{RAR_COMPRESSION} > -1) {
+
+    my $rarCmd=$scriptVarsRef->{PATH_TO_RAR}." a -m0 ";
+    $rarCmd .= "-p".$scriptVarsRef->{RAR_PASSWORD} if defined $scriptVarsRef->{RAR_PASSWORD};
+    $rarCmd .=" -v".($scriptVarsRef->{RAR_VOLUME_SIZE})."M -ep ".$scriptVarsRef->{TEMP_DIR}."$NAME -r ".join(' ',@FILES);
+    
+    `$rarCmd`;
+    if ($? != 0) {
+      say  $!;
+      say "Potencial conflicts:";
+      say "\t$_" for <"$globString">;
+      return [];
+    }
+    @compressedFiles = <"$globString">;
+    return \@compressedFiles;  
+  }else {
+    my @files = ();
+    for my $file (@FILES) {
+      if (-d $file) {
+
+	find(sub{
+	       if (-f) {
+		 my $newName = $File::Find::name;
+		 my $fileName = fileparse($newName);
+		 cp($newName, $scriptVarsRef->{TEMP_DIR}) or die "Unable to copy the files to the temporary location: $!";
+		 push @files, $scriptVarsRef->{TEMP_DIR}.$fileName;      
+
+	       }
+	     }, ($file))
+	
+      }else {
+	my $fileName = fileparse($file);
+	cp($file, $scriptVarsRef->{TEMP_DIR}) or die "Unable to copy the files to the temporary location";
+	push @files, $scriptVarsRef->{TEMP_DIR}.$fileName;      
+      }
+    }
+
+    return \@files;
   }
+   
 
 
-  my @compressedFiles = <"$globString">;
-
-  return \@compressedFiles;  
 }
 
 
