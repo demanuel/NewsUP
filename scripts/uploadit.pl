@@ -33,9 +33,11 @@ use Time::HiRes qw /time/;
 my @FILES=();
 my $NAME='';
 my @GROUPS=();
+my $COMMENT='';
 
 GetOptions('file=s'=>\@FILES,
 	   'name=s'=>\$NAME,
+	   'comment=s'=>$COMMENT,
 	   'group=s'=>\@GROUPS);
 
 sub main{
@@ -97,7 +99,10 @@ sub upload_files{
   my ($filesToUpload, $scriptVarsRef) = @_;
 
   if (@$filesToUpload) {
-    my $newsUPcmd = $scriptVarsRef->{PATH_TO_UPLOADER}." -f ".join(' -f ',@$filesToUpload)." -g ".join(' -g ',@GROUPS)." -nzb $NAME" ;
+    my $newsUPcmd = $scriptVarsRef->{PATH_TO_UPLOADER}." -f ".join(' -f ',@$filesToUpload)." -g ".join(' -g ',@GROUPS)." -nzb $NAME";
+    if ($COMMENT ne '') {
+      $newsUPcmd .= " -comment \"$COMMENT\"";
+    }
     system($newsUPcmd);
   }else {
     say "No files to upload!";
