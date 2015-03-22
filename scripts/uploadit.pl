@@ -41,9 +41,9 @@ GetOptions('file=s'=>\@FILES,
 	   'group=s'=>\@GROUPS);
 
 sub main{
-  if (!@FILES || $NAME eq '' || !@GROUPS) {
+  if (!@FILES || $NAME eq '') {
     
-    say "You need to configure the switches -file, -name and -group";
+    say "You need to configure the switches -file, -name";
     exit 0;
     
   }else {
@@ -99,7 +99,8 @@ sub upload_files{
   my ($filesToUpload, $scriptVarsRef) = @_;
 
   if (@$filesToUpload) {
-    my $newsUPcmd = $scriptVarsRef->{PATH_TO_UPLOADER}." -f ".join(' -f ',@$filesToUpload)." -g ".join(' -g ',@GROUPS)." -nzb $NAME";
+    my $newsUPcmd = $scriptVarsRef->{PATH_TO_UPLOADER}." -f ".join(' -f ',@$filesToUpload)." -nzb $NAME";
+    $newsUPcmd .=" -g ".join(' -g ',@GROUPS) if ((scalar @GROUPS) > 0);
     if ($COMMENT ne '') {
       $newsUPcmd .= " -comment \"$COMMENT\"";
     }
