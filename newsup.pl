@@ -34,7 +34,6 @@ use File::Basename;
 use POSIX qw /sys_wait_h ceil floor/;
 use Time::HiRes qw/gettimeofday tv_interval/;
 use IO::Socket::INET;
-use Data::Dumper;
 
 #Returns a bunch of options that it will be used on the upload. Options passed through command line have precedence over
 #options on the config file
@@ -42,7 +41,7 @@ sub _parse_command_line{
 
   my ($server, $port, $username,$userpasswd,
       @filesToUpload, $threads, @comments,
-      $from, $headerCheck, $nzbName, $monitoringPort);
+      $from, $headerCheck, $nzbName, $monitoringPort, $fileCounter);
 
   #default value
   $monitoringPort=8675;
@@ -62,8 +61,9 @@ sub _parse_command_line{
 	     'metadata=s'=>\%metadata,
 	     'nzb=s'=>\$nzbName,
 	     'headerCheck'=>\$headerCheck,
-	     'monitoringPort'=>\$monitoringPort);
-
+	     'monitoringPort'=>\$monitoringPort,
+	     'ccounter|cfc!'=>\$fileCounter);
+  
   if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
 
     my $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
@@ -114,7 +114,7 @@ sub _parse_command_line{
   return ($server, $port, $username, $userpasswd, 
 	  \@filesToUpload, $threads, \@newsGroups, 
 	  \@comments, $from, \%metadata, $headerCheck,
-	  $nzbName,$monitoringPort);
+	  $nzbName,$monitoringPort, $fileCounter);
 }
 
 sub _distribute_files_by_connection{
@@ -122,12 +122,15 @@ sub _distribute_files_by_connection{
   my $blockSize = $Net::NNTP::Uploader::NNTP_MAX_UPLOAD_SIZE;
 
   my @segments = ();
+  my $counter = 1;
+  my $totalFiles=scalar @$files;
   for my $file (@$files) {
     my $fileSize = -s $file;
     my $maxParts = ceil($fileSize/$blockSize);
     for (1..$maxParts) {
-      push @segments, [$file, "$_/$maxParts", _get_message_id()];
+      push @segments, [$file, "$_/$maxParts", _get_message_id(), "$counter/$totalFiles"];
     }
+    $counter +=1;
   }
   my @threadedSegments;
   my $i = 0;
@@ -191,7 +194,7 @@ sub main{
   my ($server, $port, $username, $userpasswd, 
       $filesToUploadRef, $connections, $newsGroupsRef, 
       $commentsRef, $from, $meta, $headerCheck,
-      $nzbName, $monitoringPort)=_parse_command_line();
+      $nzbName, $monitoringPort, $fileCounter)=_parse_command_line();
   
   my $tempFilesRef = _get_files_to_upload($filesToUploadRef);
   my $totalSize=0;
@@ -203,17 +206,16 @@ sub main{
 
   my $lastChild = _monitoring_server_start($monitoringPort, $connections,
 					   ceil($totalSize/$Net::NNTP::Uploader::NNTP_MAX_UPLOAD_SIZE));
-  
   my $timer = time();
   
   my @threadsList = ();
   for (my $i = 0; $i<$connections; $i++) {
     say 'Starting connection '.($i+1).' for uploading';
-	
+
     push @threadsList, _transmit_files($i,
 				       $server, $port, $username, $userpasswd, 
 				       $tempFilesRef->[$i], $connections, $newsGroupsRef, 
-				       $commentsRef, $from, $headerCheck, $monitoringPort);
+				       $commentsRef, $from, $headerCheck, $monitoringPort, $fileCounter);
   }
 
 
@@ -266,16 +268,16 @@ sub _transmit_files{
 
   my ($connectionNumber, $server, $port, $username, $userpasswd, 
       $filesRef, $connections, $newsGroupsRef, 
-      $commentsRef, $from, $headerCheck, $monitoringPort) = @_;
-	  
-  my $uploader = Net::NNTP::Uploader->new($connectionNumber, $server, $port, $username, $userpasswd, $monitoringPort);
-  $uploader->transmit_files($filesRef, $from, $commentsRef->[0], $commentsRef->[1], $newsGroupsRef);
+      $commentsRef, $from, $headerCheck, $monitoringPort, $fileCounter) = @_;
+
   
+  my $uploader = Net::NNTP::Uploader->new($connectionNumber, $server, $port, $username, $userpasswd, $monitoringPort);
+  $uploader->transmit_files($filesRef, $from, $commentsRef->[0], $commentsRef->[1], $newsGroupsRef, 0, $fileCounter);
+
   if ($headerCheck){
-    $uploader->header_check($filesRef, $newsGroupsRef, $from, $commentsRef);
+    $uploader->header_check($filesRef, $newsGroupsRef, $from, $commentsRef, $fileCounter);
   }
   $uploader->logout;
-  
   exit 0;
 }
 

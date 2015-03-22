@@ -117,7 +117,7 @@ sub logout{
 }
 
 sub transmit_files{
-  my ($self, $filesListRef, $from, $initComment, $endComment, $newsgroupsRef, $isHeaderCheck) = @_;
+  my ($self, $filesListRef, $from, $initComment, $endComment, $newsgroupsRef, $isHeaderCheck, $fileCounter) = @_;
 
   if ($self->{authenticated}==0) {
     while ($self->{authenticated} == 0){
@@ -125,6 +125,18 @@ sub transmit_files{
       $self->_authenticate;
       last if($self->{authenticated} == 1);
       sleep 30;
+    }
+  }
+  my %commentMap = ();
+  for my $filePair (@$filesListRef){
+    if (!exists $commentMap{$filePair->[0]}) {
+      if (defined $initComment && $fileCounter==1) {
+	$commentMap{$filePair->[0]}=$initComment." [".$filePair->[-1]."]";
+      }elsif ($fileCounter){
+	$commentMap{$filePair->[0]}=$filePair->[-1];
+      }elsif (defined $initComment){
+	$commentMap{$filePair->[0]}=$initComment;
+      }
     }
   }
 
@@ -142,8 +154,9 @@ sub transmit_files{
     my ($readedData, $readSize) = _get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
     close $ifh;
     my $subject = "\"$fileName\" yenc ($currentFilePart/$totalFilePart)";
-    
-    $subject = "[$initComment] $subject" if defined $initComment;
+
+    $subject = "[".$commentMap{$filePair->[0]} ."] $subject" if exists $commentMap{$filePair->[0]};
+
     $subject = "$subject [$endComment]" if defined $endComment;
 
 
@@ -156,7 +169,6 @@ sub transmit_files{
     $self->_post($newsgroupsRef, $filePair->[2], $subject, $content, $from, $isHeaderCheck);
     #Free readed data
     undef $content;
-    
     #    my $speed = floor($readSize/1024/(time()-$initTime));
     #    print "[$speed KBytes/sec]\r";
     $|=1;
@@ -167,7 +179,7 @@ sub transmit_files{
 
 #It will perform the header check!
 sub header_check{
-  my ($self, $filesRef, $newsgroups, $from, $comments)=@_;
+  my ($self, $filesRef, $newsgroups, $from, $comments, $fileCounter)=@_;
 
   my $socket = $self->{socket};
   my $newsgroup = $newsgroups->[0]; #The first newsgroup is enough to check if the segment was uploaded correctly
@@ -190,7 +202,7 @@ sub header_check{
 	next;
       }else {
 	#print "\rHeader check: Missing segment $messageID [$output]\r\n";
-	$self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups, 1);
+	$self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups, 1, $fileCounter);
 	$count=$count+1;
 	sleep 20;
       }
