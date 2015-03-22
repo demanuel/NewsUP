@@ -47,15 +47,20 @@ sub main{
     exit 0;
     
   }else {
-    my $validFiles = 0;
+#    my @escapedFiles = ();
     for (@FILES){
       if(!-e $_){
 	say "File $_ not found!";
 	exit 0;
       }
-    }    
+#      else {
+#	push @escapedFiles, "\"$_\""; 
+#      }
+    }
+#    @FILES=@escapedFiles;
   }
-  
+
+
   if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
     my $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
     my %script_vars = %{$config->{script_vars}};
@@ -99,7 +104,9 @@ sub upload_files{
   my ($filesToUpload, $scriptVarsRef) = @_;
 
   if (@$filesToUpload) {
-    my $newsUPcmd = $scriptVarsRef->{PATH_TO_UPLOADER}." -f ".join(' -f ',@$filesToUpload)." -nzb $NAME";
+    my @escapedFiles=();
+    push @escapedFiles, "\"$_\"" for @$filesToUpload;
+    my $newsUPcmd = $scriptVarsRef->{PATH_TO_UPLOADER}." -f ".join(' -f ',@escapedFiles)." -nzb $NAME";
     $newsUPcmd .=" -g ".join(' -g ',@GROUPS) if ((scalar @GROUPS) > 0);
     if ($COMMENT ne '') {
       $newsUPcmd .= " -comment \"$COMMENT\"";
@@ -143,7 +150,9 @@ sub create_sfv_file{
   for (@$compressedFiles) {
     my $file = $_;
     my $fileName=(fileparse($file))[0];
+    
     open my $ifh, '<', $file;
+    
     my $crc32 = sprintf("%08x",crc32($ifh));
     print $ofh "$fileName $crc32\r\n";
     close $ifh;
@@ -157,11 +166,15 @@ sub create_sfv_file{
 
 sub create_parity_archives{
   my ($compressedFiles,$scriptVarsRef) = @_;
-
+  
   return $compressedFiles if ($scriptVarsRef->{PAR_REDUNDANCY}==0);
-#  say Dumper($compressedFiles);
+  #  say Dumper($compressedFiles);
+
+  my @escapedFiles = ();
+  push @escapedFiles, "\"$_\"" for @$compressedFiles;
+  
   my $parCmd =$scriptVarsRef->{PATH_TO_PAR2}." c -r".$scriptVarsRef->{PAR_REDUNDANCY}." ".
-    $scriptVarsRef->{TEMP_DIR}."$NAME ".join(' ',@$compressedFiles);
+    $scriptVarsRef->{TEMP_DIR}."$NAME ".join(' ',@escapedFiles);
 
 #  say "$parCmd";
   
@@ -188,9 +201,11 @@ sub compress_files{
   my $globString = $scriptVarsRef->{TEMP_DIR}."$NAME*";
   if ($scriptVarsRef->{RAR_COMPRESSION} > -1) {
 
+    my @escapedFiles = ();
+    push @escapedFiles, "\"$_\"" for @FILES;
     my $rarCmd=$scriptVarsRef->{PATH_TO_RAR}." a -m0 ";
     $rarCmd .= "-p".$scriptVarsRef->{RAR_PASSWORD} if defined $scriptVarsRef->{RAR_PASSWORD};
-    $rarCmd .=" -v".($scriptVarsRef->{RAR_VOLUME_SIZE})."M -ep ".$scriptVarsRef->{TEMP_DIR}."$NAME -r ".join(' ',@FILES);
+    $rarCmd .=" -v".($scriptVarsRef->{RAR_VOLUME_SIZE})."M -ep ".$scriptVarsRef->{TEMP_DIR}."$NAME -r ".join(' ',@escapedFiles);
     
     `$rarCmd`;
     if ($? != 0) {
@@ -218,16 +233,13 @@ sub compress_files{
 	
       }else {
 	my $fileName = fileparse($file);
-	cp($file, $scriptVarsRef->{TEMP_DIR}) or die "Unable to copy the files to the temporary location";
+	cp($file, $scriptVarsRef->{TEMP_DIR}) or die "Unable to copy the files to the temporary location: $!";
 	push @files, $scriptVarsRef->{TEMP_DIR}.$fileName;      
       }
     }
 
     return \@files;
   }
-   
-
-
 }
 
 
