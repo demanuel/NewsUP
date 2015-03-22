@@ -34,7 +34,7 @@ use File::Basename;
 use POSIX qw /sys_wait_h ceil floor/;
 use Time::HiRes qw/gettimeofday tv_interval/;
 use IO::Socket::INET;
-
+use Data::Dumper;
 
 #Returns a bunch of options that it will be used on the upload. Options passed through command line have precedence over
 #options on the config file
@@ -97,12 +97,18 @@ sub _parse_command_line{
     if (!defined $monitoringPort) {
       $monitoringPort = $config->{generic}{monitoringPort} if exists $config->{generic}{monitoringPort};
     }
-    
+    if ( @newsGroups == 0) {
+      if (exists $config->{upload}{newsgroup}){
+	@newsGroups = split(',', $config->{upload}{newsgroup});
+	$_ =~ s/^\s+|\s+$//g for @newsGroups;
+      }
+    }
     undef $config;
   }
   
   if (!defined $server || !defined $port || !defined $username || !defined $from || @newsGroups==0 || !defined $threads) {
     say "Please check the parameters ('server', 'port', 'username'/'password', 'connections','uploader' and 'newsgoup')";
+    exit 0;
   }
 
   return ($server, $port, $username, $userpasswd, 
