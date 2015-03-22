@@ -155,7 +155,7 @@ sub transmit_files{
     close $ifh;
     my $subject = "\"$fileName\" yenc ($currentFilePart/$totalFilePart)";
 
-    $subject = "[".$commentMap{$filePair->[0]} ."] $subject" if exists $commentMap{$filePair->[0]};
+    $subject = $commentMap{$filePair->[0]}." $subject" if exists $commentMap{$filePair->[0]};
 
     $subject = "$subject [$endComment]" if defined $endComment;
 
