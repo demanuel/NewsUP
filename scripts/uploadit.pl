@@ -38,7 +38,7 @@ my $DEBUG=0;
 
 GetOptions('file=s'=>\@FILES,
 	   'name=s'=>\$NAME,
-	   'comment=s'=>$COMMENT,
+	   'comment=s'=>\$COMMENT,
 	   'debug!'=>\$DEBUG,
 	   'group=s'=>\@GROUPS);
 
@@ -106,6 +106,7 @@ sub upload_files{
     push @escapedFiles, "\"$_\"" for @$filesToUpload;
     my $newsUPcmd = $scriptVarsRef->{PATH_TO_UPLOADER}." -f ".join(' -f ',@escapedFiles)." -nzb $NAME";
     $newsUPcmd .=" -g ".join(' -g ',@GROUPS) if ((scalar @GROUPS) > 0);
+
     if ($COMMENT ne '') {
       $newsUPcmd .= " -comment \"$COMMENT\"";
     }
