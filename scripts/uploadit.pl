@@ -34,10 +34,12 @@ my @FILES=();
 my $NAME='';
 my @GROUPS=();
 my $COMMENT='';
+my $DEBUG=0;
 
 GetOptions('file=s'=>\@FILES,
 	   'name=s'=>\$NAME,
 	   'comment=s'=>$COMMENT,
+	   'debug!'=>\$DEBUG,
 	   'group=s'=>\@GROUPS);
 
 sub main{
@@ -62,40 +64,36 @@ sub main{
 
 
   if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
-    my $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
-    my %script_vars = %{$config->{script_vars}};
+      my $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
+      my %script_vars = %{$config->{script_vars}};
     
-  if (! -e $script_vars{PATH_TO_RAR} && $script_vars{RAR_COMPRESSION} !=-1) {
-    say "You need to define a valid path to the rar program. Please change the variable RAR_PATH on the newsup.conf file.";
-    exit 0;
-  }
-    if (!-e $script_vars{PATH_TO_UPLOADER}) {
-      say "You need to define a valid path to newsup. Please change the variable PATH_TO_UPLOADER on the newsup.conf file.";
-      exit 0;
-    }
-    if (!-e $script_vars{PATH_TO_PAR2} && exists $script_vars{PAR_REDUNDANCY}>0) {
-      say "You need to define a valid path to par2repair program. Please change the variable PATH_TO_PAR2 on the newsup.conf file.";
-      say "If you want to disable the creation of the parity files set the option PAR_REDUNDANCY to 0 (zero)";
-      exit 0;
-    }
-    
-    say "Splitting files!";
-    my $compressedFilesRef = compress_files (\%script_vars);
-    say "Checksum'ing the files";
-    my $checkSumFiles = create_sfv_file($compressedFilesRef, \%script_vars);
-    say "Creating parity files";  
-    my $filesToUpload = create_parity_archives($checkSumFiles, \%script_vars);
-    
-    randomize_archives($checkSumFiles, \%script_vars);
-    
-    say "Starting upload";
-    upload_files($filesToUpload,\%script_vars);
-    if ($script_vars{RAR_COMPRESSION} !=-1) {
-      unlink @$filesToUpload;
-    }
-
+      if (! -e $script_vars{PATH_TO_RAR} && $script_vars{RAR_COMPRESSION} !=-1) {
+	  say "You need to define a valid path to the rar program. Please change the variable RAR_PATH on the newsup.conf file.";
+	  exit 0;
+      }
+      if (!-e $script_vars{PATH_TO_PAR2} && exists $script_vars{PAR_REDUNDANCY}>0) {
+	  say "You need to define a valid path to par2repair program. Please change the variable PATH_TO_PAR2 on the newsup.conf file.";
+	  say "If you want to disable the creation of the parity files set the option PAR_REDUNDANCY to 0 (zero)";
+	  exit 0;
+      }
+      
+      say "Splitting files!";
+      my $compressedFilesRef = compress_files (\%script_vars);
+      say "Checksum'ing the files";
+      my $checkSumFiles = create_sfv_file($compressedFilesRef, \%script_vars);
+      say "Creating parity files";  
+      my $filesToUpload = create_parity_archives($checkSumFiles, \%script_vars);
+      
+      randomize_archives($checkSumFiles, \%script_vars);
+      
+      say "Starting upload";
+      upload_files($filesToUpload,\%script_vars);
+      if ($script_vars{RAR_COMPRESSION} !=-1) {
+	  unlink @$filesToUpload;
+      }
+      
   }else {
-    say "Unable to find newsup.conf file. Please check if the environment variable HOME is installed!";
+      say "Unable to find newsup.conf file. Please check if the environment variable HOME is installed!";
   }
 }
 
@@ -111,6 +109,8 @@ sub upload_files{
     if ($COMMENT ne '') {
       $newsUPcmd .= " -comment \"$COMMENT\"";
     }
+    say "$newsUPcmd" if $DEBUG;
+    
     system($newsUPcmd);
   }else {
     say "No files to upload!";
@@ -150,11 +150,12 @@ sub create_sfv_file{
   for (@$compressedFiles) {
     my $file = $_;
     my $fileName=(fileparse($file))[0];
-    
+
     open my $ifh, '<', $file;
     
     my $crc32 = sprintf("%08x",crc32($ifh));
     print $ofh "$fileName $crc32\r\n";
+    say "\tCRC32 $fileName $crc32" if $DEBUG;
     close $ifh;
   }
   
@@ -167,8 +168,8 @@ sub create_sfv_file{
 sub create_parity_archives{
   my ($compressedFiles,$scriptVarsRef) = @_;
   
-  return $compressedFiles if ($scriptVarsRef->{PAR_REDUNDANCY}==0);
-  #  say Dumper($compressedFiles);
+  return $compressedFiles if ($scriptVarsRef->{PAR_REDUNDANCY}<=0);
+
 
   my @escapedFiles = ();
   push @escapedFiles, "\"$_\"" for @$compressedFiles;
@@ -176,8 +177,7 @@ sub create_parity_archives{
   my $parCmd =$scriptVarsRef->{PATH_TO_PAR2}." c -r".$scriptVarsRef->{PAR_REDUNDANCY}." ".
     $scriptVarsRef->{TEMP_DIR}."$NAME ".join(' ',@escapedFiles);
 
-#  say "$parCmd";
-  
+  say "$parCmd" if $DEBUG;
   `$parCmd`;
   if ($? != 0) {
     say  $!;
@@ -206,7 +206,7 @@ sub compress_files{
     my $rarCmd=$scriptVarsRef->{PATH_TO_RAR}." a -m0 ";
     $rarCmd .= "-p".$scriptVarsRef->{RAR_PASSWORD} if defined $scriptVarsRef->{RAR_PASSWORD};
     $rarCmd .=" -v".($scriptVarsRef->{RAR_VOLUME_SIZE})."M -ep ".$scriptVarsRef->{TEMP_DIR}."$NAME -r ".join(' ',@escapedFiles);
-    
+    say "$rarCmd" if $DEBUG;
     `$rarCmd`;
     if ($? != 0) {
       say  $!;
