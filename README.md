@@ -41,10 +41,9 @@ Scripts available:
 *- uploadit.pl - this script will create splitted RARs, PAR2 files, a sfv file and a NZB file.
 To run it you just need to:
 ```
-perl uploadit.pl -f file_to_upload -name my_file -group alt.binaries.test
+perl uploadit.pl -directory my_folder -a "-com \"extra arguments for newsup.pl\"" -debug
 ```
-This will create a bunch of rars (check the configuration section for the split size) of file "file_to_upload" (you can have multiple -f switches). The name prefix of the RAR,NZB and SFV will be "my_name" (switch -name). And these files will be posted to group "alt.binaries.test" (you can have multiple -g switches)
-You can also add a -comment switch
+This will create a bunch of rars (check the rar configuration) of the dirctory "my_folder". It will also print a bunch of debug messages. 
 
 
 #Requirements:
