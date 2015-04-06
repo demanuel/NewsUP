@@ -275,6 +275,7 @@ sub _transmit_files{
   $uploader->transmit_files($filesRef, $from, $commentsRef->[0], $commentsRef->[1], $newsGroupsRef, 0, $fileCounter);
 
   if ($headerCheck){
+    say "Child $$ starting header check!";
     $uploader->header_check($filesRef, $newsGroupsRef, $from, $commentsRef, $fileCounter);
   }
   $uploader->logout;
