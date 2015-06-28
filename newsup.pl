@@ -73,7 +73,7 @@ sub _parse_command_line{
       $server = $config->{server}{server} if exists $config->{server}{server};
     }
     if (!defined $port) {
-      $port = $config->{server}{port}  if exists $config->{server}{server};
+      $port = $config->{server}{port}  if exists $config->{server}{port};
     }
     if (!defined $username) {
       $username = $config->{auth}{user}  if exists $config->{auth}{user};
