@@ -90,7 +90,7 @@ newsgroup= alt.binaries.test, alt.binaries.conspiracy #you can put here as many 
 
 [generic]
 headerCheck= 1 #0 or 1. If this is enable, after each thread finishes their uploads it will check if the header was uploaded to server through a stat command
-
+monitoringPort = 8675
 
 [script_vars]
 ############################
