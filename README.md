@@ -88,10 +88,13 @@ veryWeirdInfoIWantToPutOnTheNZBMetadata= it's really very weird!
 uploader= NewsUP <NewsUp@localhost.localdomain> #To identify de uploader and to receive replies. Usualy it's bogus. Switch -uploader
 newsgroup= alt.binaries.test, alt.binaries.conspiracy #you can put here as many newsgroups you want. They need to be comma separated.
 
+[headerCheck]
+enabled= 1 #0 or 1. If this is enable, after each thread finishes their uploads it will check if the header was uploaded to server through a stat command
+sleep= 20 # in Seconds. How much time it should wait before a segment header check
+
 [generic]
-headerCheck= 1 #0 or 1. If this is enable, after each thread finishes their uploads it will check if the header was uploaded to server through a stat command
 monitoringPort = 8675
-headerSleep= 20 # in Seconds. How much time it should wait before a segment header check
+
 
 [script_vars]
 ############################
@@ -165,7 +168,7 @@ The NZB file It will have on the ```<head>``` tag the childs:
 
 -headerCheck: if you want to perform header check
 
--headerSleep <SECONDS>: how much time it should wait before doing the header check.
+-headerSleep: Seconds, how much time it should wait before doing the header check.
 
 # Examples
 

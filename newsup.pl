@@ -93,11 +93,11 @@ sub _parse_command_line{
     }
 
     if (!defined $headerCheck) {
-      $headerCheck = $config->{generic}{headerCheck} if exists $config->{generic}{headerCheck};
+      $headerCheck = $config->{headerCheck}{enabled} if exists $config->{headerCheck}{enabled};
     }
     if ($headerCheck && !defined $headerSleep) {
-      if (exists $config->{generic}{headerSleep}){
-	$headerSleep = $config->{generic}{headerSleep};
+      if (exists $config->{headerCheck}{sleep}){
+	$headerSleep = $config->{headerCheck}{sleep};
       }else {
 	$headerSleep=20;
       }
