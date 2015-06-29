@@ -91,6 +91,7 @@ newsgroup= alt.binaries.test, alt.binaries.conspiracy #you can put here as many 
 [generic]
 headerCheck= 1 #0 or 1. If this is enable, after each thread finishes their uploads it will check if the header was uploaded to server through a stat command
 monitoringPort = 8675
+headerSleep= 20 # in Seconds. How much time it should wait before a segment header check
 
 [script_vars]
 ############################
@@ -161,6 +162,10 @@ The NZB file It will have on the ```<head>``` tag the childs:
 <metadata type="powered">NewsUP</metadata>
 <metadata type="subliminar_message">NewsUp: the best usenet autoposter crossplatform</metadata>
 ```
+
+-headerCheck: if you want to perform header check
+
+-headerSleep <SECONDS>: how much time it should wait before doing the header check.
 
 # Examples
 

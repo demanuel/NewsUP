@@ -61,6 +61,7 @@ sub _parse_command_line{
 	     'metadata=s'=>\%metadata,
 	     'nzb=s'=>\$nzbName,
 	     'headerCheck'=>\$headerCheck,
+	     'headerSleep'=>\$headerSleep,
 	     'monitoringPort'=>\$monitoringPort,
 	     'ccounter|cfc!'=>\$fileCounter);
   
@@ -94,6 +95,16 @@ sub _parse_command_line{
     if (!defined $headerCheck) {
       $headerCheck = $config->{generic}{headerCheck} if exists $config->{generic}{headerCheck};
     }
+    if ($headerCheck && !defined $headerSleep) {
+      if (exists $config->{generic}{headerSleep}){
+	$headerSleep = $config->{generic}{headerSleep};
+      }else {
+	$headerSleep=20;
+      }
+    }else {
+      $headerSleep=20;
+    }
+
     if (!defined $monitoringPort) {
       $monitoringPort = $config->{generic}{monitoringPort} if exists $config->{generic}{monitoringPort};
     }
@@ -113,7 +124,7 @@ sub _parse_command_line{
 
   return ($server, $port, $username, $userpasswd, 
 	  \@filesToUpload, $threads, \@newsGroups, 
-	  \@comments, $from, \%metadata, $headerCheck,
+	  \@comments, $from, \%metadata, $headerCheck, $headerSleep,
 	  $nzbName,$monitoringPort, $fileCounter);
 }
 
@@ -193,7 +204,7 @@ sub main{
 
   my ($server, $port, $username, $userpasswd, 
       $filesToUploadRef, $connections, $newsGroupsRef, 
-      $commentsRef, $from, $meta, $headerCheck,
+      $commentsRef, $from, $meta, $headerCheck, $headerSleep,
       $nzbName, $monitoringPort, $fileCounter)=_parse_command_line();
   
   my $tempFilesRef = _get_files_to_upload($filesToUploadRef);
@@ -214,8 +225,8 @@ sub main{
 
     push @threadsList, _transmit_files($i,
 				       $server, $port, $username, $userpasswd, 
-				       $tempFilesRef->[$i], $connections, $newsGroupsRef, 
-				       $commentsRef, $from, $headerCheck, $monitoringPort, $fileCounter);
+				       $tempFilesRef->[$i], $connections, $newsGroupsRef, $commentsRef, 
+				       $from, $headerCheck, $headerSleep, $monitoringPort, $fileCounter);
   }
 
 
@@ -267,8 +278,8 @@ sub _transmit_files{
   }
 
   my ($connectionNumber, $server, $port, $username, $userpasswd, 
-      $filesRef, $connections, $newsGroupsRef, 
-      $commentsRef, $from, $headerCheck, $monitoringPort, $fileCounter) = @_;
+      $filesRef, $connections, $newsGroupsRef, $commentsRef,
+      $from, $headerCheck,$headerSleep ,$monitoringPort, $fileCounter) = @_;
 
   
   my $uploader = Net::NNTP::Uploader->new($connectionNumber, $server, $port, $username, $userpasswd, $monitoringPort);
@@ -276,7 +287,7 @@ sub _transmit_files{
 
   if ($headerCheck){
     say "Child $$ starting header check!";
-    $uploader->header_check($filesRef, $newsGroupsRef, $from, $commentsRef, $fileCounter);
+    $uploader->header_check($filesRef, $newsGroupsRef, $from, $commentsRef, $fileCounter, $headerSleep);
   }
   $uploader->logout;
   exit 0;

@@ -179,7 +179,7 @@ sub transmit_files{
 
 #It will perform the header check!
 sub header_check{
-  my ($self, $filesRef, $newsgroups, $from, $comments, $fileCounter)=@_;
+  my ($self, $filesRef, $newsgroups, $from, $comments, $fileCounter, $sleepTime)=@_;
 
   my $socket = $self->{socket};
   my $newsgroup = $newsgroups->[0]; #The first newsgroup is enough to check if the segment was uploaded correctly
@@ -189,6 +189,7 @@ sub header_check{
     
   for my $fileRef (@$filesRef) {
     my $count = 0;
+    sleep $sleepTime;
     do {
       my $messageID = $fileRef->[2];
       print $socket "stat <$messageID>\r\n";
@@ -204,7 +205,8 @@ sub header_check{
 	#print "\rHeader check: Missing segment $messageID [$output]\r\n";
 	$self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups, 1, $fileCounter);
 	$count=$count+1;
-	sleep 20;
+	sleep $sleepTime;
+
       }
     }while(1);
   }
