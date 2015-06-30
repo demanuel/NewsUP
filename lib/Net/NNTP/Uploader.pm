@@ -213,6 +213,9 @@ sub header_check{
 	}
       }while(1);
     }
+    print $socket "quit\r\n";
+    shutdown $socket, 2;  
+    
   };
   if ($@) {
     say "Error: $@";
