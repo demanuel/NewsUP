@@ -91,6 +91,10 @@ newsgroup= alt.binaries.test, alt.binaries.conspiracy #you can put here as many 
 [headerCheck]
 enabled= 1 #0 or 1. If this is enable, after each thread finishes their uploads it will check if the header was uploaded to server through a stat command
 sleep= 20 # in Seconds. How much time it should wait before a segment header check
+server= server_to_headerCheck #If doesn't exist then it will use the server defined in server section
+port= 563 #If doesn't exist then it will use the port defined in server section
+username= My_username #If doesn't exist then it will use the user defined in auth section
+password= my_password #If doesn't exist then it will use the password defined in auth section
 
 [generic]
 monitoringPort = 8675

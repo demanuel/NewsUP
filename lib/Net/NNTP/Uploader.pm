@@ -80,9 +80,9 @@ sub _create_socket{
 #performs the server authentication
 sub _authenticate{
 
-  my ($self) = @_;
-  my $socket = $self->{socket};
-  my $username = $self->{username};
+  my ($self, $socket, $username, $password) = @_;
+  #my $socket = $self->{socket};
+  #my $username = $self->{username};
   print $socket "authinfo user $username\r\n";
   sysread($socket, my $output, 8192);
   
@@ -92,7 +92,7 @@ sub _authenticate{
     shutdown $socket, 2;
     return -1;
   }
-  my $password=$self->{userpass};
+  #my $password=$self->{userpass};
   print $socket "authinfo pass $password\r\n";
   sysread($socket, $output, 8192);
 
@@ -122,7 +122,7 @@ sub transmit_files{
   if ($self->{authenticated}==0) {
     while ($self->{authenticated} == 0){
       $self->_create_socket;
-      $self->_authenticate;
+      $self->_authenticate($self->{socket}, $self->{username}, $self->{userpass});
       last if($self->{authenticated} == 1);
       sleep 30;
     }
@@ -179,39 +179,73 @@ sub transmit_files{
 
 #It will perform the header check!
 sub header_check{
-  my ($self, $filesRef, $newsgroups, $from, $comments, $fileCounter, $sleepTime)=@_;
+  my ($self, $filesRef, $newsgroups, $from, $comments, $fileCounter, $sleepTime, $server, $port, $user, $password)=@_;
 
-  my $socket = $self->{socket};
-  my $newsgroup = $newsgroups->[0]; #The first newsgroup is enough to check if the segment was uploaded correctly
-  print $socket "group $newsgroup\r\n";
-  my $output;
-  sysread($socket, $output, 8192);
+  #TODO: eval
+  eval{
+    my $socket = $self->_get_headercheck_socket($server,$port, $user,$password);
+    #my $socket = $self->{socket};
+    my $newsgroup = $newsgroups->[0]; #The first newsgroup is enough to check if the segment was uploaded correctly
+    print $socket "group $newsgroup\r\n";
+    my $output;
+    sysread($socket, $output, 8192);
     
-  for my $fileRef (@$filesRef) {
-    my $count = 0;
-    sleep $sleepTime;
-    do {
-      my $messageID = $fileRef->[2];
-      print $socket "stat <$messageID>\r\n";
-      sysread($socket, $output, 8192);
-      chop $output;
-      
-      if (substr($output,0,3) == 223) {
-	next;
-      }elsif ($count==5) {
-	say "Aborting! Header $messageID not found on the server! Please check for issues on the server.";
-	next;
-      }else {
-	#print "\rHeader check: Missing segment $messageID [$output]\r\n";
-	$self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups, 1, $fileCounter);
-	$count=$count+1;
-	sleep $sleepTime;
-
-      }
-    }while(1);
+    for my $fileRef (@$filesRef) {
+      my $count = 0;
+      sleep $sleepTime;
+      do {
+	my $messageID = $fileRef->[2];
+	print $socket "stat <$messageID>\r\n";
+	sysread($socket, $output, 8192);
+	chop $output;
+	
+	if (substr($output,0,3) == 223) {
+	  next;
+	}elsif ($count==5) {
+	  say "Aborting! Header $messageID not found on the server! Please check for issues on the server.";
+	  next;
+	}else {
+	  #print "\rHeader check: Missing segment $messageID [$output]\r\n";
+	  $self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups, 1, $fileCounter);
+	  $count=$count+1;
+	  sleep $sleepTime;
+	  
+	}
+      }while(1);
+    }
+  };
+  if ($@) {
+    say "Error: $@";
   }
 }
 
+sub _get_headercheck_socket{
+  my ($self, $server,$port, $username, $password) = @_;
+
+  return $self->{socket} if $self->{server} eq $server && $self->{port} == $port;
+
+  my $socket;
+  if ($port!= 119 && $port != 80 && $port != 23 ) {
+    $socket = IO::Socket::SSL->new(
+				   PeerHost=>$server,
+				   PeerPort=>$port,
+				   SSL_verify_mode=>SSL_VERIFY_NONE,
+				   SSL_version=>'TLSv1',
+				   SSL_ca_path=>'/etc/ssl/certs',
+				  ) or die "Failed to connect or ssl handshake: $!, $SSL_ERROR";
+
+  }else {
+        $socket = IO::Socket::INET->new (
+				     PeerAddr => $server,
+				     PeerPort => $port,
+				     Proto => 'tcp',
+				    ) or die "ERROR in Socket Creation : $!\n";
+  }
+  
+  die "Unable to authenticate on the headercheck server!" if ($self->_authenticate($socket, $username, $password) == -1);
+  
+  return $socket;
+}
 
 sub _get_file_bytes_by_part{
   my ($fileNameHandle, $part) = @_;

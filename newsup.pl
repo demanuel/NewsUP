@@ -41,7 +41,8 @@ sub _parse_command_line{
 
   my ($server, $port, $username,$userpasswd,
       @filesToUpload, $threads, @comments,
-      $from, $headerCheck, $nzbName, $monitoringPort, $fileCounter);
+      $from, $headerCheck, $headerCheckSleep, $headerCheckServer, $headerCheckPort,
+      $headerCheckUserName, $headerCheckPassword, $nzbName, $monitoringPort, $fileCounter);
 
   #default value
   $monitoringPort=8675;
@@ -61,7 +62,11 @@ sub _parse_command_line{
 	     'metadata=s'=>\%metadata,
 	     'nzb=s'=>\$nzbName,
 	     'headerCheck'=>\$headerCheck,
-	     'headerSleep'=>\$headerSleep,
+	     'headerCheckSleep'=>\$headerCheckSleep,
+	     'headerCheckServer'=>\$headerCheckServer,
+	     'headerCheckPort'=>\$headerCheckPort,
+	     'headerCheckUserName'=>\$headerCheckUserName,
+	     'headerCheckPassword'=>\$headerCheckPassword,
 	     'monitoringPort'=>\$monitoringPort,
 	     'ccounter|cfc!'=>\$fileCounter);
   
@@ -95,14 +100,42 @@ sub _parse_command_line{
     if (!defined $headerCheck) {
       $headerCheck = $config->{headerCheck}{enabled} if exists $config->{headerCheck}{enabled};
     }
-    if ($headerCheck && !defined $headerSleep) {
-      if (exists $config->{headerCheck}{sleep}){
-	$headerSleep = $config->{headerCheck}{sleep};
-      }else {
-	$headerSleep=20;
+    if ($headerCheck){
+      if (!defined $headerCheckSleep) {
+	if (exists $config->{headerCheck}{sleep}){
+	  $headerCheckSleep = $config->{headerCheck}{sleep};
+	}else {
+	  $headerCheckSleep=20;
+	}
       }
-    }else {
-      $headerSleep=20;
+      if (!defined $headerCheckServer) {
+	if (exists $config->{headerCheck}{server}){
+	  $headerCheckServer = $config->{headerCheck}{server};
+	}else {
+	  $headerCheckServer=$server;
+	}
+      }
+      if (!defined $headerCheckPort) {
+	if (exists $config->{headerCheck}{port}){
+	  $headerCheckPort = $config->{headerCheck}{port};
+	}else {
+	  $headerCheckPort=$port;
+	}
+      }
+      if (!defined $headerCheckUserName) {
+	if (exists $config->{headerCheck}{username}){
+	  $headerCheckUserName = $config->{headerCheck}{username};
+	}else {
+	  $headerCheckUserName=$username;
+	}
+      }
+      if (!defined $headerCheckPassword) {
+	if (exists $config->{headerCheck}{password}){
+	  $headerCheckPassword = $config->{headerCheck}{password};
+	}else {
+	  $headerCheckPassword=$password;
+	}
+      }
     }
 
     if (!defined $monitoringPort) {
@@ -124,8 +157,9 @@ sub _parse_command_line{
 
   return ($server, $port, $username, $userpasswd, 
 	  \@filesToUpload, $threads, \@newsGroups, 
-	  \@comments, $from, \%metadata, $headerCheck, $headerSleep,
-	  $nzbName,$monitoringPort, $fileCounter);
+	  \@comments, $from, \%metadata, $headerCheck, $headerCheckSleep,
+	  $headerCheckServer, $headerCheckPort, $headerCheckUserName,
+	  $headerCheckPassword, $nzbName,$monitoringPort, $fileCounter);
 }
 
 sub _distribute_files_by_connection{
@@ -204,8 +238,10 @@ sub main{
 
   my ($server, $port, $username, $userpasswd, 
       $filesToUploadRef, $connections, $newsGroupsRef, 
-      $commentsRef, $from, $meta, $headerCheck, $headerSleep,
-      $nzbName, $monitoringPort, $fileCounter)=_parse_command_line();
+      $commentsRef, $from, $meta, $headerCheck, $headerCheckSleep,
+      $headerCheckServer, $headerCheckPort,
+      $headerCheckUsername, $headerCheckPassword, $nzbName,
+      $monitoringPort, $fileCounter)=_parse_command_line();
   
   my $tempFilesRef = _get_files_to_upload($filesToUploadRef);
   my $totalSize=0;
@@ -226,7 +262,8 @@ sub main{
     push @threadsList, _transmit_files($i,
 				       $server, $port, $username, $userpasswd, 
 				       $tempFilesRef->[$i], $connections, $newsGroupsRef, $commentsRef, 
-				       $from, $headerCheck, $headerSleep, $monitoringPort, $fileCounter);
+				       $from, $headerCheck, $headerCheckSleep, $headerCheckServer, $headerCheckPort,
+				       $headerCheckUsername, $headerCheckPassword, $monitoringPort, $fileCounter);
   }
 
 
@@ -279,7 +316,8 @@ sub _transmit_files{
 
   my ($connectionNumber, $server, $port, $username, $userpasswd, 
       $filesRef, $connections, $newsGroupsRef, $commentsRef,
-      $from, $headerCheck,$headerSleep ,$monitoringPort, $fileCounter) = @_;
+      $from, $headerCheck,$headerCheckSleep, $headerCheckServer, $headerCheckPort,
+      $headerCheckUsername, $headerCheckPassword ,$monitoringPort, $fileCounter) = @_;
 
   
   my $uploader = Net::NNTP::Uploader->new($connectionNumber, $server, $port, $username, $userpasswd, $monitoringPort);
@@ -287,7 +325,8 @@ sub _transmit_files{
 
   if ($headerCheck){
     say "Child $$ starting header check!";
-    $uploader->header_check($filesRef, $newsGroupsRef, $from, $commentsRef, $fileCounter, $headerSleep);
+    $uploader->header_check($filesRef, $newsGroupsRef, $from, $commentsRef, $fileCounter, $headerCheckSleep,
+			    $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
   }
   $uploader->logout;
   exit 0;
