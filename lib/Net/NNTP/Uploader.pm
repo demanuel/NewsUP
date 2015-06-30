@@ -85,7 +85,6 @@ sub _authenticate{
   #my $username = $self->{username};
   print $socket "authinfo user $username\r\n";
   sysread($socket, my $output, 8192);
-  
   my $status = substr($output,0,3);
   if ($status != 381) {
     $self->{authenticated}=0;
@@ -95,7 +94,6 @@ sub _authenticate{
   #my $password=$self->{userpass};
   print $socket "authinfo pass $password\r\n";
   sysread($socket, $output, 8192);
-
   $status = substr($output,0,3);
   if ($status != 281 && $status != 250) {
     say $output;
@@ -189,16 +187,16 @@ sub header_check{
     print $socket "group $newsgroup\r\n";
     my $output;
     sysread($socket, $output, 8192);
-    
+
+    sleep $sleepTime;
     for my $fileRef (@$filesRef) {
       my $count = 0;
-      sleep $sleepTime;
       do {
 	my $messageID = $fileRef->[2];
 	print $socket "stat <$messageID>\r\n";
 	sysread($socket, $output, 8192);
 	chop $output;
-	
+
 	if (substr($output,0,3) == 223) {
 	  next;
 	}elsif ($count==5) {
@@ -213,13 +211,20 @@ sub header_check{
 	}
       }while(1);
     }
-    print $socket "quit\r\n";
-    shutdown $socket, 2;  
-    
+    $self->_shutdown_headercheck_socket($socket, $server,$port);
   };
   if ($@) {
     say "Error: $@";
   }
+}
+
+sub _shutdown_headercheck_socket{
+  my ($self, $socket, $server,$port) = @_;
+  return if $self->{server} eq $server && $self->{port} == $port;
+
+  print $socket "quit\r\n";
+  shutdown $socket, 2; 
+  
 }
 
 sub _get_headercheck_socket{
@@ -244,7 +249,9 @@ sub _get_headercheck_socket{
 				     Proto => 'tcp',
 				    ) or die "ERROR in Socket Creation : $!\n";
   }
-  
+
+  $socket->autoflush(1);
+  sysread($socket, my $output, 8192);#Discard the data the server sends when we connect
   die "Unable to authenticate on the headercheck server!" if ($self->_authenticate($socket, $username, $password) == -1);
   
   return $socket;

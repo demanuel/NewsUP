@@ -108,32 +108,32 @@ sub _parse_command_line{
 	  $headerCheckSleep=20;
 	}
       }
-      if (!defined $headerCheckServer) {
-	if (exists $config->{headerCheck}{server}){
+      if (!defined $headerCheckServer || $headerCheckServer eq '') {
+	if (exists $config->{headerCheck}{server} && $config->{headerCheck}{server} ne ''){
 	  $headerCheckServer = $config->{headerCheck}{server};
 	}else {
 	  $headerCheckServer=$server;
 	}
       }
-      if (!defined $headerCheckPort) {
-	if (exists $config->{headerCheck}{port}){
+      if (!defined $headerCheckPort || $headerCheckPort eq '') {
+	if (exists $config->{headerCheck}{port} &&  $config->{headerCheck}{port} ne ''){
 	  $headerCheckPort = $config->{headerCheck}{port};
 	}else {
 	  $headerCheckPort=$port;
 	}
       }
-      if (!defined $headerCheckUserName) {
-	if (exists $config->{headerCheck}{username}){
+      if (!defined $headerCheckUserName || $headerCheckUserName eq '') {
+	if (exists $config->{headerCheck}{username} && $config->{headerCheck}{username} ne ''){
 	  $headerCheckUserName = $config->{headerCheck}{username};
 	}else {
 	  $headerCheckUserName=$username;
 	}
       }
-      if (!defined $headerCheckPassword) {
-	if (exists $config->{headerCheck}{password}){
+      if (!defined $headerCheckPassword || $headerCheckPassword eq '') {
+	if (exists $config->{headerCheck}{password} && $config->{headerCheck}{password} ne ''){
 	  $headerCheckPassword = $config->{headerCheck}{password};
 	}else {
-	  $headerCheckPassword=$password;
+	  $headerCheckPassword=$userpasswd;
 	}
       }
     }
