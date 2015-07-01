@@ -53,6 +53,8 @@ perl uploadit.pl -directory my_folder -a "-com \"extra arguments for newsup.pl\"
 ```
 This will create a bunch of rars (check the rar configuration) of the dirctory "my_folder". It will also print a bunch of debug messages. 
 
+*- newsupseq.sh - this script will upload sequentially the files, and it will merge the nzb files into one. 
+
 
 #Requirements:
 * Perl (preferably 5.018 or higher)
