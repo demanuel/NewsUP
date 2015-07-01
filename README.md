@@ -6,7 +6,7 @@ It will run on any platform that supports perl that matches the requirements (ch
 
 # Intro
 
-This program will upload binary files to the usenet and generate a NZB file. It supports SSL, multiple connections.
+This program will upload binary files to the usenet.
 This program is licensed with GPLv3.
 
 ## note 
@@ -26,6 +26,14 @@ For windows installation, or another stuff more specific to some environment/scr
 It will upload a file or folder to the usenet. 
 If it is a folder it will search for files inside of the folder.
 A NZB file will be generated for later retrieving.
+
+## Supports
+* SSL
+* Multi connections
+* Header Check (including to a different server from the one the article where upload)
+* NZB Creation
+
+
 
 ## What doesn't do 
 But it may exist a script with these functionalities on the scripts folder.
