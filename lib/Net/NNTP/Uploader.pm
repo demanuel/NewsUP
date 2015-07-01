@@ -230,7 +230,7 @@ sub _shutdown_headercheck_socket{
 sub _get_headercheck_socket{
   my ($self, $server,$port, $username, $password) = @_;
 
-  return $self->{socket} if $self->{server} eq $server && $self->{port} == $port;
+  return $self->{socket} if $self->{server} eq $server;
 
   my $socket;
   if ($port!= 119 && $port != 80 && $port != 23 ) {
