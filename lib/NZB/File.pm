@@ -32,7 +32,7 @@ sub new{
 sub add_segment{
   my $self = shift;
   my $segment = shift;
-  
+
   push @{$self->{segments}}, $segment;
 }
 
@@ -48,7 +48,15 @@ sub get_xml{
   $xml.= "<group>$_</group>\r\n" for (@{$self->{groups}});
   $xml.= "</groups>\r\n";
   $xml.= "<segments>\r\n";
-  $xml.= $_->get_xml() for (@{$self->{segments}});
+  $xml.= $_->get_xml() for (sort{
+
+    my $regex=/number="(\d+)"/;
+    $a=~ $regex;
+    my $order1=$1;
+    $b=~ $regex;
+    my $order2=$1;
+    return $order1<=>$order2;
+			       } @{$self->{segments}});
   $xml.= "</segments>\r\n";
   $xml.= "</file>\r\n";
 

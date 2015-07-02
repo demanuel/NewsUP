@@ -96,7 +96,6 @@ sub _authenticate{
   sysread($socket, $output, 8192);
   $status = substr($output,0,3);
   if ($status != 281 && $status != 250) {
-    say $output;
     $self->{authenticated}=0;
     shutdown $socket, 2;
     return -1;
@@ -179,7 +178,6 @@ sub transmit_files{
 sub header_check{
   my ($self, $filesRef, $newsgroups, $from, $comments, $fileCounter, $sleepTime, $server, $port, $user, $password)=@_;
 
-  #TODO: eval
   eval{
     my $socket = $self->_get_headercheck_socket($server,$port, $user,$password);
     #my $socket = $self->{socket};
