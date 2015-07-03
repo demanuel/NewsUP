@@ -71,12 +71,10 @@ sub main{
   my $DIRECTORY=();
   my $NAME='';
   my @GROUPS=();
-  my $COMMENT='';
   my $DEBUG=0;
   my $UP_ARGS='';
   
   GetOptions('directory=s'=>\$DIRECTORY,
-	     'comment=s'=>\$COMMENT,
 	     'debug!'=>\$DEBUG,
 	     'args=s'=>\$UP_ARGS,
 	     'group=s'=>\@GROUPS);
@@ -138,6 +136,7 @@ sub main{
 
 
 sub pre_process_folder{
+  say "Pre Processing the input";
   my $folder=shift;
   my $configs=shift;
   my $DEBUG = shift;
@@ -169,6 +168,7 @@ sub pre_process_folder{
 }
 
 sub create_sfv_file{
+  say "Creating SFV file";
   my $sfvFileName = shift;
   my $preProcessedFiles=shift;
   my $configs=shift;
@@ -199,6 +199,7 @@ sub create_sfv_file{
 }
 
 sub create_parity_archives{
+  say "Creating Partity archives";
   my $folder=shift;
   my $preProcessedFiles=shift;
   my $configs=shift;
@@ -215,14 +216,11 @@ sub create_parity_archives{
   my $output = qx/$invoke/;
 
   my @parity_files=();
-  find(sub{
-	 if (-f) {
-	   my $newName = $File::Find::name;
-	   my $regexp = basename($folder).".*par2";
-	   push @parity_files, $newName if($newName =~ /$regexp/);
-	 }
-       }, ($configs->{TEMP_DIR}));
-
+  opendir my $dh, $configs->{TEMP_DIR} or die "Cannot enter the temp folder '".$configs->{TEMP_DIR}."'\n$@";
+  while (readdir $dh) {
+    push @parity_files, $configs->{TEMP_DIR}."/$_" if($_ =~ /.*par2$/);
+  }
+  closedir $dh;
 
   return @parity_files;
   
@@ -247,6 +245,7 @@ sub upload_files{
 
 
 sub randomize_archives{
+  say "Randomize archives";
   my ($compressedFiles,$scriptVarsRef) = @_;
   
   return $compressedFiles if ($scriptVarsRef->{RANDOMIZE_NAMES}==0 || @$compressedFiles > 1);
