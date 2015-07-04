@@ -367,7 +367,7 @@ sub _yenc_encode{
     
     $column+=1;
     
-    if ($column> $YENC_NNTP_LINESIZE ) {
+    if ($column>= $YENC_NNTP_LINESIZE ) {
       $column=0;
       $content = $content."\r\n";
     }
