@@ -184,7 +184,7 @@ The NZB file It will have on the ```<head>``` tag the childs:
 
 -headerSleep <seconds>: Seconds, how much time it should wait before doing the header check.
 
--uploadsize <size>: size in KB, of the segment to be uploaded. ~~This option is not available on the configuration file~~
+-uploadsize <size>: size in KB, of the segment to be uploaded. **This option is not available on the configuration file**
 
 # Examples
 
