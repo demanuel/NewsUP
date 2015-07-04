@@ -55,9 +55,9 @@ sub _create_socket{
 				   PeerHost=>$self->{server},
 				   PeerPort=>$self->{port},
 				   SSL_verify_mode=>SSL_VERIFY_NONE,
-				   #				   SSL_version=>'TLSv1',
-				   SSL_version=>'TLSv1_2',
-				   SSL_cipher_list=>'DHE-RSA-AES128-SHA',
+				   SSL_version=>'TLSv1',
+				   #SSL_version=>'TLSv1_2',
+				   #SSL_cipher_list=>'DHE-RSA-AES128-SHA',
 				   SSL_ca_path=>'/etc/ssl/certs',
 				  ) or die "Failed to connect or ssl handshake: $!, $SSL_ERROR";
   }else {
