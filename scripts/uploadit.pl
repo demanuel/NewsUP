@@ -142,7 +142,7 @@ sub pre_process_folder{
   my $DEBUG = shift;
   my @files = ();
   
-  if ($configs->{ENABLE_RAR_COMPRESSION} > -1) {
+  if ($configs->{ENABLE_RAR_COMPRESSION} > 0) {
 
     my $args = $configs->{EXTRA_ARGS_TO_RAR}.' "'.$configs->{TEMP_DIR}.'/'.basename($folder).".rar\" \"$folder\"";
     my $invoke = $configs->{PATH_TO_RAR}.' '.$args;
@@ -198,7 +198,7 @@ sub create_sfv_file{
   }
 
   close $ofh;
-  return $configs->{TEMP_DIR}."$sfvFileName.sfv";
+  return $sfv_file;
 }
 
 sub create_parity_archives{
