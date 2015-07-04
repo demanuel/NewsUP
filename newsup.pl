@@ -42,7 +42,8 @@ sub _parse_command_line{
   my ($server, $port, $username,$userpasswd,
       @filesToUpload, $threads, @comments,
       $from, $headerCheck, $headerCheckSleep, $headerCheckServer, $headerCheckPort,
-      $headerCheckUserName, $headerCheckPassword, $nzbName, $monitoringPort, $fileCounter);
+      $headerCheckUserName, $headerCheckPassword, $nzbName, $monitoringPort,
+      $uploadSize);
 
   #default value
   $monitoringPort=8675;
@@ -62,12 +63,13 @@ sub _parse_command_line{
 	     'metadata=s'=>\%metadata,
 	     'nzb=s'=>\$nzbName,
 	     'headerCheck'=>\$headerCheck,
-	     'headerCheckSleep'=>\$headerCheckSleep,
-	     'headerCheckServer'=>\$headerCheckServer,
-	     'headerCheckPort'=>\$headerCheckPort,
-	     'headerCheckUserName'=>\$headerCheckUserName,
-	     'headerCheckPassword'=>\$headerCheckPassword,
-	     'monitoringPort'=>\$monitoringPort,
+	     'headerCheckSleep=i'=>\$headerCheckSleep,
+	     'headerCheckServer=s'=>\$headerCheckServer,
+	     'headerCheckPort=i'=>\$headerCheckPort,
+	     'headerCheckUserName=s'=>\$headerCheckUserName,
+	     'headerCheckPassword=s'=>\$headerCheckPassword,
+	     'monitoringPort=i'=>\$monitoringPort,
+	     'uploadsize=i'=>\$uploadSize
 	    );
   
   if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
@@ -155,11 +157,15 @@ sub _parse_command_line{
     exit 0;
   }
 
+  if (defined $uploadSize) {
+    $Net::NNTP::Uploader::NNTP_MAX_UPLOAD_SIZE=$uploadSize;
+  }
+  
   return ($server, $port, $username, $userpasswd, 
 	  \@filesToUpload, $threads, \@newsGroups, 
 	  \@comments, $from, \%metadata, $headerCheck, $headerCheckSleep,
 	  $headerCheckServer, $headerCheckPort, $headerCheckUserName,
-	  $headerCheckPassword, $nzbName,$monitoringPort, $fileCounter);
+	  $headerCheckPassword, $nzbName,$monitoringPort);
 }
 
 sub _distribute_files_by_connection{
@@ -241,7 +247,7 @@ sub main{
       $commentsRef, $from, $meta, $headerCheck, $headerCheckSleep,
       $headerCheckServer, $headerCheckPort,
       $headerCheckUsername, $headerCheckPassword, $nzbName,
-      $monitoringPort, $fileCounter)=_parse_command_line();
+      $monitoringPort)=_parse_command_line();
   
   my $tempFilesRef = _get_files_to_upload($filesToUploadRef);
   my $totalSize=0;
@@ -318,7 +324,7 @@ sub _transmit_files{
       $from, $headerCheck,$headerCheckSleep, $headerCheckServer, $headerCheckPort,
       $headerCheckUsername, $headerCheckPassword ,$monitoringPort) = @_;
 
-  
+
   my $uploader = Net::NNTP::Uploader->new($connectionNumber, $server, $port, $username, $userpasswd, $monitoringPort);
   $uploader->transmit_files($filesRef, $from, $commentsRef->[0], $commentsRef->[1], $newsGroupsRef, 0);
 

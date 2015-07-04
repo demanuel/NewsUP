@@ -147,27 +147,27 @@ Check sample newsup.conf for the available options
 
 ## Command line options
 
--username: credential for authentication on the server.
+-username <username>: credential for authentication on the server.
 
--password: credential for authentication on the server.
+-password <passwd>: credential for authentication on the server.
 
--server: server where the files will be uploaded to (SSL supported)
+-server <server>: server where the files will be uploaded to (SSL supported)
 
--port: port. For non SSL upload use 119, for SSL upload use 563 or 995
+-port <port>: The port where you should connect. For non SSL upload use 119, for SSL upload use 563 or 995
 
--file: the file or folder you want to upload. You can have as many as you want. If the you're uploading a folder then it will find the files inside of the folder
+-file <file>: the file or folder you want to upload. You can have as many as you want. If the you're uploading a folder then it will find the files inside of the folder
 
--comment: comment. Subject will have your comment. You can use two. The subject created will be something like "[first comment] my file's name [second comment]"
+-comment <comment>: Subject will have your comment. You can use two (if you have more, they will be ignored). The subject created will be something like "first comment [1/1] "my file's name" yenc (1/100) [second comment]"
 
--uploader: the email of the one who is uploading, so it can be later emailed for whoever sees the post. Usually this value is a bogus one.
+-uploader <uploader id>: the email of the one who is uploading, so it can be later emailed for whoever sees the post. Usually this value is a bogus one.
 
--newsgroup: newsgroups. You can have as many as you want. This will crosspost the file.
+-newsgroup <groups>: newsgroups. You can have as many as you want. This will crosspost the file.
 
--nzb: name of the NZB file.
+-nzb <name>: name of the NZB file.
 
--groups: alias for newsgroups option
+-groups <groups>: alias for newsgroups option
 
--connections: number of connections (or threads) for uploading the files (default: 2). Tip: you can use this to throttle your bandwidth usage :-P
+-connections <connections>: number of connections (or threads) for uploading the files (default: 2). Tip: you can use this to throttle your bandwidth usage :-P
 
 -metadata: metadata for the nzb. You can put every text you want! Example: 
 ```bash
@@ -182,7 +182,9 @@ The NZB file It will have on the ```<head>``` tag the childs:
 
 -headerCheck: if you want to perform header check
 
--headerSleep: Seconds, how much time it should wait before doing the header check.
+-headerSleep <seconds>: Seconds, how much time it should wait before doing the header check.
+
+-uploadsize <size>: size in KB, of the segment to be uploaded. ~~This option is not available on the configuration file~~
 
 # Examples
 
