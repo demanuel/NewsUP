@@ -173,8 +173,11 @@ sub create_sfv_file{
   my $preProcessedFiles=shift;
   my $configs=shift;
   my $DEBUG = shift;
-  
-  open my $ofh, '>', $configs->{TEMP_DIR}."$sfvFileName.sfv" or die "Unable to create sfv file!";
+
+  my $sfv_file=$configs->{TEMP_DIR};
+  $sfv_file .= "/" if substr($sfv_file,-1,1) ne '/';
+  $sfv_file = "$sfv_file$sfvFileName.sfv";
+  open my $ofh, '>', $sfv_file or die "Unable to create sfv file!";
   binmode $ofh;
 
   for (@$preProcessedFiles) {
