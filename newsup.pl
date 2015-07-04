@@ -68,7 +68,7 @@ sub _parse_command_line{
 	     'headerCheckUserName'=>\$headerCheckUserName,
 	     'headerCheckPassword'=>\$headerCheckPassword,
 	     'monitoringPort'=>\$monitoringPort,
-	     'ccounter|cfc!'=>\$fileCounter);
+	    );
   
   if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
 
@@ -246,7 +246,6 @@ sub main{
   my $tempFilesRef = _get_files_to_upload($filesToUploadRef);
   my $totalSize=0;
 
-  
   $totalSize +=-s $_ for (@$tempFilesRef);
   
   $tempFilesRef = _distribute_files_by_connection ($connections, $tempFilesRef);
@@ -263,7 +262,7 @@ sub main{
 				       $server, $port, $username, $userpasswd, 
 				       $tempFilesRef->[$i], $connections, $newsGroupsRef, $commentsRef, 
 				       $from, $headerCheck, $headerCheckSleep, $headerCheckServer, $headerCheckPort,
-				       $headerCheckUsername, $headerCheckPassword, $monitoringPort, $fileCounter);
+				       $headerCheckUsername, $headerCheckPassword, $monitoringPort);
   }
 
 
@@ -317,15 +316,15 @@ sub _transmit_files{
   my ($connectionNumber, $server, $port, $username, $userpasswd, 
       $filesRef, $connections, $newsGroupsRef, $commentsRef,
       $from, $headerCheck,$headerCheckSleep, $headerCheckServer, $headerCheckPort,
-      $headerCheckUsername, $headerCheckPassword ,$monitoringPort, $fileCounter) = @_;
+      $headerCheckUsername, $headerCheckPassword ,$monitoringPort) = @_;
 
   
   my $uploader = Net::NNTP::Uploader->new($connectionNumber, $server, $port, $username, $userpasswd, $monitoringPort);
-  $uploader->transmit_files($filesRef, $from, $commentsRef->[0], $commentsRef->[1], $newsGroupsRef, 0, $fileCounter);
+  $uploader->transmit_files($filesRef, $from, $commentsRef->[0], $commentsRef->[1], $newsGroupsRef, 0);
 
   if ($headerCheck){
     say "Child $$ starting header check!";
-    $uploader->header_check($filesRef, $newsGroupsRef, $from, $commentsRef, $fileCounter, $headerCheckSleep,
+    $uploader->header_check($filesRef, $newsGroupsRef, $from, $commentsRef, $headerCheckSleep,
 			    $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
   }
   $uploader->logout;

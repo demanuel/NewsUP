@@ -14,7 +14,7 @@ use Time::HiRes qw/ time /;
 use String::CRC32;
 use 5.018;
 
-#750Kb - the segment size. I tried with 4 Megs and got a 441. The allowed posting segment size isn't standard
+#The allowed posting segment size isn't standard
 our $NNTP_MAX_UPLOAD_SIZE=512*1024; 
 my $YENC_NNTP_LINESIZE=128;
 $|=1;
@@ -55,7 +55,9 @@ sub _create_socket{
 				   PeerHost=>$self->{server},
 				   PeerPort=>$self->{port},
 				   SSL_verify_mode=>SSL_VERIFY_NONE,
-				   SSL_version=>'TLSv1',
+				   #				   SSL_version=>'TLSv1',
+				   SSL_version=>'TLSv1_2',
+				   SSL_cipher_list=>'DHE-RSA-AES128-SHA',
 				   SSL_ca_path=>'/etc/ssl/certs',
 				  ) or die "Failed to connect or ssl handshake: $!, $SSL_ERROR";
   }else {
@@ -114,7 +116,7 @@ sub logout{
 }
 
 sub transmit_files{
-  my ($self, $filesListRef, $from, $initComment, $endComment, $newsgroupsRef, $isHeaderCheck, $fileCounter) = @_;
+  my ($self, $filesListRef, $from, $initComment, $endComment, $newsgroupsRef, $isHeaderCheck) = @_;
 
   if ($self->{authenticated}==0) {
     while ($self->{authenticated} == 0){
@@ -124,18 +126,18 @@ sub transmit_files{
       sleep 30;
     }
   }
-  my %commentMap = ();
-  for my $filePair (@$filesListRef){
-    if (!exists $commentMap{$filePair->[0]}) {
-      if (defined $initComment && $fileCounter==1) {
-	$commentMap{$filePair->[0]}=$initComment." [".$filePair->[-1]."]";
-      }elsif ($fileCounter){
-	$commentMap{$filePair->[0]}=$filePair->[-1];
-      }elsif (defined $initComment){
-	$commentMap{$filePair->[0]}=$initComment;
-      }
-    }
-  }
+  # my %commentMap = ();
+  # for my $filePair (@$filesListRef){
+  #   if (!exists $commentMap{$filePair->[0]}) {
+  #     if (defined $initComment && $fileCounter==1) {
+  # 	$commentMap{$filePair->[0]}=$initComment." [".$filePair->[-1]."]";
+  #     }elsif ($fileCounter){
+  # 	$commentMap{$filePair->[0]}=$filePair->[-1];
+  #     }elsif (defined $initComment){
+  # 	$commentMap{$filePair->[0]}=$initComment;
+  #     }
+  #   }
+  # }
 
   for my $filePair (@$filesListRef) {
  #   my $initTime = time();
@@ -148,14 +150,14 @@ sub transmit_files{
 
     #my $fileSize= -s $filePair->[0];
     my $fileName=(fileparse($filePair->[0]))[0];
+
     my ($readedData, $readSize) = _get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
     close $ifh;
     my $subject = "\"$fileName\" yenc ($currentFilePart/$totalFilePart)";
 
-    $subject = $commentMap{$filePair->[0]}." $subject" if exists $commentMap{$filePair->[0]};
+    $subject = "$initComment [".$filePair->[-1]."] - $subject" if defined $initComment;
 
     $subject = "$subject [$endComment]" if defined $endComment;
-
 
     my $content = _get_post_body($currentFilePart, $totalFilePart, $fileName,
 				 1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1), $readSize, $readedData);
@@ -176,7 +178,7 @@ sub transmit_files{
 
 #It will perform the header check!
 sub header_check{
-  my ($self, $filesRef, $newsgroups, $from, $comments, $fileCounter, $sleepTime, $server, $port, $user, $password)=@_;
+  my ($self, $filesRef, $newsgroups, $from, $comments, $sleepTime, $server, $port, $user, $password)=@_;
 
   eval{
     my $socket = $self->_get_headercheck_socket($server,$port, $user,$password);
@@ -202,7 +204,7 @@ sub header_check{
 	  next;
 	}else {
 	  #print "\rHeader check: Missing segment $messageID [$output]\r\n";
-	  $self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups, 1, $fileCounter);
+	  $self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups, 1);
 	  $count=$count+1;
 	  sleep $sleepTime;
 	  
