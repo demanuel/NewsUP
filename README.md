@@ -130,6 +130,7 @@ RAR_PASSWORD=newsup
 PATH_TO_PAR2=/usr/bin/par2
 # Folder to where the scripts files should be written
 # It's obigatory to terminate on the separator folder char.
+# Don't point this to the folder you have the original files - They will be removed. You are warned!
 TEMP_DIR=/tmp/
 # Par recovery %
 PAR_REDUNDANCY=10
