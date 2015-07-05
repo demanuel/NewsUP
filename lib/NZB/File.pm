@@ -48,15 +48,10 @@ sub get_xml{
   $xml.= "<group>$_</group>\r\n" for (@{$self->{groups}});
   $xml.= "</groups>\r\n";
   $xml.= "<segments>\r\n";
-  $xml.= $_->get_xml() for (sort{
 
-    my $regex=/number="(\d+)"/;
-    $a=~ $regex;
-    my $order1=$1;
-    $b=~ $regex;
-    my $order2=$1;
-    return $order1<=>$order2;
-			       } @{$self->{segments}});
+  my @ordered_segments = sort{$a->{number} <=> $b->{number} } @{$self->{segments}};
+
+  $xml.= $_->get_xml() for (@ordered_segments);
   $xml.= "</segments>\r\n";
   $xml.= "</file>\r\n";
 
