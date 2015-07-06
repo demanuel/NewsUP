@@ -46,14 +46,19 @@ But it may exist a script with these functionalities on the scripts folder.
 The folder scripts is a folder where NewsUP functionalities can be extended (please check the configuration section).
 Scripts available:
 
-*- uploadit.pl - this script will create splitted RARs, PAR2 files, a sfv file and a NZB file.
+* uploadit.pl - this script will create splitted RARs, PAR2 files, a sfv file and a NZB file.
 To run it you just need to:
 ```
 perl uploadit.pl -directory my_folder -a "-com \"extra arguments for newsup.pl\"" -debug
 ```
 This will create a bunch of rars (check the rar configuration) of the dirctory "my_folder". It will also print a bunch of debug messages. 
 
-*- newsupseq.sh - this script will upload sequentially the files, and it will merge the nzb files into one. 
+* completion_checker.pl - this script will check the completion of all files in a NZB:
+```
+perl completion_checker.pl -nzb my_nzb_file.nzb -server my_server.com -port 444 -user newsup -passwd newsup
+```
+This will check all the segments of the nzb, to see if they are available. Only the -nzb switch is required, all the others
+are optional, as they will be extracted from the newsup.conf
 
 
 #Requirements:
