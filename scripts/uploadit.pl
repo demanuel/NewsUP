@@ -80,7 +80,7 @@ sub main{
 	     'group=s'=>\@GROUPS);
   
   
-  if ($DIRECTORY eq '' || !-e $DIRECTORY || !-d $DIRECTORY) {
+  if ($DIRECTORY eq '' || !-e $DIRECTORY) {
     
     say "You need to configure the switch -directory";
     exit 0;
