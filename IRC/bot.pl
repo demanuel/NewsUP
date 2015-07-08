@@ -115,7 +115,7 @@ while (my $input = <$sock>) {
 	      start_upload (\@args, $sock);
 	    }elsif ($1 eq 'check') {
 
-	      print $sock "Not implemented!";
+	      print $sock "Not implemented!\r\n";
 	      
 	    }  
 	  }
