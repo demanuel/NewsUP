@@ -145,7 +145,7 @@ sub pre_process_folder{
   if ($configs->{ENABLE_RAR_COMPRESSION} > 0) {
 
     my $args = $configs->{EXTRA_ARGS_TO_RAR}.' "'.$configs->{TEMP_DIR}.'/'.basename($folder).".rar\" \"$folder\"";
-    my $invoke = $configs->{PATH_TO_RAR}.' '.$args;
+    my $invoke = '"'.$configs->{PATH_TO_RAR}.'" '.$args;
     $invoke =~ s/\/\//\//g;
     say "Invoking: $invoke" if $DEBUG;
     my $output = qx/$invoke/;
