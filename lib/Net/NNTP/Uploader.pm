@@ -310,7 +310,7 @@ sub _post{
     
     eval{
 
-      my $newsgroups = join(', ',@newsgroups);
+      my $newsgroups = join(',',@newsgroups);
       print $socket <<"END";
 From: $from\r
 Newsgroups: $newsgroups\r
