@@ -68,19 +68,21 @@ my @CRC32_TABLE= (0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x
 
 
 sub main{
-  my $DIRECTORY=();
+  my $DIRECTORY='';
   my $NAME='';
   my @GROUPS=();
   my $DEBUG=0;
   my $UP_ARGS='';
+  my $DELETE=1;
   
   GetOptions('directory=s'=>\$DIRECTORY,
 	     'debug!'=>\$DEBUG,
 	     'args=s'=>\$UP_ARGS,
+	     'delete!'=>\$DELETE,
 	     'group=s'=>\@GROUPS);
   
   
-  if ($DIRECTORY eq '' || !-e $DIRECTORY) {
+  if ($DIRECTORY eq '' || !-e $DIRECTORY ) {
     
     say "You need to configure the switch -directory";
     exit 0;
@@ -110,12 +112,22 @@ sub main{
       push @$preProcessedFiles, create_parity_archives($DIRECTORY, $preProcessedFiles, \%other_configs,$DEBUG) if ($other_configs{ENABLE_PAR_CREATION});
       say Dumper($preProcessedFiles) if $DEBUG;
       upload_files($preProcessedFiles, \%other_configs, $UP_ARGS, $DEBUG);
+
       my $remove_regexp = $other_configs{TEMP_DIR};
-      for (@$preProcessedFiles) {
-	if ($_ =~ /$remove_regexp/) {
-	  unlink $_;
-	  say "Removing $_" if $DEBUG;
-	}
+
+
+
+	for my $file (@$preProcessedFiles) {
+	  
+	  my (undef, $path, undef) = fileparse($file);
+	  if ($DELETE) {
+	    if ($file =~ /$remove_regexp/ && index($path, $DIRECTORY)!=0) {
+	      unlink $file;
+	      say "Removing $file" if $DEBUG;
+	    }
+	  }else {
+	    say "Uploaded files: $file";
+	  }
       }
       # say "Creating parity files";  
       # my $filesToUpload = create_parity_archives($checkSumFiles, \%script_vars);
@@ -149,8 +161,12 @@ sub pre_process_folder{
     $invoke =~ s/\/\//\//g;
     say "Invoking: $invoke" if $DEBUG;
     my $output = qx/$invoke/;
-    while ($output =~ /Creating archive (.*rar|.*r\d+)/g) {
+    while ($output =~ /Creating archive (.*\.rar|.*\.[r-z]\d+\.rar)/g) {
       my $archive = $1;
+      if ($archive =~ /part0{0,4}2\.rar/) {
+	(my $missingArchive = $archive) =~ s/2\.rar/1\.rar/; 
+	push @files, $missingArchive if (-e $missingArchive);
+      }
       push @files, $archive if (-e $archive);
     }
 
