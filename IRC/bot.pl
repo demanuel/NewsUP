@@ -25,145 +25,174 @@ use utf8;
 use 5.010;
 use Data::Dumper;
 use Getopt::Long;
+use Config::Tiny;
 
 # We will use a raw socket to connect to the IRC server.
 use IO::Socket;
+use File::Copy::Recursive qw/dircopy/;
+use File::Copy qw/mv/;
+use File::Path qw/remove_tree/;
 
-my ($uploadFolder, $uploadit);
-GetOptions('folder=s'=>\$uploadFolder, 'uploadit=s'=>\$uploadit);
-
-if (!defined $uploadFolder || !defined $uploadit || !-e $uploadit || !-e $uploadFolder) {
-  say "Please indicate a valid upload folder to be monitored and a valid uploadit script!";
-  exit;
+sub main{
+  my $config = get_options();
+  my $socket = get_IRC_socket($config);
+  
+  start($socket, $config);
 }
 
-# The server to connect to and our details.
-my $server = "irc.rizon.net";
-my $nick = "NewsUp";
-my $login = "NewsUp";
 
-# The channel which the bot will join.
-#my $channel = "#test";
-my $channel = "#ikweethet";
+sub get_options{
 
-# Connect to the IRC server.
-my $sock = new IO::Socket::INET(PeerAddr => $server,
-                                PeerPort => 6667,
-                                Proto => 'tcp') or
-                                    die "Can't connect\n";
-
-# Log on to the server.
-print $sock "NICK $nick\r\n";
-#print $sock "USER $login 8 * :NewsUp TEST \r\n";
-print $sock "USER $login * * :NewsUp\r\n";
-
-# Read lines from the server until it tells us we have connected.
-while (my $input = <$sock>) {
-  say "input: $input";
-    # Check the numerical responses from the server.
-    if ($input =~ /004/) {
-        # We are now logged in.
-        last;
-    }
-    elsif ($input =~ /433/) {
-        die "Nickname is already in use.";
-    }
-}
-
-# Join the channel.
-print $sock "JOIN $channel\r\n";
-# Keep reading lines from the server.
-while (my $input = <$sock>) {
-  $input=~s/\R$//;
-  say $input;
-  if ($input =~ /^PING(.*)$/i) {
-    # We must respond to PINGs to avoid being disconnected.
-    print $sock "PONG $1\r\n";
-  }else {
-    my @tokens = split(' ', $input);
-    if (@tokens) {
-      if ($tokens[1] eq 'PRIVMSG') {
-	$tokens[0]=~ /^:(.*)\!.*$/;
-
-	my @inputParams= ($1 , substr join(' ',@tokens[3..$#tokens]), 1);
-	if ($tokens[2] eq $nick) {#private message
-
-	  if ($inputParams[1]=~ /^echo (.*)$/) {
-	    print $sock 'PRIVMSG '.$inputParams[0].' :You told me "'.substr($inputParams[1],5)."\"\r\n"; #Write to user. The substr is to avoid printing the command
-	    print $sock "PRIVMSG $channel :User ".$inputParams[0].' told me '.substr($inputParams[1],5)."\r\n"; #Write to the channel
-
-	  }elsif($inputParams[1]=~ /^fortune.*$/){
-	    my $fortune = `fortune chucknorris`;
-	    say "$fortune";
-	    $fortune=~s/\R//g;
-	    say "PRIVMSG $channel :$fortune\r\n";
-	    print $sock "PRIVMSG $channel :$fortune\r\n";# Write to the channel
-
-	  }
-	  
-	}elsif ($tokens[2] eq $channel) {#public message
-	  say "Public message: '".$inputParams[1]."'";
-	  if($inputParams[1] =~ /newsup/){
-	    
-	    my @randomMessages = ("Er... Ok...", "Are you sure?", "I believe", "Damn!", "Why not?", ":-D","Maybe later", "Was that a public annoucement?!?");
-	    print $sock "PRIVMSG $channel :".$randomMessages[rand @randomMessages]."\r\n";
-	  }
-	  elsif ($inputParams[1] =~ /^\!(\w+) (.*)$/) {# All the public commands must start with a !
-	    
-	    if ($1 eq 'upload') {
-	      my @args = split(' ', $2);
-	      start_upload (\@args, $sock);
-	    }elsif ($1 eq 'check') {
-
-	      print $sock "Not implemented!\r\n";
-	      
-	    }  
-	  }
-	  else {
-	    say "Didn't match!";
-	  }
+  my $config;
+  if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
+    
+    $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
+    if (exists $config->{other}{PATH_TO_UPLOAD_ROOT}){
+      my @upload_folders = split(',', $config->{other}{PATH_TO_UPLOAD_ROOT});
+      if (!@upload_folders) {
+	say "Please configure PATH_TO_UPLOAD_ROOT folders";
+	exit 0;
+      }
+      for (@upload_folders) {
+	$_ =~ s/^\s+|\s+$//g ;     # remove both leading and trailing whitespace
+	
+	if (!-d $_) {
+	  say "Folder $_ does not exist!\r\nPlease configure correctly the option PATH_TO_UPLOAD_ROOT Exiting.";
+	  exit;
 	}
-	
-
-	
-	
+      }
+    
+    }else {
+      say "Option PATH_TO_UPLOAD_ROOT is missing!";
+    }
+    if (exists $config->{other}{PATH_TO_SAVE_NZBS}){
+      my $NZB_folder = $config->{other}{PATH_TO_SAVE_NZBS};
+      if (!-d $NZB_folder) {
+	say "Please configure PATH_TO_SAVE_NZBS_ROOT folders";
+	exit 0;
       }
       
+    }else {
+      say "Option PATH_TO_SAVE_NZBS is missing!";
+    }
+    
+    
+  }else {
+    say "Please configure your newsup.conf file";
+    exit 0;
+  }
+
+  return $config;
+}
+  
+
+sub get_IRC_socket{
+  my $config = shift;
+  my $sock = new IO::Socket::INET(PeerAddr => $config->{other}{IRC_SERVER},
+				  PeerPort => $config->{other}{IRC_PORT},
+				  Proto => 'tcp') or
+                                    die "Can't connect\n";
+
+  my $nick = $config->{other}{IRC_NICK};
+  
+  # Log on to the server.
+  print $sock "NICK $nick\r\n";
+  #print $sock "USER $login 8 * :NewsUp TEST \r\n";
+  print $sock "USER $nick * * :NewsUp\r\n";
+
+  # Read lines from the server until it tells us we have connected.
+  while (my $input = <$sock>) {
+    say "input: $input";
+    # Check the numerical responses from the server.
+    if ($input =~ /004/) {
+      # We are now logged in.
+      last;
+    }
+    elsif ($input =~ /433/) {
+      die "Nickname is already in use.";
     }
   }
   
-  
-  # elsif ($input =~ /:(\w+)\!.* PRIVMSG (\w+) :(\w+) (.*)$/) { :THC-!THC-@Pretty.As.Alwayz PRIVMSG #ikweethet :echo whaaassuuuppppppp
+  # Join the channel.
+  my $channel = $config->{other}{IRC_CHANNEL};
+  print $sock "JOIN #$channel\r\n";
 
-  #   say "Matches! $1 - $2 - $3";
-  #   if ($3 eq 'echo') {
-  #     print $sock "PRIVMSG $1 :You told me \"$4\"\r\n"; Write to user
-  #     print $sock "PRIVMSG $channel :User $1 told me \"$4\"\r\n"; Write to the channel
-  #   }
-    
-  # }elsif (($input =~ /:(\w+)\!.* PRIVMSG (\w+) :(.*)$/)) {
-    
-  #   if ($3 eq 'fortune') {
-      
-  #     my $fortune = `fortune chucknorris`;
-  #     say "$fortune";
-  #     $fortune=~s/\R//g;
-  #     say "PRIVMSG $channel :$fortune\r\n";
-  #     print $sock "PRIVMSG $channel :$fortune\r\n"; Write to the channel
-  #   }
-    
-  # }
-  # else {
-  #   # Print the raw line received by the bot.
-  #   print "$input\n";
-    
-  # }
+  return $sock;
+  
 }
 
 
-sub start_upload{
+sub start{
+  my $socket = shift;
+  my $config = shift;
+  my $nick = $config->{other}{IRC_NICK};
+  my $channel = '#'.$config->{other}{IRC_CHANNEL};
+  
+  # Keep reading lines from the server.
+  while (my $input = <$socket>) {
+    $input=~s/\R$//;
+    say $input;
+    if ($input =~ /^PING(.*)$/i) {
+      # We must respond to PINGs to avoid being disconnected.
+      print $socket "PONG $1\r\n";
+    }else {
+      my @tokens = split(' ', $input);
+
+      if (@tokens) {
+	if ($tokens[1] eq 'PRIVMSG') {
+	  $tokens[0]=~ /^:(.*)\!.*$/;
+
+	  my @inputParams= ($1 , substr join(' ',@tokens[3..$#tokens]), 1);
+	  if ($tokens[2] eq $nick) {#private message
+
+	    if ($inputParams[1]=~ /^echo (.*)$/) {
+	      print $socket 'PRIVMSG '.$inputParams[0].' :You told me "'.substr($inputParams[1],5)."\"\r\n"; #Write to user. The substr is to avoid printing the command
+	      print $socket "PRIVMSG $channel :User ".$inputParams[0].' told me '.substr($inputParams[1],5)."\r\n"; #Write to the channel
+	      
+	    }elsif($inputParams[1]=~ /^fortune.*$/){
+	      my $fortune = `fortune chucknorris`;
+	      $fortune=~s/\R//g;
+	      say "PRIVMSG $channel :$fortune\r\n";
+	      print $socket "PRIVMSG $channel :$fortune\r\n";# Write to the channel
+	      
+	    }
+	    
+	  }elsif ($tokens[2] eq $channel) {#public message
+	    say "Public message: '".$inputParams[1]."'";
+	    if($inputParams[1] =~ /newsup/i){
+	      
+	      my @randomMessages = ("Er... Ok...", "Are you sure?", "I believe", "Damn!", "Why not?", ":-D","Maybe later", "Was that a public annoucement?!?");
+	      print $socket "PRIVMSG $channel :".$randomMessages[rand @randomMessages]."\r\n";
+	    }
+	    elsif ($inputParams[1] =~ /^\!(\w+) (.*)$/) {# All the public commands must start with a !
+
+	      if ($1 eq 'upload') {
+		my @args = split(' ', $2);
+		say "Starting !upload".Dumper(@args);
+		start_upload (\@args, $socket, $config);
+	      }elsif ($1 eq 'check') {
+		my @args = split(' ', $2);
+		check_nzb(\@args, $socket, $config);
+	      }  
+	    }
+	    else {
+	      say "Didn't match!";
+	    }
+	  }
+	}
+      }
+    }
+  }
+}
+
+sub check_nzb{
   my @args = @{shift @_};
   my $socket = shift;
+  my $config = shift;
+  
+  my $channel = "#".$config->{other}{IRC_CHANNEL};
+  my $uploadit = $config->{other}{PATH_TO_UPLOADIT};
+  my $newsup = $config->{other}{PATH_TO_UPLOADER};
   
   unless (defined(my $pid = fork())) {
     say "Unable to fork! Exiting the bot";
@@ -175,25 +204,165 @@ sub start_upload{
   }
   
   #Im the child
+  for my $nzb (@args) {
+    if (!-e $config->{other}{PATH_TO_SAVE_NZBS}."/$nzb.nzb") {
+      say "Not found: ".$config->{other}{PATH_TO_SAVE_NZBS}."/$nzb.nzb";
+      print $socket "PRIVMSG $channel : $nzb not found!\r\n"
+    }else {
+      my $cmd = $config->{other}{PATH_TO_COMPLETION_CHECKER}." -nzb ".$config->{other}{PATH_TO_SAVE_NZBS}."/$nzb.nzb";
+      say "Executing: $cmd";
+      my $output = qx/$cmd/;
+      print $socket "PRIVMSG $channel : $_\r\n" for (split($/,$output));
+    }
+  }
+  exit 0;
+}
+
+
+sub start_upload{
+  my @args = @{shift @_};
+  my $socket = shift;
+  my $config = shift;
+  
+  my $channel = "#".$config->{other}{IRC_CHANNEL};
+  my $uploadit = $config->{other}{PATH_TO_UPLOADIT};
+  my $newsup = $config->{other}{PATH_TO_UPLOADER};
+  
+  unless (defined(my $pid = fork())) {
+    say "Unable to fork! Exiting the bot";
+    exit 0;
+  }
+  elsif ($pid) {
+    #The main process
+    return;
+  }
+  
+  #Im the child
+  my $ads = 0;
+  if ($args[-1] eq '-ads') {
+    $ads = 1;
+    pop @args;
+  }
+  
+  
   if (@args >= 2) {
     my $folder = shift @args;
-    for (@args) {
-      if (!-e "$uploadFolder/$folder/$_") {
-	say "$uploadFolder/$folder/$_ not found!";
-	print $sock "PRIVMSG $channel : $_ not found!\r\n";
-	next;
+
+    my $rootFolder = '';
+    for my $val (split(',',$config->{other}{PATH_TO_UPLOAD_ROOT})) {
+      $val =~ s/^\s+|\s+$//g; #Remove both leading and trainline whitespace
+      if (-d "$val/$folder") {
+	$rootFolder="$val/$folder";
+	last;
+	say "Found!";
       }
-      
-      my $output = qx(perl $uploadit -directory $uploadFolder/$folder/$_);
-      say "Executed cmd: perl $uploadit -directory $uploadFolder/$folder/$_";		  
-      say $output;
-      for (split($/,$output)){
-	print $sock "PRIVMSG $channel : $_\r\n" if $_ =~ /Transfer speed|NZB file .* created/;
+      say "Plus 1";
+    }
+
+    if (!$rootFolder) {
+      print $socket "PRIVMSG $channel : $folder not found!\r\n";
+      exit 0;
+    }
+    
+    say "Copying the files: $rootFolder -> ".$args[0];
+    my $currentFolder = $config->{other}{TEMP_DIR}.'/'.$args[0];
+    dircopy($rootFolder, $currentFolder) or die $!;
+    dircopy($config->{other}{PATH_TO_ADS}, $currentFolder."/Usenet/");
+    
+    my @files = upload_folder($newsup, $uploadit, $currentFolder,
+			      $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$args[0],
+			      $config->{other}{PATH_TO_SAVE_NZBS},
+			      $socket, $channel);
+
+    say "Uploaded Files: $_" for @files;
+    for (my $i =1; $i < @args; $i++) {
+      my $toReplace = $args[$i-1];
+      my $replacement = $args[$i];
+      my @newFiles = ();
+      say "To replace: $toReplace";
+      say "Replacement: $replacement";
+      for my $oldName (@files) {
+	(my $newName = $oldName) =~ s/$toReplace/$replacement/;
+	push @newFiles, $newName;
+
+	say "new name: $newName";
+	if ($oldName =~ /\.sfv/) {
+	  open my $ih, '<', $oldName;
+	  open my $oh, '>', $newName;
+	  while (<$ih>) {
+	    s/$toReplace/$replacement/;
+	    print $oh "$_";
+	  }
+	  close $ih;
+	  close $oh;
+	  unlink $oldName;
+	  
+	}else {
+	  rename $oldName, $newName;
+	}
       }
+
+      say "Upload files: $_" for @newFiles;
+      upload_files($newsup, \@newFiles, $socket, $channel);
+
+      @files = @newFiles;
       
+      if ($i==$#args) {
+	remove_tree($currentFolder);
+	say "Removing files: $_" for @newFiles;
+	unlink @newFiles;
+      }
+
     }
     
   }
   
   exit 0;
 }
+
+sub upload_folder{
+  my ($newsup, $uploadit, $folder, $nzb, $nzbFolder ,$socket, $channel) =@_;
+
+  my $cmd = "$uploadit -nodelete -directory $folder -a \"-nzb $nzb\"";
+
+  my @files = ();
+  
+  say "Executing: $cmd";
+  my $output = qx($cmd);
+  for (split($/,$output)){
+    # if ($_ =~/NZB file (.*) created/){
+    #   mv $nzb, $nzbFolder;
+    # }els
+    if ($_ =~ /Transfer speed/) {
+      print $socket "PRIVMSG $channel : $_\r\n"
+    }elsif ($_ =~ /Uploaded files: (.*)/) {
+      push @files, $1;
+    }
+  }
+
+  $output = qx($newsup -f $nzb.nzb -nzb "./nzb"); #upload the nzb
+  say "$output";
+  unlink "./nzb.nzb";
+  return @files;
+}
+
+
+sub upload_files{
+  my ($newsup, $files, $socket, $channel) = @_;
+  my $cmd = "$newsup";
+  $cmd .= " -f \"$_\"" for @$files;
+
+  say "Executing: $cmd";
+  my $output = qx($cmd);
+  for (split($/,$output)){
+    if ($_ =~/NZB file (.*) created/){
+      unlink $1;
+    }elsif ($_ =~ /Transfer speed/) {
+      print $socket "PRIVMSG $channel : $_\r\n"
+    }
+  }
+
+  
+}
+
+main;
