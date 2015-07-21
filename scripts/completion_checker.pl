@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 # Author: David Santiago <demanuel@ymail.com>
 # This program is licensed under GPLv3
 use 5.018;
