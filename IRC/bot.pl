@@ -30,8 +30,11 @@ use Config::Tiny;
 # We will use a raw socket to connect to the IRC server.
 use IO::Socket;
 use File::Copy::Recursive qw/dircopy/;
+$File::Copy::Recursive::CPRFComp = 1;
 use File::Copy qw/mv/;
 use File::Path qw/remove_tree/;
+
+
 
 sub main{
   my $config = get_options();
@@ -100,6 +103,10 @@ sub get_IRC_socket{
   #print $sock "USER $login 8 * :NewsUp TEST \r\n";
   print $sock "USER $nick * * :NewsUp\r\n";
 
+  if ($config->{other}{IRC_NICK_PASSWORD}) {
+    print $sock "MSG NickServ identify ".$config->{other}{IRC_NICK_PASSWORD}."\r\n";
+  }
+  
   # Read lines from the server until it tells us we have connected.
   while (my $input = <$sock>) {
     say "input: $input";
@@ -115,7 +122,12 @@ sub get_IRC_socket{
   
   # Join the channel.
   my $channel = $config->{other}{IRC_CHANNEL};
-  print $sock "JOIN #$channel\r\n";
+
+  my $joinIRCCommand = "JOIN #$channel";
+  if ($config->{other}{IRC_CHANNEL_PASSWD}) {
+    $joinIRCCommand.=" ".$config->{other}{IRC_CHANNEL_PASSWD};
+  }
+  print $sock "$joinIRCCommand\r\n";
 
   return $sock;
   
@@ -266,6 +278,7 @@ sub start_upload{
     
     say "Copying the files: $rootFolder -> ".$args[0];
     my $currentFolder = $config->{other}{TEMP_DIR}.'/'.$args[0];
+
     dircopy($rootFolder, $currentFolder) or die $!;
     dircopy($config->{other}{PATH_TO_ADS}, $currentFolder."/Usenet/");
     
@@ -279,13 +292,11 @@ sub start_upload{
       my $toReplace = $args[$i-1];
       my $replacement = $args[$i];
       my @newFiles = ();
-      say "To replace: $toReplace";
-      say "Replacement: $replacement";
+
       for my $oldName (@files) {
 	(my $newName = $oldName) =~ s/$toReplace/$replacement/;
 	push @newFiles, $newName;
 
-	say "new name: $newName";
 	if ($oldName =~ /\.sfv/) {
 	  open my $ih, '<', $oldName;
 	  open my $oh, '>', $newName;
@@ -302,7 +313,6 @@ sub start_upload{
 	}
       }
 
-      say "Upload files: $_" for @newFiles;
       upload_files($newsup, \@newFiles, $socket, $channel);
 
       @files = @newFiles;
