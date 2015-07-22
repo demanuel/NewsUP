@@ -156,31 +156,13 @@ sub start{
 
 	  my @inputParams= ($1 , substr join(' ',@tokens[3..$#tokens]), 1);
 	  if ($tokens[2] eq $nick) {#private message
-
-	    if ($inputParams[1]=~ /^echo (.*)$/) {
-	      print $socket 'PRIVMSG '.$inputParams[0].' :You told me "'.substr($inputParams[1],5)."\"\r\n"; #Write to user. The substr is to avoid printing the command
-	      print $socket "PRIVMSG $channel :User ".$inputParams[0].' told me '.substr($inputParams[1],5)."\r\n"; #Write to the channel
-	      
-	    }elsif($inputParams[1]=~ /^fortune.*$/){
-	      my $fortune = `fortune chucknorris`;
-	      $fortune=~s/\R//g;
-	      say "PRIVMSG $channel :$fortune\r\n";
-	      print $socket "PRIVMSG $channel :$fortune\r\n";# Write to the channel
-	      
-	    }
+	    say "Got a private message: '".$inputParams[1]."'";
 	    
 	  }elsif ($tokens[2] eq $channel) {#public message
 	    say "Public message: '".$inputParams[1]."'";
-	    if($inputParams[1] =~ /newsup/i){
-	      
-	      my @randomMessages = ("Er... Ok...", "Are you sure?", "I believe", "Damn!", "Why not?", ":-D","Maybe later", "Was that a public annoucement?!?");
-	      print $socket "PRIVMSG $channel :".$randomMessages[rand @randomMessages]."\r\n";
-	    }
-	    elsif ($inputParams[1] =~ /^\!(\w+) (.*)$/) {# All the public commands must start with a !
-
+	    if ($inputParams[1] =~ /^\!(\w+) (.*)$/) {# All the public commands must start with a !
 	      if ($1 eq 'upload') {
 		my @args = split(' ', $2);
-		say "Starting !upload".Dumper(@args);
 		start_upload (\@args, $socket, $config);
 	      }elsif ($1 eq 'check') {
 		my @args = split(' ', $2);
@@ -219,12 +201,14 @@ sub check_nzb{
   for my $nzb (@args) {
     if (!-e $config->{other}{PATH_TO_SAVE_NZBS}."/$nzb.nzb") {
       say "Not found: ".$config->{other}{PATH_TO_SAVE_NZBS}."/$nzb.nzb";
-      print $socket "PRIVMSG $channel : $nzb not found!\r\n"
+      print_message_to_channel ($socket, $channel, "$nzb not found!");
     }else {
+      print_message_to_channel ($socket, $channel, "Starting the completion checker");
       my $cmd = $config->{other}{PATH_TO_COMPLETION_CHECKER}." -nzb ".$config->{other}{PATH_TO_SAVE_NZBS}."/$nzb.nzb";
       say "Executing: $cmd";
       my $output = qx/$cmd/;
-      print $socket "PRIVMSG $channel : $_\r\n" for (split($/,$output));
+      print_message_to_channel ($socket, $channel, $_) for (split($/,$output));
+
     }
   }
   exit 0;
@@ -272,23 +256,28 @@ sub start_upload{
     }
 
     if (!$rootFolder) {
-      print $socket "PRIVMSG $channel : $folder not found!\r\n";
+      print_message_to_channel($socket, $channel, "$folder not found!");
       exit 0;
     }
     
     say "Copying the files: $rootFolder -> ".$args[0];
+    print_message_to_channel($socket, $channel, "\x0307[Copying and starting files for processing]\x03 : ".$args[0]);
+
     my $currentFolder = $config->{other}{TEMP_DIR}.'/'.$args[0];
 
     dircopy($rootFolder, $currentFolder) or die $!;
     dircopy($config->{other}{PATH_TO_ADS}, $currentFolder."/Usenet/");
-    
+    #print_message_to_channel($socket, $channel,"Starting the processing for ".$args[0]);
+
     my @files = upload_folder($newsup, $uploadit, $currentFolder,
-			      $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$args[0],
+			      $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$folder,
 			      $config->{other}{PATH_TO_SAVE_NZBS},
 			      $socket, $channel);
 
     say "Uploaded Files: $_" for @files;
+
     for (my $i =1; $i < @args; $i++) {
+      print_message_to_channel($socket, $channel,"\x0307[ Starting the processing for ]\x03 : ".$args[1]);
       my $toReplace = $args[$i-1];
       my $replacement = $args[$i];
       my @newFiles = ();
@@ -318,16 +307,25 @@ sub start_upload{
       @files = @newFiles;
       
       if ($i==$#args) {
+	#print_message_to_channel($socket, $channel, "Removing temporary files");
 	remove_tree($currentFolder);
 	say "Removing files: $_" for @newFiles;
 	unlink @newFiles;
       }
 
     }
-    
+    #print_message_to_channel($socket, $channel, "Upload $folder completed");
+#    print $socket "PRIVMSG $channel : Upload $folder completed\r\n";
   }
-  
+
   exit 0;
+}
+
+sub print_message_to_channel{
+  my ($socket, $channel, $message) = @_;
+
+  print $socket "PRIVMSG $channel : $message \r\n";
+  
 }
 
 sub upload_folder{
@@ -344,11 +342,13 @@ sub upload_folder{
     #   mv $nzb, $nzbFolder;
     # }els
     if ($_ =~ /Transfer speed/) {
-      print $socket "PRIVMSG $channel : $_\r\n"
+#      print $socket "PRIVMSG $channel : $_\r\n";
+      print_message_to_channel($socket, $channel,"[ \x0303Uploaded and \x0303ready\x03 ]: $_ ");
     }elsif ($_ =~ /Uploaded files: (.*)/) {
       push @files, $1;
     }
   }
+
 
   $output = qx($newsup -f $nzb.nzb -nzb "./nzb"); #upload the nzb
   say "$output";
@@ -368,7 +368,7 @@ sub upload_files{
     if ($_ =~/NZB file (.*) created/){
       unlink $1;
     }elsif ($_ =~ /Transfer speed/) {
-      print $socket "PRIVMSG $channel : $_\r\n"
+      print_message_to_channel($socket, $channel ,"[ \x0303Uploaded and \x0303ready\x03 ]: $_");
     }
   }
 
