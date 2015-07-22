@@ -116,7 +116,6 @@ sub main{
       my $remove_regexp = $other_configs{TEMP_DIR};
 
 
-
 	for my $file (@$preProcessedFiles) {
 	  
 	  my (undef, $path, undef) = fileparse($file);
@@ -161,7 +160,7 @@ sub pre_process_folder{
     $invoke =~ s/\/\//\//g;
     say "Invoking: $invoke" if $DEBUG;
     my $output = qx/$invoke/;
-    while ($output =~ /Creating archive (.*\.rar|.*\.[r-z]\d+\.rar)/g) {
+    while ($output =~ /Creating archive (.*\.rar|.*\.[r-z]\d+)/g) {
       my $archive = $1;
       if ($archive =~ /part0{0,4}2\.rar/) {
 	(my $missingArchive = $archive) =~ s/2\.rar/1\.rar/; 
