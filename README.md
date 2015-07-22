@@ -30,7 +30,7 @@ A NZB file will be generated for later retrieving.
 ## Supports
 * SSL
 * Multi connections
-* Header Check (including to a different server from the one the article where upload)
+* Header Check (including to a different server from the one the article was uploaded)
 * NZB Creation
 
 
