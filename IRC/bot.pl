@@ -95,6 +95,8 @@ sub get_IRC_socket{
 				  PeerPort => $config->{other}{IRC_PORT},
 				  Proto => 'tcp') or
                                     die "Can't connect\n";
+  $sock->autoflush(1);
+  
 
   my $nick = $config->{other}{IRC_NICK};
   
@@ -265,7 +267,7 @@ sub start_upload{
 
     my $currentFolder = $config->{other}{TEMP_DIR}.'/'.$args[0];
 
-    remove_tree($currentFolder);
+    remove_tree($currentFolder) if -e $currentFolder;
     dircopy($rootFolder, $currentFolder) or die $!;
     dircopy($config->{other}{PATH_TO_ADS}, $currentFolder."/Usenet/");
 
@@ -277,8 +279,10 @@ sub start_upload{
 
 	       my @fileData = fileparse($File::Find::name, $2);
 	       my $extension = $2;
+	       say "Extension = $extension";
 	       my $newName = scalar reverse $fileData[0];
 	       $newName =~ s/ (\p{CWU}) | (\p{CWL}) /defined $1 ? uc $1 : lc $2/gex;
+	       say "New Name: ".$newName.$extension;
 	       rename($File::Find::name, $fileData[1].$newName.$extension);
 	     }
 	       
