@@ -265,6 +265,7 @@ sub start_upload{
 
     my $currentFolder = $config->{other}{TEMP_DIR}.'/'.$args[0];
 
+    remove_tree($currentFolder);
     dircopy($rootFolder, $currentFolder) or die $!;
     dircopy($config->{other}{PATH_TO_ADS}, $currentFolder."/Usenet/");
 
@@ -275,9 +276,10 @@ sub start_upload{
 		 $File::Find::name =~ /(.*)(\.avi|\.mkv|\.mp4|\.ogv)$/){
 
 	       my @fileData = fileparse($File::Find::name, $2);
-	       my $newName = scalar reverse($fileData[0]);
+	       my $extension = $2;
+	       my $newName = scalar reverse $fileData[0];
 	       $newName =~ s/ (\p{CWU}) | (\p{CWL}) /defined $1 ? uc $1 : lc $2/gex;
-	       rename($File::Find::name, $fileData[1].$newName.$2);
+	       rename($File::Find::name, $fileData[1].$newName.$extension);
 	     }
 	       
 	   }, $currentFolder);
