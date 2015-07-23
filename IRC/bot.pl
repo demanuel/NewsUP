@@ -306,14 +306,18 @@ sub start_upload{
 
       @files = @newFiles;
       
-      if ($i==$#args) {
+#      if ($i==$#args) {
 	#print_message_to_channel($socket, $channel, "Removing temporary files");
-	remove_tree($currentFolder);
-	say "Removing files: $_" for @newFiles;
-	unlink @newFiles;
-      }
+#	remove_tree($currentFolder);
+#	say "Removing files: $_" for @newFiles;
+#	unlink @newFiles;
+#      }
 
     }
+    remove_tree($currentFolder);
+    say "Removing files: $_" for @files;
+    unlink @files;
+    
     #print_message_to_channel($socket, $channel, "Upload $folder completed");
 #    print $socket "PRIVMSG $channel : Upload $folder completed\r\n";
   }
