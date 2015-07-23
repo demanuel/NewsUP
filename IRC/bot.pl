@@ -33,8 +33,8 @@ use File::Copy::Recursive qw/dircopy/;
 $File::Copy::Recursive::CPRFComp = 1;
 use File::Copy qw/mv/;
 use File::Path qw/remove_tree/;
-
-
+use File::Find;
+use File::Basename;
 
 sub main{
   my $config = get_options();
@@ -267,6 +267,23 @@ sub start_upload{
 
     dircopy($rootFolder, $currentFolder) or die $!;
     dircopy($config->{other}{PATH_TO_ADS}, $currentFolder."/Usenet/");
+
+    if ($config->{other}{INVERT_VIDEO_NAMES}) {
+      say "Inverting file name";
+      find(sub{
+	     if (-e $File::Find::name &&
+		 $File::Find::name =~ /(.*)(\.avi|\.mkv|\.mp4|\.ogv)$/){
+
+	       my @fileData = fileparse($File::Find::name, $2);
+	       rename($File::Find::name, $fileData[1].(scalar reverse($fileData[0]).$2));
+	     }
+	       
+	   }, $currentFolder);
+      
+
+      
+    }
+    exit 0;
     #print_message_to_channel($socket, $channel,"Starting the processing for ".$args[0]);
 
     my @files = upload_folder($newsup, $uploadit, $currentFolder,
@@ -305,21 +322,12 @@ sub start_upload{
       upload_files($newsup, \@newFiles, $socket, $channel);
 
       @files = @newFiles;
-      
-#      if ($i==$#args) {
-	#print_message_to_channel($socket, $channel, "Removing temporary files");
-#	remove_tree($currentFolder);
-#	say "Removing files: $_" for @newFiles;
-#	unlink @newFiles;
-#      }
 
     }
     remove_tree($currentFolder);
     say "Removing files: $_" for @files;
     unlink @files;
     
-    #print_message_to_channel($socket, $channel, "Upload $folder completed");
-#    print $socket "PRIVMSG $channel : Upload $folder completed\r\n";
   }
 
   exit 0;
