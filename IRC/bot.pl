@@ -275,15 +275,15 @@ sub start_upload{
 		 $File::Find::name =~ /(.*)(\.avi|\.mkv|\.mp4|\.ogv)$/){
 
 	       my @fileData = fileparse($File::Find::name, $2);
-	       rename($File::Find::name, $fileData[1].(scalar reverse($fileData[0]).$2));
+	       my $newName = scalar reverse($fileData[0]);
+	       $newName =~ s/ (\p{CWU}) | (\p{CWL}) /defined $1 ? uc $1 : lc $2/gex;
+	       rename($File::Find::name, $fileData[1].$newName.$2);
 	     }
 	       
 	   }, $currentFolder);
       
-
-      
     }
-    exit 0;
+
     #print_message_to_channel($socket, $channel,"Starting the processing for ".$args[0]);
 
     my @files = upload_folder($newsup, $uploadit, $currentFolder,

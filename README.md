@@ -33,6 +33,12 @@ A NZB file will be generated for later retrieving.
 * Header Check (including to a different server from the one the article was uploaded)
 * NZB Creation
 
+### Functionalities extended by scritps
+* NZB completion checker
+* RAR creation
+* PAR2 creation
+* SFV creation
+* IRC bot
 
 
 ## What doesn't do 
@@ -52,6 +58,7 @@ To run it you just need to:
 perl uploadit.pl -directory my_folder -a "-com \"extra arguments for newsup.pl\"" -debug
 ```
 This will create a bunch of rars (check the rar configuration) of the dirctory "my_folder". It will also print a bunch of debug messages. 
+You need to configure the path to the rar, par2 utilities, temporary folder and to newsup.pl on the newsup.conf file.
 
 * completion_checker.pl - this script will check the completion of all files in a NZB:
 ```
@@ -60,10 +67,42 @@ perl completion_checker.pl -nzb my_nzb_file.nzb -server my_server.com -port 444 
 This will check all the segments of the nzb, to see if they are available. Only the -nzb switch is required, all the others
 are optional, as they will be extracted from the newsup.conf
 
+## IRC bot
+A IRC bot is distributed with NewsUP.
+This bot will listen only to public messages on the channel he is connected.
 
-#Requirements:
+### Bot requirements
+* All the modules required for newsup
+* Extra perl modules File::Copy::Recursive and File::Path
+* NewsUP
+* The scripts uploadit and completion_checker and their requirements
+
+### Commands
+```
+!upload <folder_to_be_uploaded> <upload name 1> <upload name 2> .... <upload name N>
+```
+This will rar, par2 (it will invoke the uploadit script), and after that it will upload N times the <folder_to_be_uploaded> 
+with name "upload name 1" to "upload name N". This will also create a NZB file on the PATH_TO_SAVE_NZBS 
+(option on the newsup.conf file) and that NZB will also be uploaded to the same groups as the upload. The rest of the uploads will not 
+have a nzb file.
+
+```
+!upload <folder_to_be_uploaded> <upload name 1> <upload name 2> .... <upload name N> -ads
+```
+This will perform the same actions as the above example, however before rar'ing it will copy an ads folder (specified with option
+PATH_TO_ADS on the newsup.conf file) to a folder named Usenet inside the <upload name ....> folder.
+
+```
+!check <file_nzb.nzb>
+```
+It will check and print on the channel the completion state for each file indicated included in the <file_nzb.nzb> file.
+The <file_nzb.nzb> should be inside the PATH_TO_SAVE_NZBS option defined on the newsup.conf file.
+
+
+# Requirements:
 * Perl (preferably 5.018 or higher)
 * Perl modules: Config::Tiny, IO::Socket::SSL, String::CRC32, (all other modules should exist on core.)
+
 
 # Installation
 1. Check if you have all the requirements installed.
