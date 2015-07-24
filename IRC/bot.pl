@@ -220,7 +220,7 @@ sub check_nzb{
 	  $sum += $1;
 	  
 	}
-	print_message_to_channel ($socket, $channel, sprintf("%s %2d, %d problematic files",$nzb, $sum/scalar @lines, $failed));
+	print_message_to_channel ($socket, $channel, sprintf("%s %2d%%, %d problematic files",$nzb, $sum/scalar @lines, $failed));
       }else {
 	print_message_to_channel ($socket, $channel, "No files!");
       }
