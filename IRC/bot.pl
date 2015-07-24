@@ -269,8 +269,10 @@ sub start_upload{
 
     remove_tree($currentFolder) if -e $currentFolder;
     dircopy($rootFolder, $currentFolder) or die $!;
-    dircopy($config->{other}{PATH_TO_ADS}, $currentFolder);
-
+    {
+      local $File::Copy::Recursive::CPRFComp = 0;
+      dircopy($config->{other}{PATH_TO_ADS}, $currentFolder);
+    }
     if ($config->{other}{REVERSE_NAMES_FOUND}) {
       say "Inverting file name";
       my $findingRegexp = qr/$config->{other}{REGEXP_FIND_NAMES}/;
