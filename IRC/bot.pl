@@ -273,11 +273,11 @@ sub start_upload{
 
     if ($config->{other}{REVERSE_NAMES_FOUND}) {
       say "Inverting file name";
-      my $findingRegexp = qr/$config->{other}{REVERSE_NAMES_FOUND}/;
+      my $findingRegexp = qr/$config->{other}{REGEXP_FIND_NAMES}/;
       find(sub{
 	     if (-e $File::Find::name &&
 		 $File::Find::name =~ /$findingRegexp/){
-
+	       
 	       my @fileData = fileparse($File::Find::name, $1);
 	       my $extension = $1;
 	       say "Extension = $extension";
@@ -291,6 +291,7 @@ sub start_upload{
 	   }, $currentFolder);
       
     }
+
 
     #print_message_to_channel($socket, $channel,"Starting the processing for ".$args[0]);
 
