@@ -280,7 +280,10 @@ sub main{
   #all the kids died. There's no point in keeping the last child - the monitoring server
   kill 'KILL', $lastChild;
 
-  printf("Transfer speed: [%0.2f KBytes/sec]\r\n", $totalSize/(time()-$timer)/1024);
+  my $timeDiff = time()-$timer != 0? time()-$timer : 1;
+  
+
+  printf("Transfer speed: [%0.2f KBytes/sec]\r\n", $totalSize/$timeDiff/1024);
 
   
   my @nzbSegmentsList = ();
