@@ -269,19 +269,21 @@ sub start_upload{
 
     remove_tree($currentFolder) if -e $currentFolder;
     dircopy($rootFolder, $currentFolder) or die $!;
-    dircopy($config->{other}{PATH_TO_ADS}, $currentFolder."/Usenet/");
+    dircopy($config->{other}{PATH_TO_ADS}, $currentFolder);
 
-    if ($config->{other}{INVERT_VIDEO_NAMES}) {
+    if ($config->{other}{REVERSE_NAMES_FOUND}) {
       say "Inverting file name";
+      my $findingRegexp = qr/$config->{other}{REVERSE_NAMES_FOUND}/;
       find(sub{
 	     if (-e $File::Find::name &&
-		 $File::Find::name =~ /(.*)(\.avi|\.mkv|\.mp4|\.ogv)$/){
+		 $File::Find::name =~ /$findingRegexp/){
 
-	       my @fileData = fileparse($File::Find::name, $2);
-	       my $extension = $2;
+	       my @fileData = fileparse($File::Find::name, $1);
+	       my $extension = $1;
 	       say "Extension = $extension";
 	       my $newName = scalar reverse $fileData[0];
-	       $newName =~ s/ (\p{CWU}) | (\p{CWL}) /defined $1 ? uc $1 : lc $2/gex;
+	       # reverse the case
+	       # $newName =~ s/ (\p{CWU}) | (\p{CWL}) /defined $1 ? uc $1 : lc $2/gex;
 	       say "New Name: ".$newName.$extension;
 	       rename($File::Find::name, $fileData[1].$newName.$extension);
 	     }
