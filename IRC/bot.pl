@@ -160,7 +160,7 @@ sub start{
 	  if ($tokens[2] eq $nick) {#private message
 	    say "Got a private message: '".$inputParams[1]."'";
 	    
-	  }elsif ($tokens[2] eq $channel) {#public message
+	  }elsif (substr($tokens[2],0,1) eq '#') {#public message -> check if it's the channel
 	    say "Public message: '".$inputParams[1]."'";
 	    if ($inputParams[1] =~ /^\!(\w+) (.*)$/) {# All the public commands must start with a !
 	      if ($1 eq 'upload') {
@@ -209,8 +209,21 @@ sub check_nzb{
       my $cmd = $config->{other}{PATH_TO_COMPLETION_CHECKER}." -nzb ".$config->{other}{PATH_TO_SAVE_NZBS}."/$nzb.nzb";
       say "Executing: $cmd";
       my $output = qx/$cmd/;
-      print_message_to_channel ($socket, $channel, $_) for (split($/,$output));
+      my $sum=0;
+      my $failed=0;
+      my @lines = split($/,$output);
+      if (scalar @lines) {
 
+	for (@lines) {
+	  $_ =~ /(\d+\.\d+)%/;
+	  $failed+=1 if ($1 < 100);
+	  $sum += $1;
+	  
+	}
+	print_message_to_channel ($socket, $channel, sprintf("%s %2d, %d problematic files",$nzb, $sum/scalar @lines, $failed));
+      }else {
+	print_message_to_channel ($socket, $channel, "No files!");
+      }
     }
   }
   exit 0;
