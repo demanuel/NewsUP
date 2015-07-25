@@ -220,7 +220,7 @@ sub check_nzb{
 	  $sum += $1;
 	  
 	}
-	print_message_to_channel ($socket, $channel, sprintf("%s %2d%%, %d problematic files",$nzb, $sum/scalar @lines, $failed));
+	print_message_to_channel ($socket, $channel, sprintf("\x0307 [Checked]\x03 %s [\x0304%2d%%\x03, \x0304%d\x03\x0303 problematic files\x03 ]",$nzb, $sum/scalar @lines, $failed));
       }else {
 	print_message_to_channel ($socket, $channel, "No files!");
       }
@@ -311,10 +311,11 @@ sub start_upload{
     #print_message_to_channel($socket, $channel,"Starting the processing for ".$args[0]);
 
     my @files = upload_folder($newsup, $uploadit, $currentFolder,
-			      $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$folder,
+			      $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$args[0],
 			      $config->{other}{PATH_TO_SAVE_NZBS},
 			      $socket, $channel);
-
+    rename($config->{other}{PATH_TO_SAVE_NZBS}.'/'.$args[0],
+	  $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$folder);
     say "Uploaded Files: $_" for @files;
 
     for (my $i =1; $i < @args; $i++) {
