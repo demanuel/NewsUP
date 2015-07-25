@@ -300,7 +300,7 @@ sub start_upload{
 	       # reverse the case
 	       # $newName =~ s/ (\p{CWU}) | (\p{CWL}) /defined $1 ? uc $1 : lc $2/gex;
 	       say "New Name: ".$newName.$extension;
-	       mv($File::Find::name, $fileData[1].$newName.$extension);
+	       mv($File::Find::name, $fileData[1].$newName.$extension) || print "Error renaming file: $!";
 	     }
 	       
 	   }, $currentFolder);
@@ -316,7 +316,8 @@ sub start_upload{
 			      $socket, $channel);
     say "Changing NZB name from \"".$config->{other}{PATH_TO_SAVE_NZBS}.'/'.$args[0]."\" to \"".$config->{other}{PATH_TO_SAVE_NZBS}.'/'.$folder."\"";
     mv($config->{other}{PATH_TO_SAVE_NZBS}.'/'.$args[0],
-       $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$folder);
+       $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$folder) || print "Error renaming file: $!";
+    
     say "Uploaded Files: $_" for @files;
 
     for (my $i =1; $i < @args; $i++) {
