@@ -315,8 +315,8 @@ sub start_upload{
 			      $config->{other}{PATH_TO_SAVE_NZBS},
 			      $socket, $channel);
     say "Changing NZB name from \"".$config->{other}{PATH_TO_SAVE_NZBS}.'/'.$args[0]."\" to \"".$config->{other}{PATH_TO_SAVE_NZBS}.'/'.$folder."\"";
-    mv($config->{other}{PATH_TO_SAVE_NZBS}.'/'.$args[0],
-       $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$folder) || print "Error renaming file: $!";
+    mv($config->{other}{PATH_TO_SAVE_NZBS}.'/'.$args[0].".nzb",
+       $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$folder.".nzb") || print "Error renaming file: $!";
     
     say "Uploaded Files: $_" for @files;
 
