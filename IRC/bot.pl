@@ -97,14 +97,14 @@ sub get_IRC_socket{
                                     die "Can't connect\n";
   $sock->autoflush(1);
   
-
+  
   my $nick = $config->{other}{IRC_NICK};
   
   # Log on to the server.
   print $sock "NICK $nick\r\n";
   #print $sock "USER $login 8 * :NewsUp TEST \r\n";
   print $sock "USER $nick * * :NewsUp\r\n";
-
+  
   if ($config->{other}{IRC_NICK_PASSWORD}) {
     print $sock "MSG NickServ identify ".$config->{other}{IRC_NICK_PASSWORD}."\r\n";
   }
@@ -346,7 +346,7 @@ sub start_upload{
 	}
       }
 
-      upload_files($newsup, \@newFiles, $socket, $channel);
+      upload_files($newsup, \@newFiles, $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$folder."_backup_$i", $socket, $channel);
 
       @files = @newFiles;
 
@@ -397,16 +397,14 @@ sub upload_folder{
 
 
 sub upload_files{
-  my ($newsup, $files, $socket, $channel) = @_;
+  my ($newsup, $files,$nzb, $socket, $channel) = @_;
   my $cmd = "$newsup";
   $cmd .= " -f \"$_\"" for @$files;
-
+  $cmd .= " -nzb \"$nzb\"";
   say "Executing: $cmd";
   my $output = qx($cmd);
   for (split($/,$output)){
-    if ($_ =~/NZB file (.*) created/){
-      unlink $1;
-    }elsif ($_ =~ /Transfer speed/) {
+    if ($_ =~ /Transfer speed/) {
       print_message_to_channel($socket, $channel ,"[ \x0303Uploaded and \x0303ready\x03 ]: $_");
     }
   }
