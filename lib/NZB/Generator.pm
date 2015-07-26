@@ -37,7 +37,7 @@ sub write_nzb{
 
   for my $segment (@{$self->{segments}}) {
     if (!exists $files{$segment->{fileName}}) {
-      $files{$segment->{fileName}} = NZB::File->new(_get_xml_escaped_string('"'.$segment->{fileName}.'" yEnc'),
+      $files{$segment->{fileName}} = NZB::File->new(_get_xml_escaped_string('"'.$segment->{fileName}.'"'),
 						    _get_xml_escaped_string($self->{poster}), $self->{groups});
     }
     my $file = $files{$segment->{fileName}};
@@ -45,7 +45,7 @@ sub write_nzb{
   }
 
   my $xml = "<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">\n";
-  $xml.="<meta type=\"$_\">"._get_xml_escaped_string($self->{metadata}{$_})."</meta>\r\n" for (keys %{$self->{metadata}});
+  $xml.="<meta type=\"$_\">"._get_xml_escaped_string($self->{metadata}{$_})."</meta>\n" for (keys %{$self->{metadata}});
   $xml.= $files{$_}->get_xml() for  (keys %files);
   $xml.= '</nzb>';
 
