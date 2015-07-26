@@ -35,7 +35,7 @@ sub get_xml{
   my $bytes = $self->{size};
   my $number = $self->{number};
   my $messageID = $self->{messageID};
-  return "<segment bytes=\"$bytes\" number=\"$number\">$messageID</segment>\r\n";
+  return "<segment bytes=\"$bytes\" number=\"$number\">$messageID</segment>\n";
 }
 
 

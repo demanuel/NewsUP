@@ -43,17 +43,17 @@ sub get_xml{
   my $poster = $self->{poster};
   my $date=time();
   my $subject = $self->{subject};
-  my $xml = "<file poster=\"$poster\" subject=\"$subject\">\r\n";
-  $xml.= "<groups>\r\n";
-  $xml.= "<group>$_</group>\r\n" for (@{$self->{groups}});
-  $xml.= "</groups>\r\n";
-  $xml.= "<segments>\r\n";
+  my $xml = "<file poster=\"$poster\" subject=\"$subject\">\n";
+  $xml.= "<groups>\n";
+  $xml.= "<group>$_</group>\n" for (@{$self->{groups}});
+  $xml.= "</groups>\n";
+  $xml.= "<segments>\n";
 
   my @ordered_segments = sort{$a->{number} <=> $b->{number} } @{$self->{segments}};
 
   $xml.= $_->get_xml() for (@ordered_segments);
-  $xml.= "</segments>\r\n";
-  $xml.= "</file>\r\n";
+  $xml.= "</segments>\n";
+  $xml.= "</file>\n";
 
   return $xml;
 }

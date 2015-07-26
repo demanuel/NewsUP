@@ -44,7 +44,7 @@ sub write_nzb{
     $file->add_segment($segment);
   }
 
-  my $xml = "<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">\r\n";
+  my $xml = "<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">\n";
   $xml.="<meta type=\"$_\">"._get_xml_escaped_string($self->{metadata}{$_})."</meta>\r\n" for (keys %{$self->{metadata}});
   $xml.= $files{$_}->get_xml() for  (keys %files);
   $xml.= '</nzb>';
