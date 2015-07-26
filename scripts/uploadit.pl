@@ -228,7 +228,7 @@ sub create_parity_archives{
 
   
   my $args = $configs->{EXTRA_ARGS_TO_PAR2}.' "'.$configs->{TEMP_DIR}.'/'.basename($folder).'.par2" '.join(' ',@escapedFiles).'';
-  my $invoke = $configs->{PATH_TO_PAR2}.' '.$args;
+  my $invoke = '"'.$configs->{PATH_TO_PAR2}.'" '.$args;
   $invoke =~ s/\/\//\//g;
   say "Invoking: $invoke" if $DEBUG;
   my $output = qx/$invoke/;
