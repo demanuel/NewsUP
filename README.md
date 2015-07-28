@@ -33,7 +33,7 @@ A NZB file will be generated for later retrieving.
 * Header Check (including to a different server from the one the article was uploaded)
 * NZB Creation
 
-### Functionalities extended by scritps
+### Functionalities extended by scripts
 * NZB completion checker
 * RAR creation
 * PAR2 creation
@@ -81,7 +81,8 @@ This bot will listen only to public messages on the channel he is connected.
 ```
 !upload <folder_to_be_uploaded> <upload name 1> <upload name 2> .... <upload name N>
 ```
-This will rar, par2 (it will invoke the uploadit script), and after that it will upload N times the <folder_to_be_uploaded> 
+This will rar, par2 (it will invoke the uploadit script) the folder <folder_to_be_uploaded> - It will look for that folder inside the
+folders defined on the option PATH_TO_UPLOAD_ROOT on the conf file, and after that it will upload N times the <folder_to_be_uploaded> 
 with name "upload name 1" to "upload name N". This will also create a NZB file on the PATH_TO_SAVE_NZBS 
 (option on the newsup.conf file) and that NZB will also be uploaded to the same groups as the upload. The rest of the uploads will not 
 have a nzb file.
@@ -180,10 +181,33 @@ TEMP_DIR=/tmp/
 PAR_REDUNDANCY=10
 # Randomize Names
 # The names are toggled. Imagine 3 files: a, b and c. The file a will keep the name. The file b  will exchange name with file c. This is done randomly.
-RANDOMIZE_NAMES=1
 
-
-
+# Regular expression to find files reverse the name. Used only on the IRC bot
+REGEXP_FIND_NAMES=.*(\.mkv|\.avi|\.mp4|\.ogv|\.flv) #Regular expression that will be used to find files where the names will be reversed if the option REVERSE_NAMES_FOUND
+# The names are inverted. Used only on the IRC bot
+REVERSE_NAMES_FOUND=1 #If you want to reverse the names (to obfuscate) of the files discovered by the regexp defined on the option REGEXP_FIND_NAMES 
+# Path to uploadit script. Used only on the IRC bot
+PATH_TO_UPLOADIT=/path/to/uploadit/script -debug #Path to the uploadit script
+# Path to upload root folder. Used only on the IRC bot
+PATH_TO_UPLOAD_ROOT=/path/to/upload/root1,/path/to/upload/root2 #path to the upload root. You can have several separated by a comma (no spaces)
+# Path to the upload ad folder. Used only on the IRC bot
+PATH_TO_ADS=/path/to/ad_folder #Path to the ad folder to be put on the rar that will be compressed and uploaded
+# Path to save nzbs. Used only on the IRC bot
+PATH_TO_SAVE_NZBS=/path/to/save/nzbs #Path to save the NZB of the files that were uploaded.
+# IRC server - NO SSL
+IRC_SERVER=irc.server.com #IRC server where the bot is going to connect. SSL not supported
+# IRC port - NO SSL
+IRC_PORT=6667 #IRC server port where the bot is going to connect
+# IRC Channel (no #)
+IRC_CHANNEL=bot_testing #Channel where the bot is going to connect and will be listening to commands
+# IRC Nick
+IRC_NICK=NewsUP #bot name
+# IRC Nick Password
+IRC_NICK_PASSWD= #Nick password
+# IRC Nick Password
+IRC_CHANNEL_PASSWD= #Nick channel password (if the bot will listen on a protected channel)
+# Path to completion checker script. Used only on the IRC bot
+PATH_TO_COMPLETION_CHECKER=/path/to/completion_checker.pl
 
 ```
 
