@@ -74,12 +74,14 @@ sub main{
   my $DEBUG=0;
   my $UP_ARGS='';
   my $DELETE=1;
+  my $FORCE_RENAME=0;
   
   GetOptions('directory=s'=>\$DIRECTORY,
 	     'debug!'=>\$DEBUG,
 	     'args=s'=>\$UP_ARGS,
 	     'delete!'=>\$DELETE,
-	     'group=s'=>\@GROUPS);
+	     'group=s'=>\@GROUPS,
+	     'force_rename|rename!'=>\$FORCE_RENAME);
   
   
   if ($DIRECTORY eq '' || !-e $DIRECTORY ) {
@@ -109,7 +111,19 @@ sub main{
       
       push @$preProcessedFiles, create_sfv_file(basename($DIRECTORY), $preProcessedFiles, \%other_configs, $DEBUG) if ($other_configs{ENABLE_SFV_GENERATION});
       say Dumper($preProcessedFiles) if $DEBUG;
-      push @$preProcessedFiles, create_parity_archives($DIRECTORY, $preProcessedFiles, \%other_configs,$DEBUG) if ($other_configs{ENABLE_PAR_CREATION});
+
+      
+      if (defined $other_configs{NFO_FILE} && $other_configs{NFO_FILE}) {
+	my($filename, $dirs, $suffix) = fileparse($other_configs{NFO_FILE}, '.nfo');
+	
+	cp($other_configs{NFO_FILE}, $other_configs{TEMP_DIR});
+	push @$preProcessedFiles, $other_configs{TEMP_DIR}."/$filename.nfo";
+      }else {
+	$FORCE_RENAME=0;
+      }
+
+      
+      push @$preProcessedFiles, create_parity_archives($DIRECTORY, $preProcessedFiles, \%other_configs,$FORCE_RENAME, $DEBUG) if ($other_configs{ENABLE_PAR_CREATION});
       say Dumper($preProcessedFiles) if $DEBUG;
       upload_files($preProcessedFiles, \%other_configs, $UP_ARGS, $DEBUG);
 
@@ -221,6 +235,7 @@ sub create_parity_archives{
   my $folder=shift;
   my $preProcessedFiles=shift;
   my $configs=shift;
+  my $forceRename=shift;
   my $DEBUG = shift;
 
   my @escapedFiles=();
@@ -228,6 +243,7 @@ sub create_parity_archives{
 
   
   my $args = $configs->{EXTRA_ARGS_TO_PAR2}.' "'.$configs->{TEMP_DIR}.'/'.basename($folder).'.par2" '.join(' ',@escapedFiles).'';
+  
   my $invoke = '"'.$configs->{PATH_TO_PAR2}.'" '.$args;
   $invoke =~ s/\/\//\//g;
   say "Invoking: $invoke" if $DEBUG;
@@ -240,6 +256,10 @@ sub create_parity_archives{
   }
   closedir $dh;
 
+  if ($forceRename) {
+    unlink (pop @$preProcessedFiles);
+  }
+  
   return @parity_files;
   
 }
