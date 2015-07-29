@@ -201,7 +201,7 @@ sub header_check{
 	  next;
 	}elsif ($count==5) {
 	  say "Aborting! Header $messageID not found on the server! Please check for issues on the server.";
-	  next;
+	  last; #There's no point in keep going to the other subjects, since there are already issues with the upload.
 	}else {
 	  #print "\rHeader check: Missing segment $messageID [$output]\r\n";
 	  $self->transmit_files([$fileRef], $from, $comments->[0], $comments->[1], $newsgroups, 1);
