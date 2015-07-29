@@ -68,9 +68,9 @@ sub write_nzb{
 sub _get_xml_escaped_string{
   my $string = shift;
 
+  $string=~ s/&/&amp;/g;
   $string=~ s/</&lt;/g;
   $string=~ s/>/&gt;/g;
-  $string=~ s/&/&amp;/g;
   $string=~ s/"/&quot;/g;
   $string=~ s/'/&apos;/g;
 
