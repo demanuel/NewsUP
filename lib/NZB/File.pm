@@ -44,7 +44,7 @@ sub get_xml{
   my $date=time();
   my $subject = $self->{subject};
   my $segmentsSize=scalar @{$self->{segments}};
-  my $xml = "<file poster=\"$poster\" subject=\"$subject yEnc (1/$segmentsSize)\" date="$date">\n";
+  my $xml = "<file poster=\"$poster\" subject=\"$subject yEnc (1/$segmentsSize)\" date=\"$date\">\n";
   $xml.= "<groups>\n";
   $xml.= "<group>$_</group>\n" for (@{$self->{groups}});
   $xml.= "</groups>\n";
