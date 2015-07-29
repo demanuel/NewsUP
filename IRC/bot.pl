@@ -376,16 +376,26 @@ sub upload_folder{
   
   say "Executing: $cmd";
   my $output = qx($cmd);
+  my $transferSpeed = "";
+  my $segmentsFailed = 0;
   for (split($/,$output)){
     # if ($_ =~/NZB file (.*) created/){
     #   mv $nzb, $nzbFolder;
     # }els
+    
     if ($_ =~ /Transfer speed/) {
-#      print $socket "PRIVMSG $channel : $_\r\n";
-      print_message_to_channel($socket, $channel,"[ \x0303Uploaded and \x0303ready\x03 ]: $_ ");
+      $transferSpeed = $_;
     }elsif ($_ =~ /Uploaded files: (.*)/) {
       push @files, $1;
+    }elsif ($_ =~ /Header .* not found/) {
+      $segmentsFailed=1;
     }
+  }
+
+  if (!$segmentsFailed) {
+    print_message_to_channel($socket, $channel,"[ \x0303Uploaded and \x0303ready\x03 ]: $transferSpeed ");
+  }else {
+    print_message_to_channel($socket, $channel,"[ \x0304Header Check failed!\x03 ]: $transferSpeed ");
   }
 
 
