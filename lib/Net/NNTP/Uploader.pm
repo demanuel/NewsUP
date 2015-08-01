@@ -19,9 +19,7 @@ our $NNTP_MAX_UPLOAD_SIZE=750*1024;
 my $YENC_NNTP_LINESIZE=128;
 $|=1;
 
-my @YENC_CHAR_MAP = map{($_+42)%256;} (0..0xffff);
-
-my @YENC_CHAR_MAP2 = map{
+my @YENC_CHAR_MAP = map{
 	my $char = ($_+42)%256;
 	($char == 0 || $char == 10 || $char == 13 || $char == 61) ? '='.chr($char+64) : chr($char);
 
@@ -126,6 +124,8 @@ sub logout{
 sub transmit_files{
   my ($self, $filesListRef, $from, $initComment, $endComment, $newsgroupsRef, $isHeaderCheck) = @_;
 
+  my $newsgroups = join(',',@$newsgroupsRef);
+  
   if ($self->{authenticated}==0) {
     while ($self->{authenticated} == 0){
       $self->_create_socket;
@@ -134,6 +134,7 @@ sub transmit_files{
       sleep 30;
     }
   }
+  my $socket = $self->{socket};
   # my %commentMap = ();
   # for my $filePair (@$filesListRef){
   #   if (!exists $commentMap{$filePair->[0]}) {
@@ -147,41 +148,69 @@ sub transmit_files{
   #   }
   # }
 
+  my $ifh;
+  my $lastFile = '';
   for my $filePair (@$filesListRef) {
- #   my $initTime = time();
-    open my $ifh, '<:bytes', $filePair->[0] or die "Couldn't open file: $!";
-    binmode $ifh;
 
+    #To avoid opening the same file multiple times
+    if ($filePair->[0] ne $lastFile) {
+      close $ifh if defined $ifh;
+      open $ifh, '<:bytes', $filePair->[0] or die "Couldn't open file: $!";
+      binmode $ifh;
+      $lastFile=$filePair->[0];
+    }
     my @temp = split('/',$filePair->[1]);
     my $currentFilePart = $temp[0];
     my $totalFilePart = $temp[1];
-
+    
     #my $fileSize= -s $filePair->[0];
     my $fileName=(fileparse($filePair->[0]))[0];
-
-    my ($readedData, $readSize) = _get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
-    close $ifh;
-    my $subject = "\"$fileName\" yenc ($currentFilePart/$totalFilePart)";
-
-    $subject = "$initComment [".$filePair->[-1]."] - $subject" if defined $initComment;
-
-    $subject = "$subject [$endComment]" if defined $endComment;
-
-    my $content = _get_post_body($currentFilePart, $totalFilePart, $fileName,
-				 1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1), $readSize, $readedData);
-
-    #Free readed data
-    undef $readedData;
     
-    $self->_post($newsgroupsRef, $filePair->[2], $subject, $content, $from, $isHeaderCheck);
-    #Free readed data
-    undef $content;
-    #    my $speed = floor($readSize/1024/(time()-$initTime));
-    #    print "[$speed KBytes/sec]\r";
+    my ($readedData, $readSize) = _get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
+
+    print $socket "POST\r\n";
+    sysread($socket, my $output, 8192);
+
+    if (substr($output,0,3)==340) {
+      $output = '';
+
+      eval{
+
+	my $startPosition=1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1);
+	my $crc32=sprintf("%x", crc32($readedData));
+	print $socket "From: ",$from,"\r\n",
+	  "Newsgroups: ",$newsgroups,"\r\n",
+	  "Subject: '",$fileName," yenc (",$currentFilePart,"/",$totalFilePart,")'\r\n",
+	  "Message-ID: <",$filePair->[2],">\r\n",
+	  "\r\n=ybegin part=",$currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE," size=", $readSize, " name=",$fileName,
+	  "\r\n=ypart begin=",$startPosition,$startPosition+$readSize,
+	  "\r\n",_yenc_encode($readedData),
+	  "\r\n=yend size=",$readSize," pcrc32=",$crc32;
+
+	#We only need this on the last part
+	if ($currentFilePart == $totalFilePart) {
+	  print $socket " crc32=", $crc32;
+	}
+	print $socket "\r\n.\r\n";
+	sysread($socket, $output, 8192);
+      };
+      if ($@){
+	say "Error: $@";
+	return undef;
+      }
+          #441 Posting Failed. Message-ID is not unique E1
+      if ($isHeaderCheck) {
+	say 'Header Checking: '.$output if ($output!~ /240/ && $output!~ /441/)
+      }else {
+	say $output if ($output!~ /240/);      
+      }      
+    }
+
     $|=1;
     $self->{parentChannel}->send($readSize);
 
   }
+  close $ifh
 }
 
 #It will perform the header check!
@@ -278,81 +307,83 @@ sub _get_file_bytes_by_part{
 }
 
 
-sub _get_post_body{
+# sub _get_post_body{
 
-  my ($filePart, $fileMaxParts, $fileName, $startingBytes, $readSize, $bytes)=@_;
-  my $yencBody=_yenc_encode($bytes);
-  #some clients will complain if this is missing
-  my $pcrc32 = sprintf("%x", crc32($bytes));
+#   my ($filePart, $fileMaxParts, $fileName, $startingBytes, $readSize, $bytes)=@_;
+#   my $yencBody=_yenc_encode($bytes);
+#   #some clients will complain if this is missing
+#   my $pcrc32 = sprintf("%x", crc32($bytes));
   
-  my $endPosition= $startingBytes+$readSize;
-  my $content = <<"EOF";
-=ybegin part=$filePart total=$fileMaxParts line=$YENC_NNTP_LINESIZE size=$readSize name=$fileName\r
-=ypart begin=$startingBytes end=$endPosition\r
-$yencBody\r
-=yend size=$readSize pcrc32=$pcrc32
-EOF
+#   my $endPosition= $startingBytes+$readSize;
+#   my $content = '=ybegin part=';
+#   $content .= $filePart;
+#   $content .= ' total=';
+#   $content .= $fileMaxParts;
+#   $content .= ' line=';
+#   $content .= $YENC_NNTP_LINESIZE;
+#   $content .= ' size=';
+#   $content .= $readSize;
+#   $content .= 
+#   my $content = <<"EOF";
+# =ybegin part=$filePart total=$fileMaxParts line=$YENC_NNTP_LINESIZE size=$readSize name=$fileName\r
+# =ypart begin=$startingBytes end=$endPosition\r
+# $yencBody\r
+# =yend size=$readSize pcrc32=$pcrc32
+# EOF
 
-  #We only need this on the last part
-  if ($filePart == $fileMaxParts) {
-    $content .= " crc32=".crc32($bytes);
-  }
-  undef $bytes;
+#   #We only need this on the last part
+#   if ($filePart == $fileMaxParts) {
+#     #    $content .= " crc32=".crc32($bytes);
+#     $content .= " crc32=";
+#     $content .= $pcrc32;#crc32($bytes);
+#   }
+#   undef $bytes;
   
-  return $content;
-}
+#   return $content;
+# }
 
-sub _post{
+# sub _post{
 
-  my ($self, $newsgroupsRef, $messageID, $subject, $content, $from, $isHeaderCheck) =@_;
+#   my ($self, $newsgroupsRef, $messageID, $subject, $content, $from, $isHeaderCheck) =@_;
   
-  my @newsgroups = @{$newsgroupsRef};
+#   my @newsgroups = @{$newsgroupsRef};
 
-  my $socket = $self->{socket};
+#   my $socket = $self->{socket};
 
-  print $socket "POST\r\n";
-  sysread($socket, my $output, 8192);
+#   print $socket "POST\r\n";
+#   sysread($socket, my $output, 8192);
 
-  if (substr($output,0,3)==340) {
-    $output = '';
+#   if (substr($output,0,3)==340) {
+#     $output = '';
     
-    eval{
+#     eval{
 
-      my $newsgroups = join(',',@newsgroups);
-#       print $socket <<"END";
-# From: $from\r
-# Newsgroups: $newsgroups\r
-# Subject: $subject\r
-# Message-ID: <$messageID>\r
-# \r
-# $content\r
-# .\r
-# END
+#       my $newsgroups = join(',',@newsgroups);
 
-      print $socket "From: ",$from,"\r\n",
-	"Newsgroups: ",$newsgroups,"\r\n",
-	"Subject: ",$subject,"\r\n",
-	"Message-ID: <",$messageID,">\r\n",
-	"\r\n",$content,"\r\n.\r\n";
+#       print $socket "From: ",$from,"\r\n",
+# 	"Newsgroups: ",$newsgroups,"\r\n",
+# 	"Subject: ",$subject,"\r\n",
+# 	"Message-ID: <",$messageID,">\r\n",
+# 	"\r\n",$content,"\r\n.\r\n";
       
-      undef $content;
-      sysread($socket, $output, 8192);
+#       undef $content;
+#       sysread($socket, $output, 8192);
       
-    };
-    if ($@){
-      say "Error: $@";
-      return undef;
-    }
+#     };
+#     if ($@){
+#       say "Error: $@";
+#       return undef;
+#     }
     
-    #441 Posting Failed. Message-ID is not unique E1
-    if ($isHeaderCheck) {
-      say 'Header Checking: '.$output if ($output!~ /240/ && $output!~ /441/)
-    }else {
-      say $output if ($output!~ /240/);      
-    }
-  }
+#     #441 Posting Failed. Message-ID is not unique E1
+#     if ($isHeaderCheck) {
+#       say 'Header Checking: '.$output if ($output!~ /240/ && $output!~ /441/)
+#     }else {
+#       say $output if ($output!~ /240/);      
+#     }
+#   }
 
-}
+# }
 
 
 sub _yenc_encode{
@@ -363,7 +394,7 @@ sub _yenc_encode{
   #my @hexString = unpack('W*',$binString); #Converts binary string to hex
 
   for my $hexChar (unpack('W*',$string)) {
-    my $char= $YENC_CHAR_MAP2[$hexChar];
+    my $char= $YENC_CHAR_MAP[$hexChar];
     
     #null || LF || CR || =
     
@@ -381,9 +412,7 @@ sub _yenc_encode{
       
     }
     
-    
     $content .= $char;
-    
     
     if (++$column>= $YENC_NNTP_LINESIZE ) {
       $column=0;
