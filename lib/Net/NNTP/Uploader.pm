@@ -15,11 +15,19 @@ use String::CRC32;
 use 5.018;
 
 #The allowed posting segment size isn't standard
-our $NNTP_MAX_UPLOAD_SIZE=512*1024; 
+our $NNTP_MAX_UPLOAD_SIZE=750*1024; 
 my $YENC_NNTP_LINESIZE=128;
 $|=1;
 
 my @YENC_CHAR_MAP = map{($_+42)%256;} (0..0xffff);
+
+my @YENC_CHAR_MAP2 = map{
+	my $char = ($_+42)%256;
+	($char == 0 || $char == 10 || $char == 13 || $char == 61) ? '='.chr($char+64) : chr($char);
+
+	} (0..0xffff);
+
+my %TRANSLATION_TABLE=("\x09", "=I", "\x20", "=`", "\x2e","=n");
 
 
 sub new{
@@ -287,7 +295,7 @@ EOF
 
   #We only need this on the last part
   if ($filePart == $fileMaxParts) {
-    $content = $content." crc32=".crc32($bytes);
+    $content .= " crc32=".crc32($bytes);
   }
   undef $bytes;
   
@@ -311,15 +319,22 @@ sub _post{
     eval{
 
       my $newsgroups = join(',',@newsgroups);
-      print $socket <<"END";
-From: $from\r
-Newsgroups: $newsgroups\r
-Subject: $subject\r
-Message-ID: <$messageID>\r
-\r
-$content\r
-.\r
-END
+#       print $socket <<"END";
+# From: $from\r
+# Newsgroups: $newsgroups\r
+# Subject: $subject\r
+# Message-ID: <$messageID>\r
+# \r
+# $content\r
+# .\r
+# END
+
+      print $socket "From: ",$from,"\r\n",
+	"Newsgroups: ",$newsgroups,"\r\n",
+	"Subject: ",$subject,"\r\n",
+	"Message-ID: <",$messageID,">\r\n",
+	"\r\n",$content,"\r\n.\r\n";
+      
       undef $content;
       sysread($socket, $output, 8192);
       
@@ -339,54 +354,97 @@ END
 
 }
 
+
 sub _yenc_encode{
   my ($string) = @_;
   my $column = 0;
   my $content = '';
 
+  #my @hexString = unpack('W*',$binString); #Converts binary string to hex
 
-  my @hexString = unpack('W*',$string); #Converts binary string to hex
- 
-  for my $hexChar (@hexString) {
-    my $char= $YENC_CHAR_MAP[$hexChar];
-
-    if ($char == 0 ||		# null
-  	$char == 10 ||		# LF
-  	$char == 13 ||		# CR
-  	$char == 61 ||		# =
-  	(($char == 9 || $char == 32) && ($column == $YENC_NNTP_LINESIZE || $column==0)) || # TAB || SPC
-  	($char==46 && $column==0) # . 
-       ) {
-      
-      $content =$content. '=';
-      $column+=1;
-      
-      $char=($char + 64);#%256;
+  for my $hexChar (unpack('W*',$string)) {
+    my $char= $YENC_CHAR_MAP2[$hexChar];
+    
+    #null || LF || CR || =
+    
+    if($char =~ /=/){
+      $column++;
     }
-    $content = $content.chr $char;
+    elsif($column==0 && $char =~ /(\x09|\x20|\x2e)/){
+      
+      $column++;
+      $char=$TRANSLATION_TABLE{$1};
+    }
+    elsif($column == $YENC_NNTP_LINESIZE && $char =~ /(\x09|\x32)/){
+      $column++;
+      $char=$TRANSLATION_TABLE{$1};
+      
+    }
     
-    $column+=1;
     
-    if ($column>= $YENC_NNTP_LINESIZE ) {
+    $content .= $char;
+    
+    
+    if (++$column>= $YENC_NNTP_LINESIZE ) {
       $column=0;
-      $content = $content."\r\n";
+      $content .= "\r\n";
     }
-
+    
   }
-
+  
   return $content;
-  
-
 
   
-  #first version: slow but better to understand the algorithm
-  # for(my $i=0; $i<bytes::length($string); $i++){
-  #   my $byte=bytes::substr($string,$i,1);
-  #   my $char= (hex (unpack('H*', $byte))+42)%256;
-  #   ....
-  # }
-
 }
+
+# sub _yenc_encode{
+#   my ($string) = @_;
+#   my $column = 0;
+#   my $content = '';
+
+
+#   my @hexString = unpack('W*',$string); #Converts binary string to hex
+ 
+#   for my $hexChar (@hexString) {
+#     my $char= $YENC_CHAR_MAP[$hexChar];
+
+#     if ($char == 0 ||		# null
+#   	$char == 10 ||		# LF
+#   	$char == 13 ||		# CR
+#   	$char == 61 ||		# =
+#   	(($char == 9 || $char == 32) && ($column == $YENC_NNTP_LINESIZE || $column==0)) || # TAB || SPC
+#   	($char==46 && $column==0) # . 
+#        ) {
+      
+#       $content =$content. '=';
+#       $column+=1;
+      
+#       $char=($char + 64);#%256;
+#     }
+#     $content = $content.chr $char;
+    
+#     $column+=1;
+    
+#     if ($column>= $YENC_NNTP_LINESIZE ) {
+#       $column=0;
+#       $content = $content."\r\n";
+#     }
+
+#   }
+
+#   return $content;
+  
+
+
+  
+#   #first version: slow but better to understand the algorithm
+#   # for(my $i=0; $i<bytes::length($string); $i++){
+#   #   my $byte=bytes::substr($string,$i,1);
+#   #   my $char= (hex (unpack('H*', $byte))+42)%256;
+#   #   ....
+#   # }
+
+# }
 
 
 
