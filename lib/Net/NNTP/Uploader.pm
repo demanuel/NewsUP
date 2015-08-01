@@ -180,7 +180,7 @@ sub transmit_files{
 	my $crc32=sprintf("%x", crc32($readedData));
 	print $socket "From: ",$from,"\r\n",
 	  "Newsgroups: ",$newsgroups,"\r\n",
-	  "Subject: '",$fileName," yenc (",$currentFilePart,"/",$totalFilePart,")'\r\n",
+	  "Subject: \"",$fileName,"\" yenc (",$currentFilePart,"/",$totalFilePart,")\r\n",
 	  "Message-ID: <",$filePair->[2],">\r\n",
 	  "\r\n=ybegin part=",$currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE," size=", $readSize, " name=",$fileName,
 	  "\r\n=ypart begin=",$startPosition,$startPosition+$readSize,
