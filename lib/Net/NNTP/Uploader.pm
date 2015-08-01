@@ -91,7 +91,7 @@ sub _authenticate{
   my ($self, $socket, $username, $password) = @_;
   #my $socket = $self->{socket};
   #my $username = $self->{username};
-  print $socket "authinfo user $username\r\n";
+  print $socket "authinfo user ",$username,"\r\n";
   sysread($socket, my $output, 8192);
   my $status = substr($output,0,3);
   if ($status != 381) {
@@ -100,7 +100,7 @@ sub _authenticate{
     return -1;
   }
   #my $password=$self->{userpass};
-  print $socket "authinfo pass $password\r\n";
+  print $socket "authinfo pass ",$password,"\r\n";
   sysread($socket, $output, 8192);
   $status = substr($output,0,3);
   if ($status != 281 && $status != 250) {
@@ -221,7 +221,7 @@ sub header_check{
     my $socket = $self->_get_headercheck_socket($server,$port, $user,$password);
     #my $socket = $self->{socket};
     my $newsgroup = $newsgroups->[0]; #The first newsgroup is enough to check if the segment was uploaded correctly
-    print $socket "group $newsgroup\r\n";
+    print $socket "group ",$newsgroup,"\r\n";
     my $output;
     sysread($socket, $output, 8192);
 
@@ -230,7 +230,7 @@ sub header_check{
       my $count = 0;
       do {
 	my $messageID = $fileRef->[2];
-	print $socket "stat <$messageID>\r\n";
+	print $socket "stat <",$messageID,">\r\n";
 	sysread($socket, $output, 8192);
 	chop $output;
 
