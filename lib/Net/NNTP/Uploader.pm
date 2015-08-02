@@ -150,6 +150,7 @@ sub transmit_files{
 
   my $ifh;
   my $lastFile = '';
+  my $fileSize = 0;
   for my $filePair (@$filesListRef) {
 
     #To avoid opening the same file multiple times
@@ -158,6 +159,7 @@ sub transmit_files{
       open $ifh, '<:bytes', $filePair->[0] or die "Couldn't open file: $!";
       binmode $ifh;
       $lastFile=$filePair->[0];
+      $fileSize = -s $lastFile;
     }
     my @temp = split('/',$filePair->[1]);
     my $currentFilePart = $temp[0];
@@ -176,14 +178,16 @@ sub transmit_files{
 
       eval{
 
-	my $startPosition=1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1);
+	#my $startPosition=1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1);
 	my $crc32=sprintf("%x", crc32($readedData));
 	print $socket "From: ",$from,"\r\n",
 	  "Newsgroups: ",$newsgroups,"\r\n",
 	  "Subject: \"",$fileName,"\" yenc (",$currentFilePart,"/",$totalFilePart,")\r\n",
 	  "Message-ID: <",$filePair->[2],">\r\n",
-	  "\r\n=ybegin part=",$currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE," size=", $currentFilePart==$totalFilePart?$startPosition+$readSize-1:$readSize, " name=",$fileName,
-	  "\r\n=ypart begin=",$startPosition, " end=",$startPosition+$readSize,
+	  #	  "\r\n=ybegin part=",$currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE," size=", $currentFilePart==$totalFilePart?$startPosition+$readSize-1:$readSize, " name=",$fileName,
+	  "\r\n=ybegin part=",$currentFilePart," line=",$YENC_NNTP_LINESIZE," size=",$fileSize, " name=",$fileName,
+	  #	  "\r\n=ypart begin=",$startPosition, " end=",tell($ifh)#$startPosition+$readSize,
+	  "\r\n=ypart begin=",1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1), " end=",tell($ifh),#$startPosition+$readSize,
 	  "\r\n",_yenc_encode($readedData),
 	  "\r\n=yend size=",$readSize," pcrc32=",$crc32;
 
