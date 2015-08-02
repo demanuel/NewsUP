@@ -182,15 +182,17 @@ sub transmit_files{
 	  "Newsgroups: ",$newsgroups,"\r\n",
 	  "Subject: \"",$fileName,"\" yenc (",$currentFilePart,"/",$totalFilePart,")\r\n",
 	  "Message-ID: <",$filePair->[2],">\r\n",
-	  "\r\n=ybegin part=",$currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE," size=", $readSize, " name=",$fileName,
-	  "\r\n=ypart begin=",$startPosition,$startPosition+$readSize,
+	  "\r\n=ybegin part=",$currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE," size=", $currentFilePart==$totalFilePart?$startPosition+$readSize-1:$readSize, " name=",$fileName,
+	  "\r\n=ypart begin=",$startPosition, " end=",$startPosition+$readSize,
 	  "\r\n",_yenc_encode($readedData),
 	  "\r\n=yend size=",$readSize," pcrc32=",$crc32;
 
 	#We only need this on the last part
-	if ($currentFilePart == $totalFilePart) {
-	  print $socket " crc32=", $crc32;
-	}
+	# if ($currentFilePart == $totalFilePart) {
+	#   seek($ifh, 0, 0);
+	#   say "POSITION: ".tell($ifh);
+	#   print $socket " crc32=", crc32(*$ifh);
+	#  }
 	print $socket "\r\n.\r\n";
 	sysread($socket, $output, 8192);
       };
