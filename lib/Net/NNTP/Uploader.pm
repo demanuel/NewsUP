@@ -13,9 +13,10 @@ use IO::Socket::SSL;# qw(debug3);
 use Time::HiRes qw/ time /;
 use String::CRC32;
 use 5.018;
-
+use Data::Dumper;
+use Benchmark;
 #The allowed posting segment size isn't standard
-our $NNTP_MAX_UPLOAD_SIZE=750*1024; 
+our $NNTP_MAX_UPLOAD_SIZE=2*512*1024; 
 my $YENC_NNTP_LINESIZE=128;
 $|=1;
 
@@ -25,7 +26,18 @@ my @YENC_CHAR_MAP = map{
 
 	} (0..0xffff);
 
+my %YENC_CHAR_MAP2=();
+for my $i (0..0xffff) {
+  my $char = ($i+42)%256;
+  if ($char == 0 || $char == 10 || $char == 13 || $char == 61) {
+    $YENC_CHAR_MAP2{chr($i)}='='.chr($char+64);
+  }else {
+      $YENC_CHAR_MAP2{chr($i)}=chr($char);
+  }
+}
+
 my %TRANSLATION_TABLE=("\x09", "=I", "\x20", "=`", "\x2e","=n");
+#my $TRANSLATION_REGEXP = join('|', (map{quotemeta chr($_);} (0..0xffff)));
 
 
 sub new{
@@ -163,37 +175,39 @@ sub transmit_files{
 
     if (substr($output,0,3)==340) {
       $output = '';
-
+      
       eval{
-
-	#my $startPosition=1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1);
-	my $crc32=sprintf("%x", crc32($readedData));
+	
+	
+	my $pcrc32=sprintf("%x", crc32($readedData));
+	
 	print $socket "From: ",$from,"\r\n",
+	  #	  print $out "From: ",$from,"\r\n",
 	  "Newsgroups: ",$newsgroups,"\r\n",
 	  "Subject: \"",$fileName,"\" yenc (",$currentFilePart,"/",$totalFilePart,")\r\n",
 	  "Message-ID: <",$filePair->[2],">\r\n",
 	  "\r\n=ybegin part=",$currentFilePart," line=",$YENC_NNTP_LINESIZE," size=",$fileSize, " name=",$fileName,
 	  "\r\n=ypart begin=",1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1), " end=",tell($ifh),
-	  "\r\n",_yenc_encode($readedData),
-	  "\r\n=yend size=",$readSize," pcrc32=",$crc32, "\r\n.\r\n";
-
+	  "\r\n", _yenc_encode2($readedData),
+	  "\r\n=yend size=",$readSize," pcrc32=",$pcrc32, "\r\n.\r\n";
+	
 	sysread($socket, $output, 8192);
       };
       if ($@){
 	say "Error: $@";
 	return undef;
       }
-          #441 Posting Failed. Message-ID is not unique E1
+      #441 Posting Failed. Message-ID is not unique E1
       if ($isHeaderCheck) {
 	say 'Header Checking: '.$output if ($output!~ /240/ && $output!~ /441/)
       }else {
 	say $output if ($output!~ /240/);      
       }      
     }
-
+    
     $|=1;
     $self->{parentChannel}->send($readSize);
-
+    
   }
   close $ifh
 }
@@ -291,12 +305,32 @@ sub _get_file_bytes_by_part{
 }
 
 
+
+
+sub _yenc_encode2{
+  my ($string) = @_;
+  my $content = "";
+
+  $string =~ s/(.{1})/$YENC_CHAR_MAP2{$1}/g;
+  my @lines= unpack("(A$YENC_NNTP_LINESIZE)*", $string);
+  for my $line (@lines) {
+    if (length($line)==$YENC_NNTP_LINESIZE) {
+      if (exists $TRANSLATION_TABLE{substr($line,-1)}) {
+	$line .= $TRANSLATION_TABLE{chop ($line)};
+      }
+    }
+  }
+  return join("\r\n", @lines);#$content;
+}
+
+
 sub _yenc_encode{
   my ($string) = @_;
   my $column = 0;
   my $content = '';
+  
+ for my $hexChar (unpack('W*',$string)) {
 
-  for my $hexChar (unpack('W*',$string)) {
     my $char= $YENC_CHAR_MAP[$hexChar];
     
     #null || LF || CR || =
@@ -307,23 +341,21 @@ sub _yenc_encode{
     elsif($column==0 && $char =~ /(\x09|\x20|\x2e)/){
       
       $column++;
-      $char=$TRANSLATION_TABLE{$1};
+      $char = $TRANSLATION_TABLE{$1};
     }
     elsif($column == $YENC_NNTP_LINESIZE && $char =~ /(\x09|\x32)/){
       $column++;
       $char=$TRANSLATION_TABLE{$1};
       
     }
-    
-    $content .= $char;
-    
+
     if (++$column>= $YENC_NNTP_LINESIZE ) {
-      $column=0;
-      $content .= "\r\n";
+      $column = 0;
+      $char .= "\r\n";
     }
-    
+    $content .= $char;
   }
-  
+
   return $content;
 }
 
