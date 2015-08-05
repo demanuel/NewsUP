@@ -10,7 +10,7 @@ use strict;
 use File::Basename;
 use IO::Socket::INET;
 use IO::Socket::SSL;# qw(debug3);
-use Time::HiRes qw/ time /;
+use Time::HiRes qw/ time usleep/;
 use 5.018;
 use Data::Dumper;
 use Compress::Zlib;
@@ -163,16 +163,16 @@ sub transmit_files{
     my $startPosition=1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1);
     
     my $yencData = _yenc_encode($readedData);
-
-    my $postOutcome = $self->_post_article($isHeaderCheck, ["From: ",$from,"\r\n",
-							    "Newsgroups: ",$newsgroups,"\r\n",
-							    "Subject: \"",$fileName,"\" yenc (",$filePair->[1],")\r\n",
-							    "Message-ID: <",$filePair->[2],">\r\n",
-							    "\r\n=ybegin part=",$currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE,
-							    " size=", $currentFilePart==$totalFilePart?$startPosition+$readSize-1:$readSize, " name=",$fileName,
-							    "\r\n=ypart begin=",$startPosition, " end=",$startPosition+$readSize,
-							    "\r\n",$yencData,
-							    "\r\n=yend size=",$readSize," pcrc32=", sprintf("%x",crc32 $readedData), "\r\n.\r\n"]);
+    usleep(750); #Sleep 3/4 of a second
+    my $postOutcome = $self->_post_article($isHeaderCheck, "From: ",$from,"\r\n",
+					   "Newsgroups: ",$newsgroups,"\r\n",
+					   "Subject: \"",$fileName,"\" yenc (",$filePair->[1],")\r\n",
+					   "Message-ID: <",$filePair->[2],">\r\n",
+					   "\r\n=ybegin part=",$currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE,
+					   " size=", $currentFilePart==$totalFilePart?$startPosition+$readSize-1:$readSize, " name=",$fileName,
+					   "\r\n=ypart begin=",$startPosition, " end=",$startPosition+$readSize,
+					   "\r\n",$yencData,
+					   "\r\n=yend size=",$readSize," pcrc32=", sprintf("%x",crc32 $readedData), "\r\n.\r\n");
     
     last if $postOutcome == -1;
 			 
@@ -183,7 +183,7 @@ sub transmit_files{
 
 #POST article to the server
 sub _post_article{
-  my ($self, $isHeaderCheck,$args)=@_;
+  my ($self, $isHeaderCheck,@args)=@_;
   my $socket = $self->{socket};
   
 
@@ -196,7 +196,7 @@ sub _post_article{
     
     eval{
       
-      print $socket @$args;
+      print $socket @args;
       
       sysread($socket, $output, 8192);
     };
