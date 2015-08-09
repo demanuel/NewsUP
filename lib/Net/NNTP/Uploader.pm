@@ -168,7 +168,7 @@ sub transmit_files{
 					   "Newsgroups: ",$newsgroups,"\r\n",
 					   "Subject: \"",$fileName,"\" yenc (",$filePair->[1],")\r\n",
 					   "Message-ID: <",$filePair->[2],">\r\n",
-					   "\r\n=ybegin part=",$currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE,
+					   "=ybegin part=",$currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE,
 					   " size=", $currentFilePart==$totalFilePart?$startPosition+$readSize-1:$readSize, " name=",$fileName,
 					   "\r\n=ypart begin=",$startPosition, " end=",$startPosition+$readSize,
 					   "\r\n",$yencData,
