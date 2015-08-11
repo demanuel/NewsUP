@@ -163,16 +163,20 @@ sub transmit_files{
     $subject = $subject . ' ['.$endComment.']' if defined $endComment;
     
     my ($readedData, $readSize) = _get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
+    #my ($data, $crc32) = _yenc_encode($readedData);
 
     my $startPosition=1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1);
     
-    my $postOutcome = $self->_post_article($isHeaderCheck, "From: ",$from,"\r\nNewsgroups: ",
-					   ,$newsgroups,"\r\nSubject: ",$subject,
-					   "\r\nMessage-ID: <",
-					   $filePair->[2],">\r\n\r\n=ybegin part=",
+    my $postOutcome = $self->_post_article($isHeaderCheck,
+					   "From: ",$from,
+					   "\r\nNewsgroups: ",$newsgroups,
+					   "\r\nSubject: ",$subject,
+					   "\r\nMessage-ID: <",$filePair->[2],
+					   ">\r\n\r\n=ybegin part=",
 					   $currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE,
 					   " size=", $currentFilePart==$totalFilePart?$startPosition+$readSize-1:$readSize, " name=",$fileName,
-					   "\r\n=ypart begin=",$startPosition, " end=",$startPosition+$readSize,
+					   #" size=", $readSize," name=",$fileName,
+					   "\r\n=ypart begin=",$startPosition, " end=",$startPosition+$readSize-1,
 					   "\r\n",_yenc_encode($readedData),
 					   "\r\n=yend size=",$readSize," pcrc32=", sprintf("%x",crc32 $readedData), "\r\n.\r\n");
     
@@ -185,11 +189,11 @@ sub transmit_files{
 
 #POST article to the server
 sub _post_article{
-  my ($self, $isHeaderCheck,@args)=@_;
+  my ($self, $isHeaderCheck, @args)=@_;
   my $socket = $self->{socket};
   
   usleep(50); #Sleep 50/1000 of a second
-    
+  
   print $socket "POST\r\n";
   sysread($socket, my $output, 8192);
   
@@ -197,7 +201,8 @@ sub _post_article{
     $output = '';
     
     eval{
-      
+      #local $,=undef;
+      local $/;
       print $socket @args;
       
       sysread($socket, $output, 8192);
@@ -327,7 +332,7 @@ sub _yenc_encode{
   my $content = '';
 
   for my $hexChar (unpack('W*',$string)) {
-    
+
     my $char= $YENC_CHAR_MAP[$hexChar];
     
     if($char =~ /=/){
@@ -349,6 +354,7 @@ sub _yenc_encode{
     }
     $content .= $char;
   }
+
   return $content;
 }
 
