@@ -157,21 +157,23 @@ sub transmit_files{
     
     #my $fileSize= -s $filePair->[0];
     my $fileName=(fileparse($filePair->[0]))[0];
+
+    my $subject = "[".$filePair->[-1]."] - \"$fileName\" yenc (".$filePair->[1].");";#"$initComment [".$filePair->[-1]."] - $subject" if defined $initComment;
+    $subject = $initComment.' '.$subject if defined $initComment;
+    $subject = $subject . ' ['.$endComment.']' if defined $endComment;
     
     my ($readedData, $readSize) = _get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
 
     my $startPosition=1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1);
     
-    my $yencData = _yenc_encode($readedData);
-    usleep(750); #Sleep 3/4 of a second
-    my $postOutcome = $self->_post_article($isHeaderCheck, "From: ",$from,"\r\n",
-					   "Newsgroups: ",$newsgroups,"\r\n",
-					   "Subject: \"",$fileName,"\" yenc (",$filePair->[1],")\r\n",
-					   "Message-ID: <",$filePair->[2],">\r\n",
-					   "=ybegin part=",$currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE,
+    my $postOutcome = $self->_post_article($isHeaderCheck, "From: ",$from,"\r\nNewsgroups: ",
+					   ,$newsgroups,"\r\nSubject: ",$subject,
+					   "\r\nMessage-ID: <",
+					   $filePair->[2],">\r\n\r\n=ybegin part=",
+					   $currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE,
 					   " size=", $currentFilePart==$totalFilePart?$startPosition+$readSize-1:$readSize, " name=",$fileName,
 					   "\r\n=ypart begin=",$startPosition, " end=",$startPosition+$readSize,
-					   "\r\n",$yencData,
+					   "\r\n",_yenc_encode($readedData),
 					   "\r\n=yend size=",$readSize," pcrc32=", sprintf("%x",crc32 $readedData), "\r\n.\r\n");
     
     last if $postOutcome == -1;
@@ -186,7 +188,7 @@ sub _post_article{
   my ($self, $isHeaderCheck,@args)=@_;
   my $socket = $self->{socket};
   
-
+  usleep(50); #Sleep 50/1000 of a second
     
   print $socket "POST\r\n";
   sysread($socket, my $output, 8192);
@@ -208,7 +210,10 @@ sub _post_article{
     if ($isHeaderCheck) {
       say 'Header Checking: '.$output if ($output!~ /240/ && $output!~ /441/)
     }else {
-      say $output if ($output!~ /240/);      
+      if ($output!~ /240/){
+	say "Stopping uploads!\r\n$output";
+	return -1;
+      }
     }
     
     #This will not be correct on the last segment, but we don't care.
