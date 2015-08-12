@@ -158,7 +158,7 @@ sub transmit_files{
     #my $fileSize= -s $filePair->[0];
     my $fileName=(fileparse($filePair->[0]))[0];
 
-    my $subject = "[".$filePair->[-1]."] - \"$fileName\" yenc (".$filePair->[1].");";#"$initComment [".$filePair->[-1]."] - $subject" if defined $initComment;
+    my $subject = "[".$filePair->[-1]."] - \"$fileName\" yenc (".$filePair->[1].")";#"$initComment [".$filePair->[-1]."] - $subject" if defined $initComment;
     $subject = $initComment.' '.$subject if defined $initComment;
     $subject = $subject . ' ['.$endComment.']' if defined $endComment;
     
