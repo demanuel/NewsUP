@@ -340,11 +340,11 @@ sub _transmit_files{
   exit 0;
 }
 
-
 # Launches a process only to collect upload statistics and display on stdout
 sub _monitoring_server_start {
   my ($monitoringPort, $connections, $maxParts)=@_;
-
+  $|=1;
+  
   my $pid;
   unless (defined($pid = fork())) {
     say "cannot fork: $!";
@@ -361,33 +361,30 @@ sub _monitoring_server_start {
 				     LocalAddr => 'localhost'
 				    );
   die "Couldn't create Monitoring server: $!\r\nThe program will continue without monitoring!" unless $socket;
+
   my $count=0;
   my $t0 = [gettimeofday];
   my $size=0;
+
   while (1) {
     $socket->recv(my $msg, 1024);
 	
     $count=$count+1;
     $size+=$msg;
-    if ($count % $connections==0) {#To avoid peaks;
+    if ($count == $connections) {#To avoid peaks;
       my $elapsed = tv_interval($t0);
       $t0 = [gettimeofday];
       my $speed = floor($size/1024/$elapsed);
       my $percentage=floor($count/$maxParts*100);
-
       printf( "%3d%% [%-8d KBytes/sec]\r", $percentage, $speed);# "$percentage\% [$speed KBytes/sec]\r";
       $size=0;
+      $count=0;
     }
   }
 
   exit 0;#Just to be sure that the process doesn't go further than this.
 }
 
-
-#use Benchmark qw(:all);
-#my $t0 = Benchmark->new;
 main();
-#my $t1 = Benchmark->new;
-#my $td = timediff($t1, $t0);
-#print "Uploading took:",timestr($td),"\n";
+
 
