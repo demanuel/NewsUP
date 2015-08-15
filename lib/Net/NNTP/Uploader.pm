@@ -12,8 +12,9 @@ use IO::Socket::INET;
 use IO::Socket::SSL;# qw(debug3);
 use Time::HiRes qw/ time usleep/;
 use 5.018;
-use Data::Dumper;
-use Compress::Zlib;
+use Data::Dumper qw/Dumper/;
+use Compress::Zlib qw/crc32/;
+
 
 #The allowed posting segment size isn't standard
 our $NNTP_MAX_UPLOAD_SIZE=750*1024;
@@ -50,6 +51,8 @@ sub new{
   }
   
   bless $self, $class;
+  $self->_create_socket;
+  $self->_authenticate($self->{socket}, $self->{username},$self->{userpass});
   return $self;
 }
 
@@ -65,6 +68,7 @@ sub _create_socket{
 				   PeerPort=>$self->{port},
 				   SSL_verify_mode=>SSL_VERIFY_NONE,
 				   SSL_version=>'TLSv1',
+				   Timeout=>30,
 				   #SSL_version=>'TLSv1_2',
 				   #SSL_cipher_list=>'DHE-RSA-AES128-SHA',
 				   SSL_ca_path=>'/etc/ssl/certs',
@@ -74,6 +78,7 @@ sub _create_socket{
 				     PeerAddr => $self->{server},
 				     PeerPort => $self->{port},
 				     Proto => 'tcp',
+				     Timeout=>30,
 				    ) or die "ERROR in Socket Creation : $!\n";
   }
   $socket->autoflush(1);
@@ -130,14 +135,6 @@ sub transmit_files{
 
   my $newsgroups = join(',',@$newsgroupsRef);
   
-  if ($self->{authenticated}==0) {
-    while ($self->{authenticated} == 0){
-      $self->_create_socket;
-      $self->_authenticate($self->{socket}, $self->{username}, $self->{userpass});
-      last if($self->{authenticated} == 1);
-      sleep 30;
-    }
-  }
   my $ifh;
   my $lastFile = '';
   my @articleArray = ();
@@ -151,34 +148,50 @@ sub transmit_files{
       binmode $ifh;
       $lastFile=$filePair->[0];
     }
-    my @temp = split('/',$filePair->[1]);
-    my $currentFilePart = $temp[0];
-    my $totalFilePart = $temp[1];
+    my ($currentFilePart, $totalFilePart) = split('/',$filePair->[1]);
     
-    #my $fileSize= -s $filePair->[0];
     my $fileName=(fileparse($filePair->[0]))[0];
 
-    my $subject = "[".$filePair->[-1]."] - \"$fileName\" yenc (".$filePair->[1].")";#"$initComment [".$filePair->[-1]."] - $subject" if defined $initComment;
+    my $subject = "[".$filePair->[-1]."] - \"$fileName\" yenc (".$filePair->[1].")";
     $subject = $initComment.' '.$subject if defined $initComment;
     $subject = $subject . ' ['.$endComment.']' if defined $endComment;
     
-    my ($readedData, $readSize) = _get_file_bytes_by_part($ifh, $currentFilePart-1);# $filePair->[0]);
-    #my ($data, $crc32) = _yenc_encode($readedData);
+    my $binData = _yenc_encode($ifh,$currentFilePart-1);
 
     my $startPosition=1+$NNTP_MAX_UPLOAD_SIZE*($currentFilePart-1);
     
-    my $postOutcome = $self->_post_article($isHeaderCheck,
-					   "From: ",$from,
-					   "\r\nNewsgroups: ",$newsgroups,
-					   "\r\nSubject: ",$subject,
-					   "\r\nMessage-ID: <",$filePair->[2],
-					   ">\r\n\r\n=ybegin part=",
-					   $currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE,
-					   " size=", $currentFilePart==$totalFilePart?$startPosition+$readSize-1:$readSize, " name=",$fileName,
-					   #" size=", $readSize," name=",$fileName,
-					   "\r\n=ypart begin=",$startPosition, " end=",$startPosition+$readSize-1,
-					   "\r\n",_yenc_encode($readedData),
-					   "\r\n=yend size=",$readSize," pcrc32=", sprintf("%x",crc32 $readedData), "\r\n.\r\n");
+    my $postOutcome;
+    do {
+      $postOutcome = _post_article($self->{socket},
+				   $self->{parentChannel},
+				   $isHeaderCheck,
+				   ["From: ",$from,
+				    "\r\nNewsgroups: ",$newsgroups,
+				    "\r\nSubject: ",$subject,
+				    "\r\nMessage-ID: <",$filePair->[2],
+				    ">\r\n\r\n=ybegin part=",
+				    $currentFilePart," total=",$totalFilePart," line=",$YENC_NNTP_LINESIZE,
+				    #					   " size=", $currentFilePart==$totalFilePart?$startPosition+$binData->[1]-1:$$binData->[1], " name=",$fileName,
+				    " size=", $binData->[0]," name=",$fileName,
+				    "\r\n=ypart begin=",$startPosition, " end=",$startPosition+$binData->[0]-1,
+				    "\r\n",${$binData->[2]},
+				    "\r\n=yend size=",$binData->[0]," pcrc32=",$binData->[1], "\r\n.\r\n"]);
+      #An exception happened
+      if ($postOutcome > 0) { 
+
+	eval{
+	  $self->logout();
+	};
+	
+	$self->{authenticated}=0;
+	do {
+	  $self->_create_socket;
+	  $self->_authenticate($self->{socket}, $self->{username}, $self->{userpass});
+	  last if($self->{authenticated} == 1);
+	  sleep 30;
+	}while($self->{authenticated}==0);
+      }
+    }while ($postOutcome > 0);
     
     last if $postOutcome == -1;
 			 
@@ -189,27 +202,27 @@ sub transmit_files{
 
 #POST article to the server
 sub _post_article{
-  my ($self, $isHeaderCheck, @args)=@_;
-  my $socket = $self->{socket};
-  
+  my ($socket, $parentChannel, $isHeaderCheck, $args)=@_;
+#  my $socket = $self->{socket};
+
   usleep(50); #Sleep 50/1000 of a second
-  
+
   print $socket "POST\r\n";
+
   sysread($socket, my $output, 8192);
+
   
   if (substr($output,0,3)==340) {
-    $output = '';
-    
+
     eval{
-      #local $,=undef;
+      local $,;#=undef;
       local $/;
-      print $socket @args;
-      
+      print $socket @$args or die "Error sending data: $!\n";
       sysread($socket, $output, 8192);
     };
     if ($@){
-      say "Error: $@";
-	return -1;
+      say "Error: $!";
+      return 1;
     }
     #441 Posting Failed. Message-ID is not unique E1
     if ($isHeaderCheck) {
@@ -222,12 +235,17 @@ sub _post_article{
     }
     
     #This will not be correct on the last segment, but we don't care.
-    $self->{parentChannel}->send($NNTP_MAX_UPLOAD_SIZE); 
-    
-  }else{
-    say "Unable to POST. Please check your server!";
+    print $parentChannel $NNTP_MAX_UPLOAD_SIZE;
+
+  }elsif(substr($output,0,3)==400){ #Session timeout
+    return 1;
+  }
+  else{
+    say "Unable to POST. Please check your server: $output";
     return -1;
   }
+
+  return 0;
 }
 
 
@@ -268,7 +286,7 @@ sub header_check{
     $self->_shutdown_headercheck_socket($socket, $server,$port);
   };
   if ($@) {
-    say "Error: $@";
+    say "Error: $!";
   }
 }
 
@@ -327,11 +345,16 @@ sub _get_file_bytes_by_part{
 
 
 sub _yenc_encode{
-  my ($string) = @_;
+  my ($ifh, $part) = @_;
   my $column = 0;
   my $content = '';
-
-  for my $hexChar (unpack('W*',$string)) {
+  my $correctPosition = $NNTP_MAX_UPLOAD_SIZE*$part;
+  seek ($ifh, $correctPosition, 0);
+  my $byteString;
+  my $readSize = read($ifh, $byteString, $NNTP_MAX_UPLOAD_SIZE);
+  my $crc32 = sprintf("%x", crc32($byteString));
+  
+  for my $hexChar (unpack('W*',$byteString)) {
 
     my $char= $YENC_CHAR_MAP[$hexChar];
     
@@ -355,11 +378,8 @@ sub _yenc_encode{
     $content .= $char;
   }
 
-  return $content;
+  return [$readSize, $crc32, \$content];
 }
 
-
-
 1;
-
 
