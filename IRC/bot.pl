@@ -35,6 +35,7 @@ use File::Copy qw/mv/;
 use File::Path qw/remove_tree/;
 use File::Find;
 use File::Basename;
+$|=1;
 
 sub main{
   my $config = get_options();
