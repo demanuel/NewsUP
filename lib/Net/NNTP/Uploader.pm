@@ -196,7 +196,7 @@ sub transmit_files{
     last if $postOutcome == -1;
 			 
   }
-  close $ifh;
+  close $ifh if defined $ifh;
 
 }
 
