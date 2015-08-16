@@ -59,12 +59,10 @@ sub _parse_command_line{
   my ($server, $port, $username,$userpasswd,
       @filesToUpload, $threads, @comments,
       $from, $headerCheck, $headerCheckSleep, $headerCheckServer, $headerCheckPort,
-      $headerCheckUserName, $headerCheckPassword, $nzbName, $monitoringPort,
-      $tempDir);
+      $headerCheckUserName, $headerCheckPassword, $nzbName, $tempDir);
   my $uploadSize=750*1024;
 
   #default value
-  $monitoringPort=8675;
   
   my @newsGroups = ();
   my %metadata=();
@@ -86,7 +84,6 @@ sub _parse_command_line{
 	     'headerCheckPort=i'=>\$headerCheckPort,
 	     'headerCheckUserName=s'=>\$headerCheckUserName,
 	     'headerCheckPassword=s'=>\$headerCheckPassword,
-	     'monitoringPort=i'=>\$monitoringPort,
 	     'uploadsize=i'=>\$uploadSize
 	    );
   
@@ -158,9 +155,6 @@ sub _parse_command_line{
       }
     }
 
-    if (!defined $monitoringPort) {
-      $monitoringPort = $config->{generic}{monitoringPort} if exists $config->{generic}{monitoringPort};
-    }
 
     $tempDir = $config->{generic}{tempDir} if exists $config->{generic}{tempDir};
     croak "Please define a valid temporary dir in the configuration file" if !defined $tempDir || !-d $tempDir;
@@ -184,7 +178,7 @@ sub _parse_command_line{
 	  \@filesToUpload, $threads, \@newsGroups, 
 	  \@comments, $from, \%metadata, $headerCheck, $headerCheckSleep,
 	  $headerCheckServer, $headerCheckPort, $headerCheckUserName,
-	  $headerCheckPassword, $nzbName,$monitoringPort, $uploadSize, $tempDir);
+	  $headerCheckPassword, $nzbName, $uploadSize, $tempDir);
 }
 
 sub _get_files_to_upload{
@@ -213,7 +207,7 @@ sub main{
       $commentsRef, $from, $meta, $headerCheck, $headerCheckSleep,
       $headerCheckServer, $headerCheckPort,
       $headerCheckUsername, $headerCheckPassword, $nzbName,
-      $monitoringPort, $uploadSize, $tempDir)=_parse_command_line();
+      $uploadSize, $tempDir)=_parse_command_line();
 
 
   #Check if the files passed on the cmd are folders or not and if they are folders,
@@ -227,40 +221,9 @@ sub main{
   my $init=time();
   #  my $searchFolders = _launch_yenc_processes($connections,$files, $tempDir, $headers, $commentsRef);
   my $searchFolders = _launch_yenc_processes(8,$files, $tempDir, $headers, $commentsRef);
-  say "Conversion finished!";
-  # my $searchFolders = [
-  # 		       '/tmp/test.part01.rar_yenc',
-  # 		       '/tmp/test.part02.rar_yenc',
-  # 		       '/tmp/test.part03.rar_yenc',
-  # 		       '/tmp/test.part04.rar_yenc',
-  # 		       '/tmp/test.part05.rar_yenc',
-  # 		       '/tmp/test.part06.rar_yenc',
-  # 		       '/tmp/test.part07.rar_yenc',
-  # 		       '/tmp/test.part08.rar_yenc',
-  # 		       '/tmp/test.part09.rar_yenc',
-  # 		       '/tmp/test.part10.rar_yenc',
-  # 		       '/tmp/test.part11.rar_yenc',
-  # 		       '/tmp/test.part12.rar_yenc',
-  # 		       '/tmp/test.part13.rar_yenc',
-  # 		       '/tmp/test.part14.rar_yenc',
-  # 		       '/tmp/test.part15.rar_yenc',
-  # 		       '/tmp/test.part16.rar_yenc',
-  # 		       '/tmp/test.part17.rar_yenc',
-  # 		       '/tmp/test.part18.rar_yenc',
-  # 		       '/tmp/test.part19.rar_yenc',
-  # 		       '/tmp/test.part20.rar_yenc',
-  # 		       '/tmp/test.part21.rar_yenc',
-  # 		       '/tmp/test.part22.rar_yenc',
-  # 		       '/tmp/test.part23.rar_yenc',
-  # 		       '/tmp/test.part24.rar_yenc',
-  # 		       '/tmp/test.part25.rar_yenc',
-  # 		       '/tmp/test.part26.rar_yenc',
-  # 		       '/tmp/test.part27.rar_yenc',
-  # 		       '/tmp/test.part28.rar_yenc'
-  # 		      ];
+  say "YENC Conversion finished! Starting upload!";
   
-
-  _launch_upload_processes($server, $port, $username, $userpasswd, 1, $searchFolders);
+  _launch_upload_processes($server, $port, $username, $userpasswd, 8, $searchFolders);
   my $time = time()-$init;
 
   say "Transfered ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Speed: [".int($size/$time)." KBytes/Sec]";
@@ -307,7 +270,7 @@ sub _create_nzb{
     for (sort {$a->[1] <=> $b->[1]} @{$nzb{$k}}) {
       my $segment = $_->[0];
       my $segmentNumber = $_->[1];
-      print $ofh "<segment size=\"$NNTP_MAX_UPLOAD_SIZE\" number=\"$segmentNumber\">$segment</segment>\r\n";
+      print $ofh "<segment bytes=\"$NNTP_MAX_UPLOAD_SIZE\" number=\"$segmentNumber\">$segment</segment>\r\n";
     }
     print $ofh "</segments>\r\n";
     print $ofh "</file>\r\n";
@@ -328,7 +291,7 @@ sub _launch_upload_processes{
 
   for my $child (@processes) {
     waitpid($child,0);
-    say "Parent: Child $child was reaped - ", scalar localtime, ".";
+    say "Parent: Uploading Child $child was reaped - ", scalar localtime, ".";
   }
 
   
@@ -349,7 +312,6 @@ sub _launch_upload{
 
   my $socket = _create_socket($server, $port);
   croak "Unable to login. Please check the credentials" if _authenticate($socket, $user, $password) == -1;
-  say "Authenticated!";
   
 
   find(sub{
@@ -393,8 +355,6 @@ sub _post_file{
   $output = _read_from_socket($socket);
   
   croak "Error posting article: $output " if($output!~ /240/);
-  say "$file: $output";
-  
 }
 
 
