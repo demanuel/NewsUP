@@ -18,30 +18,30 @@
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ##############################################################################
 
-
 use warnings;
 use strict;
 use utf8;
 use 5.018;
-use FindBin qw($Bin);
-use lib "$Bin/lib";
 use Getopt::Long;
 use Config::Tiny;
 use File::Find;
 use File::Basename;
 use Data::Dumper;
 use Carp;
-use threads;
-use threads::shared;
-use Net::NNTP::Uploader;
 use Time::HiRes qw/gettimeofday/;
 use POSIX qw/ceil/;
 use Compress::Zlib;
+use Data::Dumper;
+use IO::Socket::INET;
+use IO::Socket::SSL;# qw(debug3);
+use File::Path qw(remove_tree);
 
 
+$|=1;
 
 #YENC variables used for yenc'ing
 my $YENC_NNTP_LINESIZE=128;
+my $NNTP_MAX_UPLOAD_SIZE=750*1024;
 my @YENC_CHAR_MAP = map{
 	my $char = ($_+42)%256;
 	($char == 0 || $char == 10 || $char == 13 || $char == 61) ? '='.chr($char+64) : chr($char);
@@ -180,10 +180,6 @@ sub _parse_command_line{
     exit 0;
   }
 
-  # if (defined $uploadSize) {
-  #   $Net::NNTP::Uploader::NNTP_MAX_UPLOAD_SIZE=$uploadSize;
-  # }
-  
   return ($server, $port, $username, $userpasswd, 
 	  \@filesToUpload, $threads, \@newsGroups, 
 	  \@comments, $from, \%metadata, $headerCheck, $headerCheckSleep,
@@ -196,7 +192,6 @@ sub _get_files_to_upload{
   my $filesToUploadRef = shift;
 
   my $tempFilesRef=[];
-    
   for (@$filesToUploadRef) {
     my $dir = $_;
     find(sub{
@@ -208,7 +203,6 @@ sub _get_files_to_upload{
 	   }
 	 }, ($dir));
   }
-
   return $tempFilesRef;
 }
 
@@ -221,229 +215,286 @@ sub main{
       $headerCheckUsername, $headerCheckPassword, $nzbName,
       $monitoringPort, $uploadSize, $tempDir)=_parse_command_line();
 
-  my @tempFiles  :shared = @{_get_files_to_upload($filesToUploadRef)};
-  my $totalFiles = scalar @tempFiles;
-  my $totalSize=0;
-  $totalSize +=-s $_ for (@tempFiles);
-  $totalSize /=1024;
-  my $uploadMetaData={firstComment=>$commentsRef->[0],
-		      secondComment=>$commentsRef->[1],
-		      from=>$from,
-		      newsgroups=>join(',',@$newsGroupsRef),
-		      uploadSize=>$uploadSize,
-		     };
 
-
-  my @tempYencFiles :shared = ();
-
-  my @producerList=();
-  for (0..4) {
-    push @producerList , threads->create(\&start_producer, \@tempFiles, $totalFiles, $uploadMetaData, \@tempYencFiles);
-  }
-
-  my @consumerList= ();
-  for (0..1) {
-    push @consumerList, threads->create(\&start_consumer, $server, $port, $username, $userpasswd, \@tempYencFiles, \@producerList);
-  }
-
-  my @segments = ();
-  my $time = time();
-  push @segments, @{$_->join()} for @producerList;
-  $_->join() for @consumerList;
-  say "Speed: [".$totalSize/(time()-$time)." KBytes/Sec]";
-
-  my %nzbData = ();
-  for (@segments) {
-    push @{$nzbData{$_->[2]}}, [$_->[1], $_->[0]];
-  }
-
-
+  #Check if the files passed on the cmd are folders or not and if they are folders,
+  #it will search inside for files
+  my $files = _get_files_to_upload($filesToUploadRef);
+  my $size=0;
+  $size += -s $_ for @$files;
+  $size /=1024;
   
-  my $xml="<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">\n";
-  for my $file (keys %nzbData) {
-    $xml .= "<file poster=\"Newsup\" date=\"".time()."\" subject=\"&quot;$file&quot; yenc (1/".scalar($nzbData{$file}).")\" >\n";
-    $xml .= "<groups>\n";
-    $xml .= "<group>$_</group>\n" for @$newsGroupsRef;
-    $xml .= "</groups>\n";
-    $xml .= "<segments>\n";
-    for my $f ($nzbData{$file}) {
-      for (@$f) {
-	$xml.= "<segment bytes=\"$uploadSize\" number=\"".$_->[0]."\">".$_->[1]."</segment>\n"
-      }
+  my $headers="From: $from\r\nNewsgroups: ".join('',@$newsGroupsRef)."\r\n";
+  my $init=time();
+  #  my $searchFolders = _launch_yenc_processes($connections,$files, $tempDir, $headers, $commentsRef);
+  my $searchFolders = _launch_yenc_processes(8,$files, $tempDir, $headers, $commentsRef);
+  say "Conversion finished!";
+  # my $searchFolders = [
+  # 		       '/tmp/test.part01.rar_yenc',
+  # 		       '/tmp/test.part02.rar_yenc',
+  # 		       '/tmp/test.part03.rar_yenc',
+  # 		       '/tmp/test.part04.rar_yenc',
+  # 		       '/tmp/test.part05.rar_yenc',
+  # 		       '/tmp/test.part06.rar_yenc',
+  # 		       '/tmp/test.part07.rar_yenc',
+  # 		       '/tmp/test.part08.rar_yenc',
+  # 		       '/tmp/test.part09.rar_yenc',
+  # 		       '/tmp/test.part10.rar_yenc',
+  # 		       '/tmp/test.part11.rar_yenc',
+  # 		       '/tmp/test.part12.rar_yenc',
+  # 		       '/tmp/test.part13.rar_yenc',
+  # 		       '/tmp/test.part14.rar_yenc',
+  # 		       '/tmp/test.part15.rar_yenc',
+  # 		       '/tmp/test.part16.rar_yenc',
+  # 		       '/tmp/test.part17.rar_yenc',
+  # 		       '/tmp/test.part18.rar_yenc',
+  # 		       '/tmp/test.part19.rar_yenc',
+  # 		       '/tmp/test.part20.rar_yenc',
+  # 		       '/tmp/test.part21.rar_yenc',
+  # 		       '/tmp/test.part22.rar_yenc',
+  # 		       '/tmp/test.part23.rar_yenc',
+  # 		       '/tmp/test.part24.rar_yenc',
+  # 		       '/tmp/test.part25.rar_yenc',
+  # 		       '/tmp/test.part26.rar_yenc',
+  # 		       '/tmp/test.part27.rar_yenc',
+  # 		       '/tmp/test.part28.rar_yenc'
+  # 		      ];
+  
 
+  _launch_upload_processes($server, $port, $username, $userpasswd, 1, $searchFolders);
+  my $time = time()-$init;
+
+  say "Transfered ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Speed: [".int($size/$time)." KBytes/Sec]";
+  _create_nzb($searchFolders, $newsGroupsRef);
+  remove_tree(@$searchFolders,1,0);
+  
+  
+}
+
+sub _create_nzb{
+  my ($folders, $newsGroups)=@_;
+
+  my $subjectRegexp = qr/Subject: .*"(.*)" yenc\s?\((\d+)\/\d+\)/;
+  my $sizeRegexp = qr/size=(\d+)/;
+  my %nzb=();
+  find(sub{
+
+	 
+	 if (-e $File::Find::name && !-d $File::Find::name && $_ =~ /uploaded$/) {
+	   open my $ifh, '<', $File::Find::name;
+
+	   while ((my $line = <$ifh>)) {
+	     if ($line =~ /$subjectRegexp/) {
+	       push @{$nzb{$1}}, [substr($_,0,-9), $2];
+	       last;
+
+	     }
+	   }
+	   
+	   close $ifh;
+	 }
+	 
+       },@$folders);
+
+  open my $ofh, '>', 'newsup.nzb';
+  print $ofh "<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">\r\n";
+  my $date = time();
+  for my $k (keys %nzb) {
+    print $ofh "<file poster=\"newsup\" date=\"$date\" subject=\"$k\">\r\n";
+    print $ofh "<groups>\r\n";
+    print $ofh "<group>$_</group>\r\n" for @$newsGroups;
+    print $ofh "</groups>\r\n";
+    print $ofh "<segments>\r\n";
+    for (sort {$a->[1] <=> $b->[1]} @{$nzb{$k}}) {
+      my $segment = $_->[0];
+      my $segmentNumber = $_->[1];
+      print $ofh "<segment size=\"$NNTP_MAX_UPLOAD_SIZE\" number=\"$segmentNumber\">$segment</segment>\r\n";
     }
-    $xml .= "</segments>\n";
-    $xml .= "</file>\n";
+    print $ofh "</segments>\r\n";
+    print $ofh "</file>\r\n";
   }
-  $xml .= "</nzb>";
-
-  open my $ofh, '>', "newsup.nzb";
-  print $ofh $xml;
+  
+  print $ofh "</nzb>";
   close $ofh;
-
-  
 }
 
-sub start_consumer{
-  my ($server, $port, $username, $userpass, $yencData, $producerList) = @_;
-  my $uploader = Net::NNTP::Uploader->new(1, $server, $port, $username, $userpass);
+sub _launch_upload_processes{
+  my ($server, $port, $user, $password, $connections, $folders)=@_;
 
+  my @processes = ();
 
-  while (1) {
-    my $areAlive = scalar(@$producerList);
-
-    {
-      lock($yencData);
-      $uploader->post_article(shift(@$yencData)) if defined $yencData->[0];
-    }
-    threads->yield();
-    $areAlive += $_->is_running()?1:-1 for(@$producerList);
-    last if($areAlive == 0);
+  for (0..$connections-1) {
+    push @processes, _launch_upload($server, $port, $user, $password, $folders);
   }
-  $uploader->logout;
+
+  for my $child (@processes) {
+    waitpid($child,0);
+    say "Parent: Child $child was reaped - ", scalar localtime, ".";
+  }
+
   
 }
 
-sub start_producer{
-  my ($tempFilesRef, $totalFiles, $metaData, $yencData) = @_;
+sub _launch_upload{
+  my ($server, $port, $user, $password, $folders) =@_;
 
-  my $fileCounter=1;
-  my $file;
-  my @messageIDs=();
-  while (@$tempFilesRef) {
-    #  } my $file (@$tempFilesRef) {
+  my $pid;
+  
+  unless (defined($pid = fork())) {
+    say "cannot fork: $!";
+    return -1;
+  }
+  elsif ($pid) {
+    return $pid; # I'm the parent
+  }
 
-    {
-      lock($tempFilesRef);
-      $file = shift @$tempFilesRef;
-    }
-    last if !defined $file;
+  my $socket = _create_socket($server, $port);
+  croak "Unable to login. Please check the credentials" if _authenticate($socket, $user, $password) == -1;
+  say "Authenticated!";
+  
+
+  find(sub{
+
+	 if (-e $File::Find::name && !-d $File::Find::name && $_ =~ /newsup$/) {
+	   if (rename $File::Find::name, $File::Find::name.".lock") {
+	     _post_file($socket, $File::Find::name.".lock");
+	     
+	     rename $File::Find::name.'.lock', $File::Find::name.".uploaded";
+	     
+	   } 
+	   
+	 }
+	 
+       },@$folders);
+  
+  _logout ($socket);
+  
+  exit 0;
+}
+
+sub _post_file{
+  my ($socket,  $file) = @_;
+
+  #_read_from_socket($socket,$select);
+  croak "Unable to print to socket" if (_print_to_socket ($socket, "POST\r\n") == -1);
+  my $output = _read_from_socket($socket);
+
+  croak "Unable to POST (no 340): $output" if($output !~ /340/);
+  my $data;
+  {
+    open my $ifh, '<', $file or die "Cannot open the file '$file': $!";
+    local $/=undef;
+    my $data = <$ifh>;
+    _print_to_socket ($socket, $data);
+
+    close $ifh;
+  }
+  
+  
+  $output = _read_from_socket($socket);
+  
+  croak "Error posting article: $output " if($output!~ /240/);
+  say "$file: $output";
+  
+}
+
+
+sub _logout{
+  my ($socket) = @_;
+  _print_to_socket ($socket, "quit\r\n");
+  shutdown $socket, 2;  
+}
+
+
+sub _launch_yenc_processes{
+  my ($processes, $files, $tmpDir, $headers, $comments) = @_;
+
+  my $filesPerProcesses = _split_files_per_process($processes, $files);
+
+  my @processes = ();
+  for (0..$processes-1) {
+    push @processes, _create_yenc_articles($filesPerProcesses->[$_], $tmpDir, $headers, $comments);
+  }
+
+  my @searchFolders = map{$tmpDir.'/' .(fileparse($_))[0]."_yenc";} @$files;
+
+  for my $child (@processes) {
+    waitpid($child,0);
+    say "Parent: Yenc $child was reaped - ", scalar localtime, ".";
+  }
+
+  return \@searchFolders;
+}
+
+sub _create_yenc_articles{
+  my ($files, $tmpDir, $headers, $commentsRef) = @_;
+
+  my $pid;
+  
+  unless (defined($pid = fork())) {
+    say "cannot fork: $!";
+    return -1;
+  }
+  elsif ($pid) {
+    return $pid; # I'm the parent
+  }
+
+  
+  for my $fileData (@$files) {
+    open my $ifh , '<:bytes', $fileData->[1];
     
-    open my $ifh, '<',$file;
-    binmode $ifh;
-    my $segmentCounter=1;
-    my $totalSegments = ceil((-s $file)/$metaData->{uploadSize});
-    my $fileName=(fileparse($file))[0];
+    my $fileName = (fileparse($fileData->[1]))[0];
+    my $dir ="$tmpDir/${fileName}_yenc";
+    mkdir $dir or die "Unable to create directory '$dir': $!";
+    my $bytes;
+    my $part = 1;
+    my $totalParts = ceil((-s $fileData->[1])/$NNTP_MAX_UPLOAD_SIZE);
+    my $startPosition=1;
+    my $subject = '['.$fileData->[0].'] - "'.$fileName.'"';
+    if (defined $commentsRef) {
+      $subject = $commentsRef->[0].' '.$subject if scalar(@$commentsRef) > 0;
+      $subject = $subject . ' ['.$commentsRef->[1].']' if scalar(@$commentsRef) > 1;
+    }
 
-    my $startPosition = 0;
-    while ((my $readSize = read($ifh,my $data, $metaData->{uploadSize}))!=0) {
 
-      my $subject = "[$fileCounter/$totalFiles] - \"$fileName\" ($segmentCounter/$totalSegments)";
-      if (defined $metaData->{firstComment}) {
-	$subject = $metaData->{firstComment}." $subject";
-	if (defined $metaData->{secondComment}) {
-	  $subject .= " [".$metaData->{secondComment}."]";
-	}
-      }
-      my $endPosition=tell($ifh);
 
-      my $messageID=_get_message_id();
-      my @article :shared = (
-			     "From: ",$metaData->{from},
-			     "\r\nNewsgroups: ",$metaData->{newsgroups},
-			     "\r\nSubject: ",$subject,
-			     "\r\nMessage-ID: <",$messageID,
-			     ">\r\n\r\n=ybegin part=",$segmentCounter,
-			     " total=",$totalSegments," line=",$YENC_NNTP_LINESIZE,
-			     " size=", $readSize, " name=",$fileName,
-			     #" size=", $readSize," name=",$fileName,
-			     "\r\n=ypart begin=",$startPosition, " end=",$endPosition,
-			     "\r\n",_yenc_encode($data),
-			     "\r\n=yend size=",$readSize," pcrc32=", sprintf("%x",crc32 $data), "\r\n.\r\n"
-			    );
-      {
-	lock($yencData);
-	push @$yencData, \@article;
-	
-      }#release lock
-      push @messageIDs, [$messageID, $segmentCounter, $fileName];
-      ++$segmentCounter;
-      $startPosition=$endPosition;
+    
+    while ((my $readedSize = read($ifh, $bytes, $NNTP_MAX_UPLOAD_SIZE)) ) {
+      my $messageID = _get_message_id();
+      open my $ofh, '>:raw',$dir.'/'.$messageID;
+      my $yencData=_yenc_encode($bytes);
+      print $ofh $headers,
+	"Subject: ",$subject,' yenc (',$part,'/',$totalParts,")\r\n",
+	"Message-ID: <",$messageID,">\r\n",
+	"\r\n",
+	"=ybegin part=",$part," total=",$totalParts, " line=",$YENC_NNTP_LINESIZE, " size=", $readedSize, " name=",$fileName,"\r\n",
+	"=ypart begin=",$startPosition," end=",tell $ifh,"\r\n",
+	${$yencData->[1]},
+	"\r\n=yend size=",$readedSize," pcrc32=",$yencData->[0],"\r\n.\r\n";
+
+      $startPosition=1+tell $ifh;
+      $part++;
       
+      close $ofh;
     }
     close $ifh;
-
-    ++$fileCounter;
-    
   }
 
-  return \@messageIDs;
+  exit 0;
   
 }
-sub _yenc_encode{
-  my ($string) = @_;
-  my $column = 0;
-  my $content = '';
 
-  for my $hexChar (unpack('W*',$string)) {
-
-    my $char= $YENC_CHAR_MAP[$hexChar];
-    
-    if($char =~ /=/){
-      $column++;
-    }
-    elsif($column==0 && $FIRST_TRANSLATION_TABLE{$char}){
-      
-      $column++;
-      $char = $FIRST_TRANSLATION_TABLE{$char};
-    }
-    elsif($column == $YENC_NNTP_LINESIZE && $LAST_TRANSLATION_TABLE{$char}){
-      $column++;
-      $char=$LAST_TRANSLATION_TABLE{$char};
-    }
-      
-    if (++$column>= $YENC_NNTP_LINESIZE ) {
-      $column = 0;
-      $char .= "\r\n";
-    }
-    $content .= $char;
+sub _split_files_per_process{
+  my ($processes, $files) = @_;
+  my @parts = ();
+  my $total = scalar @$files;
+  
+  my $i=0;
+  foreach my $elem (sort @$files) {
+    push @{ $parts[$i++ % $processes] }, ["$i/$total",$elem];
   }
 
-  return $content;
+  return \@parts;
 }
-
-
-
-# sub _distribute_files_by_connection{
-#   my ($threads, $files, $tempFolder, $from, $newsgroups, $initComment,$endComment) = @_;
-#   my $blockSize = $Net::NNTP::Uploader::NNTP_MAX_UPLOAD_SIZE;
-
-#   my $fileCounter=1;
-  
-#   for my $file (@$files) {
-#     open my $ifh, '<', $file;
-#     while (read($ifh, my $read, $blockSize)) {
-#       my $messageID = _get_message_id();
-#       open my $ofh, '>', "$tempFolder/$messageID";
-#       binmode $ofh;
-#       print $ofh "From: $from\r\n",
-# 	"Newsgroups: $newsgroups\r\n",
-# 	"Subject:",sprintf("");
-#       close $ofh;
-#     }
-#   }
-  
-#   my @segments = ();
-#   my $counter = 1;
-#   my $totalFiles=scalar @$files;
-#   for my $file (@$files) {
-#     my $fileSize = -s $file;
-#     my $maxParts = ceil($fileSize/$blockSize);
-#     for (1..$maxParts) {
-#       push @segments, [$file, "$_/$maxParts", _get_message_id(), "$counter/$totalFiles"];
-#     }
-#     $counter +=1;
-#   }
-#   my @threadedSegments;
-#   my $i = 0;
-#   foreach my $elem (@segments) {
-#     push @{ $threadedSegments[$i++ % $threads] }, $elem;
-#   };
-
-#   @segments = sort{ $a->[0] cmp $b->[0]} @threadedSegments;
-  
-#   return \@segments;
-# }
 
 
 sub _get_message_id{
@@ -467,155 +518,109 @@ sub _encode_base36 {
 }
 
 
-# sub main{
 
-#   my ($server, $port, $username, $userpasswd, 
-#       $filesToUploadRef, $connections, $newsGroupsRef, 
-#       $commentsRef, $from, $meta, $headerCheck, $headerCheckSleep,
-#       $headerCheckServer, $headerCheckPort,
-#       $headerCheckUsername, $headerCheckPassword, $nzbName,
-#       $monitoringPort, $tempDir)=_parse_command_line();
+
+sub _yenc_encode{
+  my $column = 0;
+  my $content = '';
   
-#   my $tempFilesRef = _get_files_to_upload($filesToUploadRef);
-#   my $totalSize=0;
+  for my $hexChar (unpack('W*',$_[0])) {
 
-#   $totalSize +=-s $_ for (@$tempFilesRef);
-#   $tempFilesRef = _distribute_files_by_connection ($connections, $tempFilesRef, $tempDir);
-#   say Dumper($tempFilesRef);
-#   exit 0;
-
-#   my $lastChild = _monitoring_server_start($monitoringPort, $connections,
-# 					   ceil($totalSize/$Net::NNTP::Uploader::NNTP_MAX_UPLOAD_SIZE));
-#   my $timer = time();
-  
-#   my @threadsList = ();
-#   for (my $i = 0; $i<$connections; $i++) {
-#     say 'Starting connection '.($i+1).' for uploading';
-
-#     push @threadsList, _transmit_files($i,
-# 				       $server, $port, $username, $userpasswd, 
-# 				       $tempFilesRef->[$i], $connections, $newsGroupsRef, $commentsRef, 
-# 				       $from, $headerCheck, $headerCheckSleep, $headerCheckServer, $headerCheckPort,
-# 				       $headerCheckUsername, $headerCheckPassword, $monitoringPort);
-#   }
-
-
-#   for (@threadsList) {
-#     my $child = $_;
-#     waitpid($child,0);
-#     say "Parent: Child $child was reaped - ", scalar localtime, ".";
-#   }
-#   #all the kids died. There's no point in keeping the last child - the monitoring server
-#   kill 'KILL', $lastChild;
-
-#   my $timeDiff = time()-$timer != 0? time()-$timer : 1;
-  
-
-#   printf("Transfer speed: [%0.2f KBytes/sec]\r\n", $totalSize/$timeDiff/1024);
-
-  
-#   my @nzbSegmentsList = ();
-#   for my $connectionFiles (@$tempFilesRef) {
-#     for my $file (@$connectionFiles) {
-#       my $fileName=(fileparse($file->[0]))[0];
-#       my @temp = split('/',$file->[1]);
-#       my $currentFilePart = $temp[0];
-#       my $totalFilePart = $temp[1];
-#       my $messageID=$file->[2];
-#       my $readSize=$Net::NNTP::Uploader::NNTP_MAX_UPLOAD_SIZE;
-#       if ($currentFilePart == $totalFilePart) {
-# 	$readSize= (-s $file->[0]) % $Net::NNTP::Uploader::NNTP_MAX_UPLOAD_SIZE;
-# 	$readSize=$Net::NNTP::Uploader::NNTP_MAX_UPLOAD_SIZE if($readSize==0);
-#       }
-#       push @nzbSegmentsList, NZB::Segment->new($fileName, $readSize, $currentFilePart,$totalFilePart,$messageID);
+    my $char= $YENC_CHAR_MAP[$hexChar];
+    
+    if($char =~ /=/){
+      $column++;
+    }
+    elsif($column==0 && $FIRST_TRANSLATION_TABLE{$char}){
       
-#     }
-#   }
+      $column++;
+      $char = $FIRST_TRANSLATION_TABLE{$char};
+    }
+    elsif($column == $YENC_NNTP_LINESIZE && $LAST_TRANSLATION_TABLE{$char}){
+      $column++;
+      $char=$LAST_TRANSLATION_TABLE{$char};
+    }
+      
+    if (++$column>= $YENC_NNTP_LINESIZE ) {
+      $column = 0;
+      $char .= "\r\n";
+    }
+    $content .= $char;
+  }
+
+  return [sprintf("%x", crc32($_[0])), \$content];
+}
+
+
+sub _read_from_socket{
+  my ($socket) = @_;
+
+  my ($output, $buffer) = ('', '');
+  while(1){
+    $socket->sysread($buffer, 1024);
+
+    $output .= $buffer;
+    last if $output =~ /\r\n$/;
+  }
+
+  return $output;
+}
+
+sub _print_to_socket{
+  my ($socket, $args) = @_;
+
+  print $socket $args;
+
+  return 1;
+}
+
+
+sub _authenticate{
+  my ($socket,  $user, $password) = @_;
+
+  my $output = _read_from_socket $socket;
+  croak "Unable to print to socket" if (_print_to_socket ($socket, "authinfo user $user\r\n") == -1);
+
+  $output =  _read_from_socket $socket;
+  croak $output if $output !~ /381/;
+
+  croak "Unable to print to socket" if (_print_to_socket ($socket, "authinfo pass $password\r\n") == -1);
   
-#   my $nzbGen = NZB::Generator->new($nzbName, $meta, \@nzbSegmentsList, $from, $newsGroupsRef);
-#   say 'NZB file '.$nzbGen->write_nzb . " created!\r\n";
+  $output =  _read_from_socket $socket;
   
-# }
+  croak $output if $output !~ /281/;
 
+}
 
-# sub _transmit_files{
+sub _create_socket{
 
-#   my $pid;
+  my ($server, $port) = @_;
+  my $socket;
+  
+  if ($port != 119) {
+    $socket = IO::Socket::SSL->new(
+				   PeerHost=>$server,
+				   PeerPort=>$port,
+				   SSL_verify_mode=>SSL_VERIFY_NONE,
+				   SSL_version=>'TLSv1',
+				   Blocking => 1,
+				   #SSL_version=>'TLSv1_2',
+				   #SSL_cipher_list=>'DHE-RSA-AES128-SHA',
+				   SSL_ca_path=>'/etc/ssl/certs',
+				  ) or die "Failed to connect or ssl handshake: $!, $SSL_ERROR";
+  }else {
+    $socket = IO::Socket::INET->new (
+				     PeerAddr => $server,
+				     PeerPort => $port,
+				     Blocking => 1,
+				     Proto => 'tcp',
+				    ) or die "ERROR in Socket Creation : $!\n";
+  }
+  
+  $socket->autoflush(1);
+  
+  return $socket;
+}
 
-#   unless (defined($pid = fork())) {
-#     say "cannot fork: $!";
-#     return -1;
-#   }
-#   elsif ($pid) {
-#     return $pid; # I'm the parent
-#   }
-
-#   my ($connectionNumber, $server, $port, $username, $userpasswd, 
-#       $filesRef, $connections, $newsGroupsRef, $commentsRef,
-#       $from, $headerCheck,$headerCheckSleep, $headerCheckServer, $headerCheckPort,
-#       $headerCheckUsername, $headerCheckPassword ,$monitoringPort) = @_;
-
-
-#   my $uploader = Net::NNTP::Uploader->new($connectionNumber, $server, $port, $username, $userpasswd, $monitoringPort);
-#   $uploader->transmit_files($filesRef, $from, $commentsRef->[0], $commentsRef->[1], $newsGroupsRef, 0);
-
-#   if ($headerCheck){
-#     say "Child $$ starting header check!";
-#     $uploader->header_check($filesRef, $newsGroupsRef, $from, $commentsRef, $headerCheckSleep,
-# 			    $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
-#   }
-#   $uploader->logout;
-#   exit 0;
-# }
-
-
-# # Launches a process only to collect upload statistics and display on stdout
-# sub _monitoring_server_start {
-#   my ($monitoringPort, $connections, $maxParts)=@_;
-
-#   my $pid;
-#   unless (defined($pid = fork())) {
-#     say "cannot fork: $!";
-#     return -1;
-#   }
-#   elsif ($pid) {
-#     return $pid; # I'm the parent
-#   }
-
-#   my $socket = IO::Socket::INET->new(
-# 				     Proto    => 'udp',
-# 				     LocalPort => $monitoringPort,
-# 				     Blocking => '1',
-# 				     LocalAddr => 'localhost'
-# 				    );
-#   die "Couldn't create Monitoring server: $!\r\nThe program will continue without monitoring!" unless $socket;
-#   my $count=0;
-#   my $t0 = [gettimeofday];
-#   my $size=0;
-#   while (1) {
-#     $socket->recv(my $msg, 1024);
-	
-#     $count=$count+1;
-#     $size+=$msg;
-#     if ($count % $connections==0) {#To avoid peaks;
-#       my $elapsed = tv_interval($t0);
-#       $t0 = [gettimeofday];
-#       my $speed = floor($size/1024/$elapsed);
-#       my $percentage=floor($count/$maxParts*100);
-
-#       printf( "%3d%% [%-8d KBytes/sec]\r", $percentage, $speed);# "$percentage\% [$speed KBytes/sec]\r";
-#       $size=0;
-#     }
-#   }
-
-#   exit 0;#Just to be sure that the process doesn't go further than this.
-# }
-
-
-#use Benchmark qw(:all);
-#my $t0 = Benchmark->new;
 main();
-#my $t1 = Benchmark->new;
-#my $td = timediff($t1, $t0);
-#print "Uploading took:",timestr($td),"\n";
 
