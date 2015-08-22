@@ -28,7 +28,7 @@ use File::Find;
 use File::Basename;
 use Data::Dumper;
 use Carp qw/croak carp/;
-use Time::HiRes qw/gettimeofday/;
+use Time::HiRes qw/gettimeofday usleep/;
 use POSIX qw/ceil/;
 use Compress::Zlib;
 use IO::Socket::INET;
@@ -241,7 +241,6 @@ sub _parse_command_line{
     $tempDir = $config->{generic}{tempDir} if exists $config->{generic}{tempDir};
     croak "Please define a valid temporary dir in the configuration file" if (!defined $tempDir || !-d $tempDir);
 
-    
     if ( @newsGroups == 0) {
       if (exists $config->{upload}{newsgroup}){
 	@newsGroups = split(',', $config->{upload}{newsgroup});
@@ -302,14 +301,17 @@ sub main{
   my $init=time();
   my $searchFolders = _launch_yenc_processes(_get_available_cpus() ,$files, $tempDir, $headers, $commentsRef);
   say "YENC Conversion finished! Starting upload!";
-
-  _launch_upload_processes($server, $port, $username, $userpasswd, $connections, $searchFolders);
+  my $yencFiles = _distribute_yenc_files_per_connection($searchFolders, $connections);
+  
+  _launch_upload_processes($server, $port, $username, $userpasswd, $connections, $yencFiles);
 
   if ($headerCheck) {
     _launch_header_check($headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword, $headerCheckSleep,
 			 $connections, $newsGroupsRef->[0],$searchFolders);
-    _launch_upload_processes($server, $port, $username, $userpasswd, $connections, $searchFolders);
+    _launch_upload_processes($server, $port, $username, $userpasswd, $connections, $yencFiles);
   }
+
+  say "Upload Finished!";
   my $time = time()-$init;
 
   $time=1 if($time==0);
@@ -319,6 +321,24 @@ sub main{
     _create_nzb($nzbName, $searchFolders, $newsGroupsRef);
     remove_tree(@$searchFolders,1,0);  
   }
+}
+
+
+sub _distribute_yenc_files_per_connection{
+  my ($searchFolders, $connections) = @_;
+  my @files=();
+  my $i = 0;
+
+
+    
+  find(sub{
+	 if (-f $File::Find::name && $_ =~ /\.newsup$/ ) {
+	   push @{$files[$i++ % $connections]}, $File::Find::name;
+	 }
+       },@$searchFolders);
+
+  return \@files;
+  
 }
 
 sub _launch_header_check{
@@ -376,7 +396,6 @@ sub _look_for_failed_uploads{
        },@folders) if @folders;
 
   return $success;
-  
 }
 
 sub _create_nzb{
@@ -429,7 +448,7 @@ sub _launch_upload_processes{
   my @processes = ();
 
   for (0..$connections-1) {
-    push @processes, _launch_upload($server, $port, $user, $password, $folders);
+    push @processes, _launch_upload($server, $port, $user, $password, $folders->[$_]);
   }
 
   for my $child (@processes) {
@@ -441,7 +460,7 @@ sub _launch_upload_processes{
 }
 
 sub _launch_upload{
-  my ($server, $port, $user, $password, $folders) =@_;
+  my ($server, $port, $user, $password, $files) =@_;
 
   my $pid;
   
@@ -456,24 +475,29 @@ sub _launch_upload{
   my $socket = _create_socket($server, $port);
   croak "Unable to login. Please check the credentials" if _authenticate($socket, $user, $password) == 1;
   
-  find(sub{
+  for my $file (@$files) {
+    my @fileData = basename($file);
 	 
-	 if (-e $File::Find::name && -f $File::Find::name && $_ =~ /newsup$/) {
-	   if (rename $File::Find::name, $File::Find::name.".lock") {
-	     eval{
-	       _post_file($socket, $File::Find::name.".lock", $user, $password);
-	     };
-	     if (@!) {
-	       rename $File::Find::name.'.lock', $File::Find::name.".failed";
-	       exit 0;
-	     }else {
-	       rename $File::Find::name.'.lock', $File::Find::name.".uploaded";
-	     }
-
-	   }
-	 }
-	 
-       },@$folders);
+    if (-e $file && -f $file && $fileData[0] =~ /newsup$/) {
+      
+      my $newName=$file.".lock";
+      my $rename = rename ($file, $newName);
+      if ($rename) {
+	say "$$ uploading $file";
+	eval{
+	  _post_file($socket, $file.".lock", $user, $password);
+	};
+	if (@!) {
+	  rename $file.'.lock', $file.".failed";
+	  exit 0;
+	}else {
+	  rename $file.'.lock', $file.".uploaded";
+	}
+	
+      }
+    }
+    
+  };
   
   _logout ($socket);
 
@@ -509,7 +533,7 @@ sub _post_file{
     croak "Unable to login. Please check the credentials" if _authenticate($socket, $user, $password) == 1;
     say "Repost successull?: ". (_post_file($socket, $file, $user, $password)==0);
   }else {
-    if($output !~ /^240/){
+    if($output !~ /^240\s/){
       carp "Error posting article: $output";
       (my $new_file_name = $file) =~ s/\.lock$/.failed/;
       rename($file, $new_file_name);
@@ -533,7 +557,7 @@ sub _launch_yenc_processes{
   my ($processes, $files, $tmpDir, $headers, $comments) = @_;
 
   my $filesPerProcesses = _split_files_per_process($processes, $files);
-  
+
   my @processes = ();
   for (0..$processes-1) {
     push @processes, _create_yenc_articles($filesPerProcesses->[$_], $tmpDir, $headers, $comments);
