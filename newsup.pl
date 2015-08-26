@@ -114,9 +114,6 @@ char* _yenc_encode_c(unsigned char* data, size_t data_size)
 
 C_CODE
 
-
-
-
 $|=1;
 
 #YENC variables used for yenc'ing in Perl
@@ -299,6 +296,12 @@ sub main{
   
   my $headers="From: $from\r\nNewsgroups: ".join(',',@$newsGroupsRef)."\r\n";
   my $init=time();
+
+  #TODO:
+  say "split files per connection";
+  _split_files_per_connection($files, $connections);
+  say "Done split files per connection";
+  
   my $searchFolders = _launch_yenc_processes(_get_available_cpus() ,$files, $tempDir, $headers, $commentsRef);
   say "YENC Conversion finished! Starting upload!";
   my $yencFiles = _distribute_yenc_files_per_connection($searchFolders, $connections);
@@ -319,7 +322,7 @@ sub main{
   if (_look_for_failed_uploads($searchFolders)) {
     say "Transfered ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Speed: [".int($size/$time)." KBytes/Sec]";
     _create_nzb($nzbName, $searchFolders, $newsGroupsRef);
-    remove_tree(@$searchFolders,1,0);  
+    #remove_tree(@$searchFolders,1,0);  
   }
 }
 
@@ -593,8 +596,8 @@ sub _create_yenc_articles{
     my $dir ="$tmpDir/${fileName}_yenc";
     
     if (!-e $dir ) {
-      open my $ifh , '<', $fileData->[1];
-      
+      open my $ifh , '<:bytes', $fileData->[1];
+      binmode $ifh;
       my $fileSize = -s $fileData->[1];
     
       mkdir $dir or die "Unable to create directory '$dir': $!";
@@ -639,8 +642,47 @@ sub _create_yenc_articles{
   
 }
 
+sub _split_files_per_connection{
+  my ($files,$connections) =@_;
+
+
+  my @parts = ();
+  for (my $fileNumber=1; $fileNumber <= scalar(@$files); $fileNumber++) {
+    my $fileSize=-s $files->[$fileNumber];
+    my $segmentNumber=0;
+    my $totalSegments=ceil($fileSize/$NNTP_MAX_UPLOAD_SIZE);
+    while (++$segmentNumber <= $totalSegments) {
+      push @parts, {fileName=> $files->[$fileNumber],
+		    fileSize=> $fileSize,
+		    segmentNumber=>$segmentNumber,
+		    totalSegments=>$totalSegments,
+		    fileNumber=>$fileNumber,
+		    totalFiles=>scalar(@$files),
+		    id=>"$segmentNumber"._get_message_id(),
+		   };
+      
+    }
+  }
+
+  my $i=0;
+  my @split=();
+  foreach my $file (@parts) {
+    push @{ $split[$i++ % $connections] }, $file;
+  }
+
+  
+  
+  
+  say Dumper(@split);
+  
+}
+
+
 sub _split_files_per_process{
   my ($processes, $files) = @_;
+
+  #say "Files: ".Dumper($files);
+  
   my @parts = ();
   my $total = scalar @$files;
   
@@ -648,7 +690,7 @@ sub _split_files_per_process{
   foreach my $elem (sort @$files) {
     push @{ $parts[$i++ % $processes] }, ["$i/$total",$elem, _get_message_id() ];
   }
-
+  say "Parts: ".Dumper(@parts);
   return \@parts;
 }
 
@@ -737,6 +779,7 @@ sub _read_from_socket{
 
   my ($output, $buffer) = ('', '');
   while(1){
+    usleep(100);
     $socket->sysread($buffer, 1024);
 
     $output .= $buffer;
