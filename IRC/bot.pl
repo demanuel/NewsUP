@@ -421,7 +421,9 @@ sub upload_folder{
   }
 
 
-  $output = qx($newsup -f $nzb.nzb -nzb "./nzb"); #upload the nzb
+  my $invoke = "$newsup -f $nzb.nzb -nzb \"./nzb\" -connections 1";
+  sleep(5);
+  $output = qx/$invoke/; #upload the nzb
   say "$output";
   unlink "./nzb.nzb";
   return @files;
