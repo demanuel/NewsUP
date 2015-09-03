@@ -136,17 +136,37 @@ sub get_IRC_socket{
   
 }
 
+sub _read_from_socket{
+  my ($socket) = @_;
+
+  my ($output, $buffer) = ('', '');
+  while(1){
+    $socket->sysread($buffer, 1024);
+
+    $output .= $buffer;
+    last if $output =~ /\r\n$|^\z/;
+  }
+
+  return $output;
+}
+
 
 sub start{
   my $socket = shift;
   my $config = shift;
   my $nick = $config->{other}{IRC_NICK};
   my $channel = '#'.$config->{other}{IRC_CHANNEL};
-  
+
+
   # Keep reading lines from the server.
-  while (my $input = <$socket>) {
+  READ: while (1) {
+    my $input = _read_from_socket($socket);
+    if ($input =~ /^\z/) {
+      sleep(5);
+      next READ;
+    }
     $input=~s/\R$//;
-    say $input;
+
     if ($input =~ /^PING(.*)$/i) {
       # We must respond to PINGs to avoid being disconnected.
       print $socket "PONG $1\r\n";
@@ -364,7 +384,9 @@ sub start_upload{
 sub print_message_to_channel{
   my ($socket, $channel, $message) = @_;
 
-  print $socket "PRIVMSG $channel : $message \r\n";
+  
+  
+  syswrite $socket, "PRIVMSG $channel : $message \r\n";
   
 }
 
@@ -384,7 +406,7 @@ sub upload_folder{
     #   mv $nzb, $nzbFolder;
     # }els
     
-    if ($_ =~ /Transfer speed/) {
+    if ($_ =~ /^Transfered/) {
       $transferSpeed = $_;
     }elsif ($_ =~ /Uploaded files: (.*)/) {
       push @files, $1;
@@ -400,7 +422,9 @@ sub upload_folder{
   }
 
 
-  $output = qx($newsup -f $nzb.nzb -nzb "./nzb"); #upload the nzb
+  my $invoke = "$newsup -f $nzb.nzb -nzb \"./nzb\" -connections 1";
+  sleep(5);
+  $output = qx/$invoke/; #upload the nzb
   say "$output";
   unlink "./nzb.nzb";
   return @files;
