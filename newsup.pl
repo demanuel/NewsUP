@@ -289,7 +289,7 @@ sub main{
 
   say "Splitting files per connection";
   my $parts = _split_files_per_connection($files, $connections);
-  say "Launching upload process";  
+
   _launch_upload_processes($server, $port, $username, $userpasswd, $connections, $parts, $commentsRef, {from=>$from, newsgroups=>join(',',@$newsGroupsRef)});
 
   my $missingSegments = [];
@@ -410,6 +410,8 @@ sub _launch_upload_processes{
   my ($server, $port, $user, $password, $connections, $segments, $commentsRef, $metadata)=@_;
   my @processes = ();
 
+  say "Launching upload process"; 
+  
   my $min = (($connections,scalar(@$segments))[($connections)> scalar(@$segments)])-1;
 
   if ($min > 0) {
