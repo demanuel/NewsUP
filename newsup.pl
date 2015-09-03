@@ -494,10 +494,12 @@ sub _launch_upload{
 
       if ($output !~ /^240\s/) {
 	close $ifh;
+	_logout ($socket);
 	die "Post failed: $output";
       }
     }else {
       close $ifh;
+      _logout ($socket);
       die "Post failed: $output";
     }
     
