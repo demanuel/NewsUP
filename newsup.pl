@@ -288,18 +288,18 @@ sub main{
 
   say "Splitting files per connection";
   my $parts = _split_files_per_connection($files, $connections);
-
+  
   _launch_upload_processes($server, $port, $username, $userpasswd, $connections, $parts, $commentsRef, {from=>$from, newsgroups=>join(',',@$newsGroupsRef)});
 
   my $missingSegments = [];
   if ($headerCheck) {
-
+    sleep($headerCheckSleep);
     $missingSegments = _launch_header_check($headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword,
 					    $newsGroupsRef->[0], $parts);
     say "Found ".scalar(@$missingSegments)." missing segments!";
     my $uploadTries = 3;
     while ((scalar(@$missingSegments) > 0) && ($uploadTries-- > 0)) {
-
+      
       my $splitMissingSegments=[];
       my $i=0;
       foreach my $segment (@$missingSegments) {
@@ -307,7 +307,7 @@ sub main{
       }
 
       _launch_upload_processes($server, $port, $username, $userpasswd, $connections, $splitMissingSegments, $commentsRef, {from=>$from, newsgroups=>join(',',@$newsGroupsRef)});
-
+      sleep($headerCheckSleep);
       $missingSegments = _launch_header_check($headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword,
 					      $newsGroupsRef->[0], $parts);
 
