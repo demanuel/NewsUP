@@ -102,7 +102,7 @@ The <file_nzb.nzb> should be inside the PATH_TO_SAVE_NZBS option defined on the 
 
 # Requirements:
 * Perl (preferably 5.018 or higher)
-* Perl modules: Config::Tiny, IO::Socket::SSL, String::CRC32, (all other modules should exist on core.)
+* Perl modules: Config::Tiny, IO::Socket::SSL, Inline::C (all other modules should exist on core.)
 
 
 # Installation
