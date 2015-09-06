@@ -293,7 +293,6 @@ sub main{
   my $missingSegments = [];
   if ($headerCheck) {
     sleep($headerCheckSleep);
-    say "Parts: ".Dumper($parts);
     $missingSegments = _launch_header_check($headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword,
 					    $newsGroupsRef->[0], $parts);
     say "Found ".scalar(@$missingSegments)." missing segments!";
