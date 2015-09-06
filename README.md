@@ -150,6 +150,7 @@ server= server_to_headerCheck #If doesn't exist then it will use the server defi
 port= 563 #If doesn't exist then it will use the port defined in server section
 username= My_username #If doesn't exist then it will use the user defined in auth section
 password= my_password #If doesn't exist then it will use the password defined in auth section
+retry = 10 #Number of times it will perform the header check to confirm if the upload was successfull
 
 [generic]
 monitoringPort = 8675
@@ -253,7 +254,13 @@ The NZB file It will have on the ```<head>``` tag the childs:
 
 -headerSleep <seconds>: Seconds, how much time it should wait before doing the header check.
 
+-retry <number of retries> : The number of times the header check should be performed until all the segments are reported as ok on the server. This needs the option headerCheck enabled.
+
+-headerCheckRetries <number of retries> : the same option as -retry. Consult above for the description.
+
 -uploadsize <size>: size in bytes, of the segment to be uploaded. **This option is not available on the configuration file**
+
+
 
 # Examples
 

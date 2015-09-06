@@ -129,8 +129,7 @@ sub _parse_command_line{
   my ($server, $port, $username,$userpasswd,
       @filesToUpload, $threads, @comments,
       $from, $headerCheck, $headerCheckSleep, $headerCheckServer, $headerCheckPort,
-      $headerCheckUserName, $headerCheckPassword, $nzbName, $tempDir);
-  my $uploadSize=750*1024;
+      $headerCheckUserName, $headerCheckPassword, $headerCheckRetries, $nzbName, $tempDir);
 
   #default value
   my @newsGroups = ();
@@ -153,9 +152,10 @@ sub _parse_command_line{
 	     'headerCheckPort=i'=>\$headerCheckPort,
 	     'headerCheckUserName=s'=>\$headerCheckUserName,
 	     'headerCheckPassword=s'=>\$headerCheckPassword,
-	     'uploadsize=i'=>\$uploadSize
+	     'headerCheckRetries|retry=i'=>\$headerCheckRetries,
+	     'uploadsize=i'=>\$NNTP_MAX_UPLOAD_SIZE
 	    );
-  
+
   if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
 
     my $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
@@ -222,8 +222,18 @@ sub _parse_command_line{
 	  $headerCheckPassword=$userpasswd;
 	}
       }
+
+      if (!defined $headerCheckRetries) {
+	$headerCheckRetries = $config->{headerCheck}{retries} if exists $config->{headerCheck}{retries};
+      }      
     }
 
+    if ($NNTP_MAX_UPLOAD_SIZE < 100*1024) {
+      $NNTP_MAX_UPLOAD_SIZE=750*1024;
+      say "Upload Size too small. Setting the upload size at 750KBytes!";
+    }
+
+    
 
     $tempDir = $config->{generic}{tempDir} if exists $config->{generic}{tempDir};
     die "Please define a valid temporary dir in the configuration file" if (!defined $tempDir || !-d $tempDir);
@@ -246,7 +256,7 @@ sub _parse_command_line{
 	  \@filesToUpload, $threads, \@newsGroups, 
 	  \@comments, $from, \%metadata, $headerCheck, $headerCheckSleep,
 	  $headerCheckServer, $headerCheckPort, $headerCheckUserName,
-	  $headerCheckPassword, $nzbName, $uploadSize, $tempDir);
+	  $headerCheckPassword, $headerCheckRetries, $nzbName, $uploadSize, $tempDir);
 }
 
 sub _get_files_to_upload{
@@ -273,8 +283,8 @@ sub main{
       $filesToUploadRef, $connections, $newsGroupsRef, 
       $commentsRef, $from, $meta, $headerCheck, $headerCheckSleep,
       $headerCheckServer, $headerCheckPort,
-      $headerCheckUsername, $headerCheckPassword, $nzbName,
-      $uploadSize, $tempDir)=_parse_command_line();
+      $headerCheckUsername, $headerCheckPassword, $headerCheckRetries, $nzbName,
+      $tempDir)=_parse_command_line();
 
   #Check if the files passed on the cmd are folders or not and if they are folders,
   #it will search inside for files
@@ -296,8 +306,8 @@ sub main{
     $missingSegments = _launch_header_check($headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword,
 					    $newsGroupsRef->[0], $parts);
     say "Found ".scalar(@$missingSegments)." missing segments!";
-    my $uploadTries = 3;
-    while ((scalar(@$missingSegments) > 0) && ($uploadTries-- > 0)) {
+
+    while ((scalar(@$missingSegments) > 0) && ($headerCheckRetries-- > 0)) {
       
       my $splitMissingSegments=[];
       my $i=0;
