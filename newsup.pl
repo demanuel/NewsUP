@@ -282,7 +282,6 @@ sub main{
   my $size=0;
   $size += -s $_ for @$files;
   $size /=1024;
-  
   #my $headers="From: $from\r\nNewsgroups: ".."\r\n";
   my $init=time();
 
@@ -294,6 +293,7 @@ sub main{
   my $missingSegments = [];
   if ($headerCheck) {
     sleep($headerCheckSleep);
+    say "Parts: ".Dumper($parts);
     $missingSegments = _launch_header_check($headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword,
 					    $newsGroupsRef->[0], $parts);
     say "Found ".scalar(@$missingSegments)." missing segments!";
@@ -308,8 +308,9 @@ sub main{
 
       _launch_upload_processes($server, $port, $username, $userpasswd, $connections, $splitMissingSegments, $commentsRef, {from=>$from, newsgroups=>join(',',@$newsGroupsRef)});
       sleep($headerCheckSleep);
+
       $missingSegments = _launch_header_check($headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword,
-					      $newsGroupsRef->[0], $parts);
+					      $newsGroupsRef->[0], [$missingSegments]);
 
       say "Found ".scalar(@$missingSegments)." missing segments!";
       
@@ -375,7 +376,7 @@ sub _create_nzb{
   my %files=();
   for my $connectionParts (@$parts) {
     for my $segment (@$connectionParts) {
-      my $basename = fileparse($segment->{fileName}, qr/\.[^.]*/);
+      my $basename = fileparse($segment->{fileName});
       push @{$files{$basename}},
 	"<segment bytes=\"$NNTP_MAX_UPLOAD_SIZE\" number=\"".$segment->{segmentNumber}."\">".$segment->{id}."</segment>";
     }
@@ -386,7 +387,7 @@ sub _create_nzb{
   print $ofh "<?xml version=\"1.0\" encoding=\"iso-8859-1\" ?>\n";
   print $ofh "<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">\n";
   for my $filename (sort keys %files) {
-
+    say "Filename: $filename";
 
     my @segments = @{$files{$filename}};
     my $time=time();
@@ -756,7 +757,7 @@ sub _create_socket{
 				   PeerHost=>$server,
 				   PeerPort=>$port,
 				   SSL_verify_mode=>SSL_VERIFY_NONE,
-				   SSL_version=>'TLSv1',
+				   SSL_version=>'TLSv1_2',
 				   Blocking => 1,
 				   Timout=> 20,
 				   #SSL_version=>'TLSv1_2',
