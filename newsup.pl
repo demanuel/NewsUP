@@ -256,7 +256,7 @@ sub _parse_command_line{
 	  \@filesToUpload, $threads, \@newsGroups, 
 	  \@comments, $from, \%metadata, $headerCheck, $headerCheckSleep,
 	  $headerCheckServer, $headerCheckPort, $headerCheckUserName,
-	  $headerCheckPassword, $headerCheckRetries, $nzbName, $uploadSize, $tempDir);
+	  $headerCheckPassword, $headerCheckRetries, $nzbName, $tempDir);
 }
 
 sub _get_files_to_upload{
