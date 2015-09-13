@@ -396,7 +396,6 @@ sub _create_nzb{
   print $ofh "<?xml version=\"1.0\" encoding=\"iso-8859-1\" ?>\n";
   print $ofh "<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">\n";
   for my $filename (sort keys %files) {
-    say "Filename: $filename";
 
     my @segments = @{$files{$filename}};
     my $time=time();
@@ -468,12 +467,13 @@ sub _launch_upload{
       close $ifh;
       open $ifh, '<', $segment->{fileName};
       $currentFileOpen = $segment->{fileName};
-      $baseName = fileparse($currentFileOpen, qr/\.[^.]*/);
+      $baseName = fileparse($currentFileOpen);
+      
       $fileSize = -s $segment->{fileName};
     }elsif ($segment->{fileName} ne $currentFileOpen) {
       open $ifh, '<', $segment->{fileName};
       $currentFileOpen = $segment->{fileName};
-      $baseName = fileparse($currentFileOpen, qr/\.[^.]*/);
+      $baseName = fileparse($currentFileOpen);
       $fileSize = -s $segment->{fileName};
     }
     my $subject = '['.$segment->{fileNumber}.'/'.$segment->{totalFiles}.'] - "'.$baseName.'" ('.$segment->{segmentNumber}.'/'.$segment->{totalSegments}.')';
@@ -489,7 +489,7 @@ sub _launch_upload{
     _print_to_socket($socket, "POST\r\n");
     my $output = _read_from_socket($socket);
     if ($output =~ /^340\s/) {
-    
+
       _print_args_to_socket($socket,
 			    "From: ",$metadata->{from},"\r\n",
 			    "Newsgroups: ",$metadata->{newsgroups},"\r\n",
