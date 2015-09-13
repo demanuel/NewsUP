@@ -236,7 +236,6 @@ sub _parse_command_line{
     
 
     $tempDir = $config->{generic}{tempDir} if exists $config->{generic}{tempDir};
-    die "Please define a valid temporary dir in the configuration file" if (!defined $tempDir || !-d $tempDir);
 
     if ( @newsGroups == 0) {
       if (exists $config->{upload}{newsgroup}){
@@ -468,7 +467,6 @@ sub _launch_upload{
       open $ifh, '<', $segment->{fileName};
       $currentFileOpen = $segment->{fileName};
       $baseName = fileparse($currentFileOpen);
-      
       $fileSize = -s $segment->{fileName};
     }elsif ($segment->{fileName} ne $currentFileOpen) {
       open $ifh, '<', $segment->{fileName};
