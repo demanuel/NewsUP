@@ -152,7 +152,7 @@ sub _parse_command_line{
 	     'headerCheckPort=i'=>\$headerCheckPort,
 	     'headerCheckUserName=s'=>\$headerCheckUserName,
 	     'headerCheckPassword=s'=>\$headerCheckPassword,
-	     'headerCheckRetries|retry=i'=>\$headerCheckRetries,
+	     'headerCheckRetries|retries=i'=>\$headerCheckRetries,
 	     'uploadsize=i'=>\$NNTP_MAX_UPLOAD_SIZE
 	    );
 
@@ -209,7 +209,7 @@ sub _parse_command_line{
 	}
       }
       if (!defined $headerCheckUserName || $headerCheckUserName eq '') {
-	if (exists $config->{headerCheck}{username} && $config->{headerCheck}{username} ne ''){
+	if (exists $config->{headerCheck}{user} && $config->{headerCheck}{user} ne ''){
 	  $headerCheckUserName = $config->{headerCheck}{username};
 	}else {
 	  $headerCheckUserName=$username;
