@@ -304,7 +304,7 @@ sub main{
     sleep($headerCheckSleep);
     $missingSegments = _launch_header_check($headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword,
 					    $newsGroupsRef->[0], $parts);
-    say "Found ".scalar(@$missingSegments)." missing segments!";
+    say "\nFound ".scalar(@$missingSegments)." missing segments!";
 
     while ((scalar(@$missingSegments) > 0) && ($headerCheckRetries-- > 0)) {
       
@@ -320,7 +320,7 @@ sub main{
       $missingSegments = _launch_header_check($headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword,
 					      $newsGroupsRef->[0], [$missingSegments]);
 
-      say "Found ".scalar(@$missingSegments)." missing segments!";
+      say "\nFound ".scalar(@$missingSegments)." missing segments!";
       
     }
   }
@@ -331,7 +331,11 @@ sub main{
   $time=1 if($time==0);
   
   if (scalar(@$missingSegments) == 0) {
-    say "Transfered ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Speed: [".int($size/$time)." KBytes/Sec]";
+    print STDOUT "Transfered ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Speed";
+    if ($headerCheck) {
+      print STDOUT " with header check";
+    }
+    say ": [".int($size/$time)." KBytes/Sec]";
 
     if (!defined $nzbName){
       $nzbName='newsup.nzb'; 
@@ -354,7 +358,7 @@ sub _launch_header_check{
       $newsgroup, $parts)=@_;
   my @missingParts=();
 
-  say "Launching header check on server $headerCheckServer:$headerCheckPort";
+  say "\nLaunching header check on server $headerCheckServer:$headerCheckPort";
   my $socket = _create_socket($headerCheckServer, $headerCheckPort);
   if (_authenticate($socket, $headerCheckUsername, $headerCheckPassword)) {
     say "Unable to authenticate on the header check server!";
@@ -370,6 +374,7 @@ sub _launch_header_check{
 	_print_args_to_socket($socket, "head <",$segment->{id},">\r\n");
 	$output = _read_from_socket($socket);
 
+	print STDOUT '.';
 	if ($output =~ /^221\s.*$/m){
 	  while ($output !~ /\.\r\n/m) {
 	    $output = _read_from_socket($socket);
@@ -424,8 +429,11 @@ sub _launch_upload_processes{
   my ($server, $port, $user, $password, $connections, $segments, $commentsRef, $metadata)=@_;
   my @processes = ();
 
-  say "Launching upload process"; 
+  my $numberSegments = 0;
+  $numberSegments += scalar(@{$_}) for @$segments;
   
+  say "Launching upload process ($numberSegments segments)"; 
+
   my $min = (($connections,scalar(@$segments))[($connections)> scalar(@$segments)])-1;
 
   if ($min > 0) {
@@ -438,7 +446,8 @@ sub _launch_upload_processes{
 
   for my $child (@processes) {
     waitpid($child,0);
-    say "Parent: Uploading Child $child was reaped - ", scalar localtime, ".";
+    #say "\nParent: Uploading Child $child was reaped - ", scalar localtime, ".";
+    #print STDOUT "\n";
   }
   
 }
@@ -507,7 +516,8 @@ sub _launch_upload{
 			    "=yend size=",$readSize, " pcrc32=",sprintf("%x",crc32 ($byteString)),"\r\n.\r\n"
 			   );
       $output = _read_from_socket($socket);
-
+      print ".";
+      
       if ($output !~ /^240\s/) {
 	close $ifh;
 	_logout ($socket);
@@ -531,92 +541,6 @@ sub _logout{
   my ($socket) = @_;
   _print_to_socket ($socket, "quit\r\n");
   shutdown $socket, 2;  
-}
-
-sub _launch_yenc_processes{
-  my ($processes, $files, $tmpDir, $headers, $comments) = @_;
-
-  my $filesPerProcesses = _split_files_per_process($processes, $files);
-
-  my @processes = ();
-  for (0..$processes-1) {
-    push @processes, _create_yenc_articles($filesPerProcesses->[$_], $tmpDir, $headers, $comments);
-  }
-
-  my @searchFolders = map{$tmpDir.'/' .(fileparse($_))[0]."_yenc";} @$files;
-
-  for my $child (@processes) {
-    waitpid($child,0);
-    say "Parent: Yenc $child was reaped - ", scalar localtime, ".";
-  }
-
-  return \@searchFolders;
-}
-
-sub _create_yenc_articles{
-  my ($files, $tmpDir, $headers, $commentsRef) = @_;
-  
-  my $pid;
-  
-  unless (defined($pid = fork())) {
-    say "cannot fork: $!";
-    return -1;
-  }
-  elsif ($pid) {
-    return $pid; # I'm the parent
-  }
-
-  my ($seed, $usec) = gettimeofday();
-
-  for my $fileData (@$files) {
-    my $fileName = (fileparse($fileData->[1]))[0];
-    my $dir ="$tmpDir/${fileName}_yenc";
-    
-    if (!-e $dir ) {
-      open my $ifh , '<:bytes', $fileData->[1];
-      binmode $ifh;
-      my $fileSize = -s $fileData->[1];
-    
-      mkdir $dir or die "Unable to create directory '$dir': $!";
-      my $bytes;
-      my $part = 1;
-      my $totalParts = ceil((-s $fileData->[1])/$NNTP_MAX_UPLOAD_SIZE);
-      my $startPosition=1;
-      my $subject = '['.$fileData->[0].'] - "'.$fileName.'"';
-      if (defined $commentsRef) {
-	$subject = $commentsRef->[0].' '.$subject if scalar(@$commentsRef) > 0;
-	$subject = $subject . ' ['.$commentsRef->[1].']' if scalar(@$commentsRef) > 1;
-      }
-      
-      while ((my $readedSize = read($ifh, $bytes, $NNTP_MAX_UPLOAD_SIZE)) ) {
-	my $messageID = $part.$fileData->[2];
-	open my $ofh, '>:raw',$dir.'/'.$messageID;
-	my $yencData=_yenc_encode_c($bytes, $readedSize);
-	print $ofh $headers,
-	  "Subject: ",$subject,' yenc (',$part,'/',$totalParts,")\r\n",
-	  "Message-ID: <",$messageID,">\r\n",
-	  "\r\n",
-	  "=ybegin part=",$part," total=",$totalParts, " line=",$YENC_NNTP_LINESIZE, " size=", $fileSize, " name=",$fileName,"\r\n",
-	  "=ypart begin=",$startPosition," end=",tell $ifh,"\r\n",
-	  #_yenc_encode_c($YENC_NNTP_LINESIZE,$bytes),
-	  $yencData,
-	  #"\r\n=yend size=",$readedSize," pcrc32=",$yencData->[0],"\r\n.\r\n";
-	  "\r\n=yend size=",$readedSize," pcrc32=",sprintf("%x",crc32 ($bytes)),"\r\n.\r\n";
-	
-	$startPosition=1+tell $ifh;
-	$part++;
-	
-	close $ofh;
-      }
-      close $ifh;
-    }else {
-      say "Found old folder from a failed(?) upload. Using it instead: $dir";
-    }
-
-  }
-
-  exit 0;
-  
 }
 
 sub _split_files_per_connection{
@@ -650,19 +574,6 @@ sub _split_files_per_connection{
   return \@split;
 }
 
-sub _split_files_per_process{
-  my ($processes, $files) = @_;
-
-  my @parts = ();
-  my $total = scalar @$files;
-  
-  my $i=0;
-  foreach my $elem (sort @$files) {
-    push @{ $parts[$i++ % $processes] }, ["$i/$total",$elem, _get_message_id() ];
-  }
-  return \@parts;
-}
-
 sub _get_message_id{
 
   (my $s, my $usec) = gettimeofday();
@@ -691,6 +602,7 @@ sub _encode_base36 {
   return $b36 || '0';
 }
 
+#XXX: not in use
 sub _get_available_cpus{
 
     my $yenc_processes = 2;
