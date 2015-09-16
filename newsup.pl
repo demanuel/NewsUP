@@ -332,7 +332,14 @@ sub main{
   
   if (scalar(@$missingSegments) == 0) {
     say "Transfered ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Speed: [".int($size/$time)." KBytes/Sec]";
-    $nzbName='newsup.nzb' if (!defined $nzbName);
+
+    if (!defined $nzbName){
+      $nzbName='newsup.nzb'; 
+    }
+    elsif ($nzbName !~ /\.nzb$/i) {
+      $nzbName .='.nzb';
+    }
+  
     _create_nzb($nzbName, $parts, $newsGroupsRef);
     say "NZB $nzbName created!";
 
@@ -389,7 +396,7 @@ sub _create_nzb{
 	"<segment bytes=\"$NNTP_MAX_UPLOAD_SIZE\" number=\"".$segment->{segmentNumber}."\">".$segment->{id}."</segment>";
     }
   }
-
+  
   open my $ofh, '>', $nzbName;
   
   print $ofh "<?xml version=\"1.0\" encoding=\"iso-8859-1\" ?>\n";
@@ -766,7 +773,7 @@ sub _create_socket{
 				   SSL_verify_mode=>SSL_VERIFY_NONE,
 				   SSL_version=>'TLSv1_2',
 				   Blocking => 1,
-				   Timout=> 20,
+				   Timeout=> 20,
 				   #SSL_version=>'TLSv1_2',
 				   #SSL_cipher_list=>'DHE-RSA-AES128-SHA',
 				   SSL_ca_path=>'/etc/ssl/certs',
