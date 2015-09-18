@@ -210,7 +210,7 @@ sub _parse_command_line{
       }
       if (!defined $headerCheckUserName || $headerCheckUserName eq '') {
 	if (exists $config->{headerCheck}{user} && $config->{headerCheck}{user} ne ''){
-	  $headerCheckUserName = $config->{headerCheck}{username};
+	  $headerCheckUserName = $config->{headerCheck}{user};
 	}else {
 	  $headerCheckUserName=$username;
 	}
