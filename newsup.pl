@@ -33,6 +33,7 @@ use Compress::Zlib;
 use IO::Socket::INET;
 use IO::Socket::SSL;# qw(debug3);
 use File::Path qw(remove_tree);
+use Socket qw(:crlf);
 
 use Inline C => <<'C_CODE';
 //Thank you Tomas Novysedlak for this piece of code :-)
@@ -364,14 +365,14 @@ sub _launch_header_check{
     say "Unable to authenticate on the header check server!";
     return [];
   }
-  die "Unable to print to socket" if (_print_to_socket($socket, "GROUP $newsgroup\r\n")!=0);
+  die "Unable to print to socket" if (_print_to_socket($socket, "GROUP $newsgroup$CRLF")!=0);
   my $output = _read_from_socket($socket);
   if ($output =~ /^211\s/) {
 
     for my $connectionSegmentList (@$parts) {
       for my $segment (@$connectionSegmentList) {
 	
-	_print_args_to_socket($socket, "head <",$segment->{id},">\r\n");
+	_print_args_to_socket($socket, "head <",$segment->{id},">$CRLF");
 	$output = _read_from_socket($socket);
 
 	print STDOUT '.';
@@ -500,20 +501,20 @@ sub _launch_upload{
     seek ($ifh, $startPosition-1, 0);
     my $readSize = read($ifh, my $byteString, $NNTP_MAX_UPLOAD_SIZE);
 
-    _print_to_socket($socket, "POST\r\n");
+    _print_to_socket($socket, "POST$CRLF");
     my $output = _read_from_socket($socket);
     if ($output =~ /^340\s/) {
 
       _print_args_to_socket($socket,
-			    "From: ",$metadata->{from},"\r\n",
-			    "Newsgroups: ",$metadata->{newsgroups},"\r\n",
-			    "Subject: ",$subject,"\r\n",
-			    "Message-ID: <", $segment->{id},">\r\n",
-			    "\r\n",
-			    "=ybegin part=", $segment->{segmentNumber}, " total=",$segment->{totalSegments}," line=", $YENC_NNTP_LINESIZE, " size=",$fileSize, " name=",$baseName,"\r\n",
-			    "=ypart begin=",$startPosition," end=",tell $ifh,"\r\n",
-			    _yenc_encode_c($byteString, $readSize),"\r\n",
-			    "=yend size=",$readSize, " pcrc32=",sprintf("%x",crc32 ($byteString)),"\r\n.\r\n"
+			    "From: ",$metadata->{from},$CRLF,
+			    "Newsgroups: ",$metadata->{newsgroups},$CRLF,
+			    "Subject: ",$subject,$CRLF,
+			    "Message-ID: <", $segment->{id},">$CRLF",
+			    "$CRLF",
+			    "=ybegin part=", $segment->{segmentNumber}, " total=",$segment->{totalSegments}," line=", $YENC_NNTP_LINESIZE, " size=",$fileSize, " name=",$baseName,$CRLF,
+			    "=ypart begin=",$startPosition," end=",tell $ifh,$CRLF,
+			    _yenc_encode_c($byteString, $readSize),$CRLF,
+			    "=yend size=",$readSize, " pcrc32=",sprintf("%x",crc32 ($byteString)),"$CRLF.$CRLF"
 			   );
       $output = _read_from_socket($socket);
       print ".";
@@ -539,7 +540,7 @@ sub _launch_upload{
 
 sub _logout{
   my ($socket) = @_;
-  _print_to_socket ($socket, "quit\r\n");
+  _print_to_socket ($socket, "quit$CRLF");
   shutdown $socket, 2;  
 }
 
@@ -656,12 +657,12 @@ sub _authenticate{
   my ($socket,  $user, $password) = @_;
 
   my $output = _read_from_socket $socket;
-  die "Unable to print to socket" if (_print_to_socket ($socket, "authinfo user $user\r\n") != 0);
+  die "Unable to print to socket" if (_print_to_socket ($socket, "authinfo user $user$CRLF") != 0);
 
   $output =  _read_from_socket $socket;
   die $output if $output !~ /381/;
 
-  die "Unable to print to socket" if (_print_to_socket ($socket, "authinfo pass $password\r\n") != 0);
+  die "Unable to print to socket" if (_print_to_socket ($socket, "authinfo pass $password$CRLF") != 0);
   
   $output =  _read_from_socket $socket;
 
