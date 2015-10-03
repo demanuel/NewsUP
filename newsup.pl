@@ -33,11 +33,10 @@ use Compress::Zlib;
 use IO::Socket::INET;
 use IO::Socket::SSL;# qw(debug3);
 use File::Path qw(remove_tree);
-use Socket qw(:crlf);
 
 use Inline C => <<'C_CODE';
 //Thank you Tomas Novysedlak for this piece of code :-)
-char* _yenc_encode_c(unsigned char* data, size_t data_size)
+SV* _yenc_encode_c(unsigned char* data, size_t data_size)
 {
 	const unsigned char maxwidth = 128;
 
@@ -109,7 +108,11 @@ char* _yenc_encode_c(unsigned char* data, size_t data_size)
 
 	*pointer = 0;
 	encoded_size++;
-	return realloc(encbuffer, encoded_size);
+
+        encbuffer = (char*) realloc(encbuffer, encoded_size);
+        SV* ret = newSVpv(encbuffer, 0);
+        free(encbuffer);
+	return ret;
 }
 
 C_CODE
@@ -120,6 +123,8 @@ $|=1;
 my $YENC_NNTP_LINESIZE=128;
 my $NNTP_MAX_UPLOAD_SIZE=750*1024;
 # END of the yenc variables
+
+my $CRLF="\r\n";
 
 my %MESSAGE_IDS=();
 
@@ -365,17 +370,17 @@ sub _launch_header_check{
     say "Unable to authenticate on the header check server!";
     return [];
   }
-  die "Unable to print to socket" if (_print_to_socket($socket, "GROUP $newsgroup$CRLF")!=0);
+  die "Unable to print to socket" if (_print_args_to_socket($socket, "GROUP ", $newsgroup,$CRLF)!=0);
   my $output = _read_from_socket($socket);
   if ($output =~ /^211\s/) {
 
     for my $connectionSegmentList (@$parts) {
       for my $segment (@$connectionSegmentList) {
 	
-	_print_args_to_socket($socket, "head <",$segment->{id},">$CRLF");
+	_print_args_to_socket($socket, "head <",$segment->{id},">",$CRLF);
 	$output = _read_from_socket($socket);
 
-	print STDOUT '.';
+	print '.';
 	if ($output =~ /^221\s.*$/m){
 	  while ($output !~ /\.\r\n/m) {
 	    $output = _read_from_socket($socket);
@@ -501,7 +506,7 @@ sub _launch_upload{
     seek ($ifh, $startPosition-1, 0);
     my $readSize = read($ifh, my $byteString, $NNTP_MAX_UPLOAD_SIZE);
 
-    _print_to_socket($socket, "POST$CRLF");
+    _print_args_to_socket($socket, "POST",$CRLF);
     my $output = _read_from_socket($socket);
     if ($output =~ /^340\s/) {
 
@@ -509,15 +514,17 @@ sub _launch_upload{
 			    "From: ",$metadata->{from},$CRLF,
 			    "Newsgroups: ",$metadata->{newsgroups},$CRLF,
 			    "Subject: ",$subject,$CRLF,
-			    "Message-ID: <", $segment->{id},">$CRLF",
-			    "$CRLF",
+			    "Message-ID: <", $segment->{id},">",$CRLF,
+			    $CRLF,
 			    "=ybegin part=", $segment->{segmentNumber}, " total=",$segment->{totalSegments}," line=", $YENC_NNTP_LINESIZE, " size=",$fileSize, " name=",$baseName,$CRLF,
 			    "=ypart begin=",$startPosition," end=",tell $ifh,$CRLF,
 			    _yenc_encode_c($byteString, $readSize),$CRLF,
-			    "=yend size=",$readSize, " pcrc32=",sprintf("%x",crc32 ($byteString)),"$CRLF.$CRLF"
+			    "=yend size=",$readSize, " pcrc32=",sprintf("%x",crc32 ($byteString)),$CRLF,'.',$CRLF
 			   );
       $output = _read_from_socket($socket);
-      print ".";
+      undef $byteString;
+      undef $subject;
+      print '.';
       
       if ($output !~ /^240\s/) {
 	close $ifh;
@@ -540,7 +547,7 @@ sub _launch_upload{
 
 sub _logout{
   my ($socket) = @_;
-  _print_to_socket ($socket, "quit$CRLF");
+  _print_args_to_socket ($socket, "quit", $CRLF);
   shutdown $socket, 2;  
 }
 
@@ -640,6 +647,8 @@ sub _read_from_socket{
 sub _print_args_to_socket{
 
   my ($socket, @args) = @_;
+  local $/ = undef;
+
   print $socket @args;
   return 0;
 }
@@ -647,6 +656,8 @@ sub _print_args_to_socket{
 sub _print_to_socket{
   my ($socket, $args) = @_;
 
+  local $/ = undef;
+  
   print $socket $args;
 
   return 0;
@@ -657,12 +668,12 @@ sub _authenticate{
   my ($socket,  $user, $password) = @_;
 
   my $output = _read_from_socket $socket;
-  die "Unable to print to socket" if (_print_to_socket ($socket, "authinfo user $user$CRLF") != 0);
+  die "Unable to print to socket" if (_print_args_to_socket ($socket, "authinfo user ",$user,$CRLF) != 0);
 
   $output =  _read_from_socket $socket;
   die $output if $output !~ /381/;
 
-  die "Unable to print to socket" if (_print_to_socket ($socket, "authinfo pass $password$CRLF") != 0);
+  die "Unable to print to socket" if (_print_args_to_socket ($socket, "authinfo pass ",$password,$CRLF) != 0);
   
   $output =  _read_from_socket $socket;
 
@@ -705,5 +716,6 @@ sub _create_socket{
   
   return $socket;
 }
+
 
 main();
