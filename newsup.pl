@@ -124,7 +124,7 @@ my $YENC_NNTP_LINESIZE=128;
 my $NNTP_MAX_UPLOAD_SIZE=750*1024;
 # END of the yenc variables
 
-my $CRLF="\r\n";
+my $CRLF="\x0D\x0A";
 
 my %MESSAGE_IDS=();
 
@@ -502,7 +502,7 @@ sub _launch_upload{
       $subject = $commentsRef->[0]." $subject" ;
       $subject .= ' ['.$commentsRef->[1].']' if(scalar(@$commentsRef)>0 && defined $commentsRef->[1] && $commentsRef->[1] ne '');
     }
-    #TODO
+
     seek ($ifh, $startPosition-1, 0);
     my $readSize = read($ifh, my $byteString, $NNTP_MAX_UPLOAD_SIZE);
 
@@ -647,22 +647,11 @@ sub _read_from_socket{
 sub _print_args_to_socket{
 
   my ($socket, @args) = @_;
-  local $/ = undef;
-
+  local $,;
+  local $\;
   print $socket @args;
   return 0;
 }
-
-sub _print_to_socket{
-  my ($socket, $args) = @_;
-
-  local $/ = undef;
-  
-  print $socket $args;
-
-  return 0;
-}
-
 
 sub _authenticate{
   my ($socket,  $user, $password) = @_;
