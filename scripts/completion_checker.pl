@@ -22,7 +22,7 @@ sub main{
 	     'connections=i'=>\$conNumber,
 	     'nzb|file=s'=>\@nzbs,
 	    );
-
+  
   if (!@nzbs) {
     say "Please define which NZBs you want to check!";
     exit 1;
@@ -38,8 +38,8 @@ sub main{
     
     my $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
     my %metadata = %{$config->{metadata}};
-
-
+    
+    
     if (!defined $server) {
       $server = $config->{server}{server} if exists $config->{server}{server};
     }
@@ -55,24 +55,24 @@ sub main{
     if (!defined $conNumber) {
       $conNumber = $config->{server}{connections} if exists $config->{server}{connections};
     }
-
+    
     if (!defined $server || !defined $port || !defined $username || !defined $userpasswd) {
       say "Please check the parameters server, port, username, password";
       exit 1;
     }
   }
-
   
-
+  
+  
   my $incomplete = verify_nzbs(\@nzbs,$conNumber , $server, $port, $username, $userpasswd); #TODO
-
+  
   exit 3 if $incomplete == 1;
 }
 
 
 sub verify_nzbs{
   my ($nzbs, $conNumber, $server, $port, $username, $userpasswd) = @_;
-
+  
   
   my @sockets = ();
   for (0..$conNumber-1) {
@@ -82,7 +82,7 @@ sub verify_nzbs{
       exit 2;
     }
     push @sockets, $socket;
-
+    
   }
   
   my $incomplete=0;  
@@ -102,16 +102,26 @@ sub verify_nzbs{
 	for (@sockets) {
 	  print $_ "group $group\r\n";
 	  sysread($_, $output, 8192);
-
+	  
 	}
 	$currentGroup = $group;
       }
       
-      my @segments = @{$file->getElementsByTagName('segment')};
+      my $subject = $file->getAttribute('subject');
+      my $correctSegments = 1;
+      $subject =~ /"(.*)".*yenc \(1\/(\d+)\)/;
+      my $fileName = $1;
+      $correctSegments = $2;
       
+      my @segments = @{$file->getElementsByTagName('segment')};
       my $totalSegments=@segments;
+      if($correctSegments != $totalSegments){
+	printf("File %s is %f%% completed\r\n",$fileName, ($totalSegments/$correctSegments)*100.0 );
+	next;
+      }    
+      
       my @segmentsByConnection = ();
-
+      
       # my $connections=1;
       my $i = 0;
       for (@segments) {
@@ -119,19 +129,18 @@ sub verify_nzbs{
       	$i+=1;
       	$i=0 if $i==$conNumber;
       }
-
       my @threads=();
       for (0..$conNumber) {
-       push @threads, threads->create(\&_verify_segments, $sockets[$_], $segmentsByConnection[$_] );
+	push @threads, threads->create(\&_verify_segments, $sockets[$_], $segmentsByConnection[$_] );
       }
-
+      
       $existingSegments += $_->join() for @threads;
-
+      
       $incomplete = 1 if @{$file->getElementsByTagName('segment') } != $existingSegments;
       my $percentage = $existingSegments/@{$file->getElementsByTagName('segment') }* 100.0;
       #      say "Percentagem: $percentage";
       $file->getAttribute('subject')=~ /\"(.*)\"/;
-      my $fileName = $1;
+
       printf("File %s is %f%% completed\r\n",$fileName, $percentage );
 
     }
@@ -152,6 +161,7 @@ sub _verify_segments{
     print $socket "stat <$segmentID>\r\n";
     sysread($socket, $output, 8192);
     chomp $output;
+	say $output;
     $existingSegments +=1 if (substr($output,0,3) == 223);
   }
   return $existingSegments;
@@ -223,5 +233,3 @@ sub _logout{
 main;
   
 
-
-  
