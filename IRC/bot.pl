@@ -73,7 +73,7 @@ sub get_options{
     if (exists $config->{other}{PATH_TO_SAVE_NZBS}){
       my $NZB_folder = $config->{other}{PATH_TO_SAVE_NZBS};
       if (!-d $NZB_folder) {
-	say "Please configure PATH_TO_SAVE_NZBS_ROOT folders";
+	say "Please configure PATH_TO_SAVE_NZBS folders";
 	exit 0;
       }
       
