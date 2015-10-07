@@ -25,7 +25,7 @@ use Config::Tiny;
 use Getopt::Long;
 use 5.018;
 use Data::Dumper;
-use String::CRC32;
+use Compress::Zlib;
 use File::Basename;
 use File::Find;
 use File::Copy qw/mv cp/;
