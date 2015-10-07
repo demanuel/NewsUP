@@ -370,7 +370,7 @@ sub _launch_header_check{
     say "Unable to authenticate on the header check server!";
     return [];
   }
-  die "Unable to print to socket" if (_print_args_to_socket($socket, "GROUP ", $newsgroup,$CRLF)!=0);
+  die "Error: Unable to print to socket" if (_print_args_to_socket($socket, "GROUP ", $newsgroup,$CRLF)!=0);
   my $output = _read_from_socket($socket);
   if ($output =~ /^211\s/) {
 
@@ -472,7 +472,7 @@ sub _launch_upload{
   }
   
   my $socket = _create_socket($server, $port);
-  die "Unable to login. Please check the credentials" if _authenticate($socket, $user, $password) >= 1;
+  die "Error: Unable to login. Please check the credentials" if _authenticate($socket, $user, $password) >= 1;
 
   my $currentFileOpen='';
   my $ifh = undef;
@@ -486,12 +486,14 @@ sub _launch_upload{
     
     if ($segment->{fileName} ne $currentFileOpen && defined $ifh){
       close $ifh;
-      open $ifh, '<', $segment->{fileName};
+      open $ifh, '<:bytes', $segment->{fileName};
+      binmode $ifh;
       $currentFileOpen = $segment->{fileName};
       $baseName = fileparse($currentFileOpen);
       $fileSize = -s $segment->{fileName};
     }elsif ($segment->{fileName} ne $currentFileOpen) {
-      open $ifh, '<', $segment->{fileName};
+      open $ifh, '<:bytes', $segment->{fileName};
+      binmode $ifh;
       $currentFileOpen = $segment->{fileName};
       $baseName = fileparse($currentFileOpen);
       $fileSize = -s $segment->{fileName};
@@ -529,12 +531,12 @@ sub _launch_upload{
       if ($output !~ /^240\s/) {
 	close $ifh;
 	_logout ($socket);
-	die "Post failed: $output";
+	die "Error: Post failed: $output";
       }
     }else {
       close $ifh;
       _logout ($socket);
-      die "Post failed: $output";
+      die "Error: Post failed: $output";
     }
     
   }
@@ -657,12 +659,12 @@ sub _authenticate{
   my ($socket,  $user, $password) = @_;
 
   my $output = _read_from_socket $socket;
-  die "Unable to print to socket" if (_print_args_to_socket ($socket, "authinfo user ",$user,$CRLF) != 0);
+  die "Error: Unable to print to socket" if (_print_args_to_socket ($socket, "authinfo user ",$user,$CRLF) != 0);
 
   $output =  _read_from_socket $socket;
-  die $output if $output !~ /381/;
+  die "Error: $output" if $output !~ /381/;
 
-  die "Unable to print to socket" if (_print_args_to_socket ($socket, "authinfo pass ",$password,$CRLF) != 0);
+  die "Error: Unable to print to socket" if (_print_args_to_socket ($socket, "authinfo pass ",$password,$CRLF) != 0);
   
   $output =  _read_from_socket $socket;
 
@@ -690,7 +692,7 @@ sub _create_socket{
 				   #SSL_version=>'TLSv1_2',
 				   #SSL_cipher_list=>'DHE-RSA-AES128-SHA',
 				   SSL_ca_path=>'/etc/ssl/certs',
-				  ) or die "Failed to connect or ssl handshake: $!, $SSL_ERROR";
+				  ) or die "Error: Failed to connect or ssl handshake: $!, $SSL_ERROR";
   }else {
     $socket = IO::Socket::INET->new (
 				     PeerAddr => $server,
@@ -698,7 +700,7 @@ sub _create_socket{
 				     Blocking => 1,
 				     Proto => 'tcp',
 				     Timeout => 20,
-				    ) or die "ERROR in Socket Creation : $!\n";
+				    ) or die "Error: Failed to connect : $!\n";
   }
   
   $socket->autoflush(1);
