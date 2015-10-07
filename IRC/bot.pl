@@ -35,6 +35,7 @@ use File::Copy qw/mv/;
 use File::Path qw/remove_tree/;
 use File::Find;
 use File::Basename;
+use Time::HiRes qw/usleep/;
 $|=1;
 
 sub main{
@@ -94,6 +95,8 @@ sub get_IRC_socket{
   my $config = shift;
   my $sock = new IO::Socket::INET(PeerAddr => $config->{other}{IRC_SERVER},
 				  PeerPort => $config->{other}{IRC_PORT},
+				  Timeout=> 5,
+				  Blocking=> 0,
 				  Proto => 'tcp') or
                                     die "Can't connect\n";
   $sock->autoflush(1);
@@ -141,7 +144,7 @@ sub _read_from_socket{
 
   my ($output, $buffer) = ('', '');
   while(1){
-    $socket->sysread($buffer, 1024);
+    $socket->sysread($buffer, 1);
 
     $output .= $buffer;
     last if $output =~ /\r\n$|^\z/;
@@ -190,7 +193,14 @@ sub start{
 	      }elsif ($1 eq 'check') {
 		my @args = split(' ', $2);
 		check_nzb(\@args, $socket, $config);
-	      }  
+	      }elsif($1 eq 'process'){
+		
+		for(`tasklist /FI "IMAGENAME eq $2"`){
+		  print_message_to_channel($socket, $channel, $_); 
+		}
+		  
+	      }
+	      
 	    }
 	    else {
 	      say "Didn't match!";
@@ -286,9 +296,7 @@ sub start_upload{
       if (-d "$val/$folder") {
 	$rootFolder="$val/$folder";
 	last;
-	say "Found!";
       }
-      say "Plus 1";
     }
 
     if (!$rootFolder) {
@@ -383,9 +391,8 @@ sub start_upload{
 
 sub print_message_to_channel{
   my ($socket, $channel, $message) = @_;
-
   
-  
+  usleep(100);
   syswrite $socket, "PRIVMSG $channel : $message \r\n";
   
 }
@@ -393,7 +400,7 @@ sub print_message_to_channel{
 sub upload_folder{
   my ($newsup, $uploadit, $folder, $nzb, $nzbFolder ,$socket, $channel) =@_;
 
-  my $cmd = "$uploadit -nodelete -directory $folder -a \"-nzb $nzb\"";
+  my $cmd = "$uploadit -nodelete -directory $folder -a \"-nzb $nzb\" -debug";
 
   my @files = ();
   
@@ -407,25 +414,29 @@ sub upload_folder{
     # }els
     
     if ($_ =~ /^Transfered/) {
-      $transferSpeed = $_;
+      print_message_to_channel($socket, $channel,"[ \x0303Uploaded and \x0303ready\x03 ]: $_ ");
     }elsif ($_ =~ /Uploaded files: (.*)/) {
       push @files, $1;
-    }elsif ($_ =~ /Header .* not found/) {
-      $segmentsFailed=1;
+    }elsif ($_ =~ /not found/) {
+      print_message_to_channel($socket, $channel,"[ \x0304Errors uploading!\x03 ]: $_ ");
+    }elsif ($_ =~ /error/i) {
+      print_message_to_channel($socket, $channel,"[ \x0304Errors uploading!\x03 ]: $_ ");
     }
   }
 
-  if (!$segmentsFailed) {
-    print_message_to_channel($socket, $channel,"[ \x0303Uploaded and \x0303ready\x03 ]: $transferSpeed ");
-  }else {
-    print_message_to_channel($socket, $channel,"[ \x0304Header Check failed!\x03 ]: $transferSpeed ");
-  }
 
 
   my $invoke = "$newsup -f $nzb.nzb -nzb \"./nzb\" -connections 1";
+  print_message_to_channel($socket, $channel,"\x0308Uploading NZB\x03 ");
   sleep(5);
   $output = qx/$invoke/; #upload the nzb
   say "$output";
+  for (split($/, $output)) {
+    if ($_ =~ /error/i) {
+        print_message_to_channel($socket, $channel,"[ \x030Error uploading NZB\x03 ]: $_ ");
+    }
+  }
+  
   unlink "./nzb.nzb";
   return @files;
 }
@@ -439,12 +450,14 @@ sub upload_files{
   say "Executing: $cmd";
   my $output = qx($cmd);
   for (split($/,$output)){
-    if ($_ =~ /Transfer speed/) {
+    if ($_ =~ /transfer/i) {
       print_message_to_channel($socket, $channel ,"[ \x0303Uploaded and \x0303ready\x03 ]: $_");
     }
-  }
 
-  
+    elsif ($_ =~ /error/i) {
+      print_message_to_channel($socket, $channel,"[ \x0304Errors uploading!\x03 ]: $_ ");
+    }
+  }
 }
 
 main;
