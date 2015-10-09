@@ -440,12 +440,9 @@ sub _launch_upload_processes{
   
   say "Launching upload process ($numberSegments segments)"; 
 
-  my $min = (($connections,scalar(@$segments))[($connections)> scalar(@$segments)])-1;
-
-  if ($min > 0) {
-    for my $idx (0.. $min) {
-      my $connection_segments = $segments->[$idx];
-      push @processes, _launch_upload($server, $port, $user, $password, $connection_segments, $commentsRef, $metadata);
+  if ($numberSegments > 0 && $connections > 0) {
+    for my $connectionSegments (@$segments) {
+      push @processes, _launch_upload($server, $port, $user, $password, $connectionSegments, $commentsRef, $metadata);
     }
   }
 
