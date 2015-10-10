@@ -421,7 +421,13 @@ sub _create_nzb{
     print $ofh "<group>$_</group>\n" for @$newsGroups;
     print $ofh "</groups>\n";
     print $ofh "<segments>\n";
-    print $ofh "$_\n" for @segments;
+    print $ofh "$_\n" for (sort{
+      $a =~ /number="(\d+)"/;
+      my $s1 = $1;
+      $b =~ /number="(\d+)"/;
+      my $s2 = $1;
+      return $1 <=> $2;
+    } @segments);
     print $ofh "</segments>\n";
     print $ofh "</file>\n";
         
@@ -666,7 +672,7 @@ sub _authenticate{
   $output =  _read_from_socket $socket;
 
   if ($output !~ /281/){
-    carp $output;
+    die "Error: $output";
     return 1;
   }
   0;
@@ -685,7 +691,7 @@ sub _create_socket{
 				   SSL_verify_mode=>SSL_VERIFY_NONE,
 				   SSL_version=>'TLSv1_2',
 				   Blocking => 1,
-				   Timeout=> 20,
+				   Timeout=> 20, #connection timeout
 				   #SSL_version=>'TLSv1_2',
 				   #SSL_cipher_list=>'DHE-RSA-AES128-SHA',
 				   SSL_ca_path=>'/etc/ssl/certs',
@@ -696,11 +702,15 @@ sub _create_socket{
 				     PeerPort => $port,
 				     Blocking => 1,
 				     Proto => 'tcp',
-				     Timeout => 20,
+				     Timeout => 20, #connection timeout
 				    ) or die "Error: Failed to connect : $!\n";
   }
   
   $socket->autoflush(1);
+
+  #Set read/write timeout
+  my $timeout  = pack( 'l!l!', 30, 0); #$seconds, $useconds;
+  $socket->setsockopt( SOL_SOCKET, SO_RCVTIMEO, $timeout );
   
   return $socket;
 }
