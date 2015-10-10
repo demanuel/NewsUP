@@ -397,14 +397,16 @@ sub _launch_header_check{
 }
 
 sub _create_nzb{
-  my ($nzbName, $parts, $newsGroups)=@_;
-
+  my ($from, $nzbName, $parts, $newsGroups)=@_;
+  $from = _get_xml_escaped_string($from);
   my %files=();
   for my $connectionParts (@$parts) {
     for my $segment (@$connectionParts) {
       my $basename = fileparse($segment->{fileName});
+      my $bytes = $NNTP_MAX_UPLOAD_SIZE;
+      $bytes =  $segment-> {fileSize} % $NNTP_MAX_UPLOAD_SIZE if($segment->{segmentNumber} == $segment->{totalSegments});
       push @{$files{$basename}},
-	"<segment bytes=\"$NNTP_MAX_UPLOAD_SIZE\" number=\"".$segment->{segmentNumber}."\">".$segment->{id}."</segment>";
+	"<segment bytes=\"$bytes\" number=\"".$segment->{segmentNumber}."\">".$segment->{id}."</segment>";
     }
   }
   
@@ -416,7 +418,7 @@ sub _create_nzb{
 
     my @segments = @{$files{$filename}};
     my $time=time();
-    print $ofh "<file poster=\"newsup\" date=\"$time\" subject=\"&quot;".$filename."&quot;\">\n";
+    print $ofh "<file poster=\"$from\" date=\"$time\" subject=\"&quot;".$filename."&quot;\">\n";
     print $ofh "<groups>\n";
     print $ofh "<group>$_</group>\n" for @$newsGroups;
     print $ofh "</groups>\n";
@@ -434,6 +436,18 @@ sub _create_nzb{
   }
   print $ofh "</nzb>\n";
   
+}
+
+sub _get_xml_escaped_string{
+  my $string = shift;
+
+  $string=~ s/&/&amp;/g;
+  $string=~ s/</&lt;/g;
+  $string=~ s/>/&gt;/g;
+  $string=~ s/"/&quot;/g;
+  $string=~ s/'/&apos;/g;
+
+  return $string;
 }
 
 
