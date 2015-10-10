@@ -368,10 +368,10 @@ sub start_upload{
 	  }
 	  close $ih;
 	  close $oh;
-	  unlink $oldName;
+	  unlink ($oldName) or print_message_to_channel($socket, $channel,"[ \x0304Error deleting files!\x03 ]: $! ");
 	  
 	}else {
-	  rename $oldName, $newName;
+	  rename ($oldName, $newName) or print_message_to_channel($socket, $channel,"[ \x0304Error renaming file!\x03 ]: $oldName to $newName ");
 	}
       }
 
@@ -382,7 +382,7 @@ sub start_upload{
     }
     remove_tree($currentFolder);
     say "Removing files: $_" for @files;
-    unlink @files;
+    unlink (@files) or print_message_to_channel($socket, $channel,"[ \x0304Error deleting files!\x03 ]: $! ");
     
   }
 
@@ -437,7 +437,7 @@ sub upload_folder{
     }
   }
   
-  unlink "./nzb.nzb";
+  unlink ("./nzb.nzb") or print_message_to_channel($socket, $channel,"[ \x0304Error deleting files!\x03 ]: $! ");
   return @files;
 }
 
