@@ -418,7 +418,7 @@ sub _create_nzb{
 
     my @segments = @{$files{$filename}};
     my $time=time();
-    print $ofh "<file poster=\"$from\" date=\"$time\" subject=\"&quot;".$filename."&quot;\">\n";
+    print $ofh "<file poster=\"$from\" date=\"$time\" subject=\"&quot;".$filename."&quot; yEnc(1/",scalar(@segments),") \">\n";
     print $ofh "<groups>\n";
     print $ofh "<group>$_</group>\n" for @$newsGroups;
     print $ofh "</groups>\n";
