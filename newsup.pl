@@ -33,7 +33,6 @@ use Compress::Zlib;
 use IO::Socket::INET;
 use IO::Socket::SSL;# qw(debug5);
 use File::Path qw(remove_tree);
-use IO::Select;
 
 use Inline C => <<'C_CODE';
 //Thank you Tomas Novysedlak for this piece of code :-)
