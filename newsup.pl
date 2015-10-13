@@ -31,8 +31,9 @@ use Time::HiRes qw/gettimeofday usleep/;
 use POSIX qw/ceil/;
 use Compress::Zlib;
 use IO::Socket::INET;
-use IO::Socket::SSL;# qw(debug3);
+use IO::Socket::SSL;# qw(debug5);
 use File::Path qw(remove_tree);
+use IO::Select;
 
 use Inline C => <<'C_CODE';
 //Thank you Tomas Novysedlak for this piece of code :-)
@@ -350,7 +351,7 @@ sub main{
       $nzbName .='.nzb';
     }
   
-    _create_nzb($nzbName, $parts, $newsGroupsRef);
+    _create_nzb($from, $nzbName, $parts, $newsGroupsRef);
     say "NZB $nzbName created!";
 
   }else {
@@ -366,6 +367,7 @@ sub _launch_header_check{
 
   say "\nLaunching header check on server $headerCheckServer:$headerCheckPort";
   my $socket = _create_socket($headerCheckServer, $headerCheckPort);
+
   if (_authenticate($socket, $headerCheckUsername, $headerCheckPassword)) {
     say "Unable to authenticate on the header check server!";
     return [];
@@ -401,6 +403,7 @@ sub _create_nzb{
   $from = _get_xml_escaped_string($from);
   my %files=();
   for my $connectionParts (@$parts) {
+
     for my $segment (@$connectionParts) {
       my $basename = fileparse($segment->{fileName});
       my $bytes = $NNTP_MAX_UPLOAD_SIZE;
@@ -418,7 +421,7 @@ sub _create_nzb{
 
     my @segments = @{$files{$filename}};
     my $time=time();
-    print $ofh "<file poster=\"$from\" date=\"$time\" subject=\"&quot;".$filename."&quot; yEnc(1/",scalar(@segments),") \">\n";
+    print $ofh "<file poster=\"$from\" date=\"$time\" subject=\"&quot;".$filename."&quot; yEnc (1/",scalar(@segments),") \">\n";
     print $ofh "<groups>\n";
     print $ofh "<group>$_</group>\n" for @$newsGroups;
     print $ofh "</groups>\n";
@@ -428,7 +431,7 @@ sub _create_nzb{
       my $s1 = $1;
       $b =~ /number="(\d+)"/;
       my $s2 = $1;
-      return $1 <=> $2;
+      return $s1 <=> $s2;
     } @segments);
     print $ofh "</segments>\n";
     print $ofh "</file>\n";
@@ -489,6 +492,7 @@ sub _launch_upload{
   }
   
   my $socket = _create_socket($server, $port);
+  
   die "Error: Unable to login. Please check the credentials" if _authenticate($socket, $user, $password) >= 1;
 
   my $currentFileOpen='';
@@ -567,6 +571,7 @@ sub _launch_upload{
 sub _logout{
   my ($socket) = @_;
   _print_args_to_socket ($socket, "quit", $CRLF);
+  _read_from_socket($socket);
   shutdown $socket, 2;  
 }
 
@@ -652,10 +657,11 @@ sub _read_from_socket{
   my ($socket) = @_;
 
   my ($output, $buffer) = ('', '');
+
   while(1){
-    usleep(100);
-    $socket->sysread($buffer, 1024);
-    
+
+    my $status = $socket->read($buffer, 1);
+    die "Error: $!" if(!defined $status);
     $output .= $buffer;
     last if $output =~ /\r\n$|^\z/;
   }
@@ -668,6 +674,20 @@ sub _print_args_to_socket{
   my ($socket, @args) = @_;
   local $,;
   local $\;
+  
+  # use bytes;
+  
+  # for (@args){
+  #   my $len = length $_;
+  #   my $offset = 0;
+  #   while ($len) {
+  #     my $written = $socket->syswrite($_, $len, $offset);
+  #     return 1 unless($written); 
+  #     $len -= $written;
+  #     $offset += $written;
+  #   }
+  # }
+  
   print $socket @args;
   return 0;
 }
@@ -679,7 +699,9 @@ sub _authenticate{
   die "Error: Unable to print to socket" if (_print_args_to_socket ($socket, "authinfo user ",$user,$CRLF) != 0);
 
   $output =  _read_from_socket $socket;
-  die "Error: $output" if $output !~ /381/;
+  
+  
+  die "Error: $output" if ($output !~ /381/);
 
   die "Error: Unable to print to socket" if (_print_args_to_socket ($socket, "authinfo pass ",$password,$CRLF) != 0);
   
@@ -687,7 +709,6 @@ sub _authenticate{
 
   if ($output !~ /281/){
     die "Error: $output";
-    return 1;
   }
   0;
   
@@ -724,8 +745,8 @@ sub _create_socket{
 
   #Set read/write timeout
   my $timeout  = pack( 'l!l!', 30, 0); #$seconds, $useconds;
-  $socket->setsockopt( SOL_SOCKET, SO_RCVTIMEO, $timeout );
-  
+  $socket->setsockopt( SOL_SOCKET, SO_RCVTIMEO, $timeout ); #reading timeout
+  $socket->setsockopt( SOL_SOCKET, SO_SNDTIMEO, $timeout ); #sending timeout
   return $socket;
 }
 
