@@ -410,7 +410,7 @@ sub main{
       $nzbName .='.nzb';
     }
   
-    _create_nzb($from, $nzbName, $parts, $newsGroupsRef);
+    _create_nzb($from, $nzbName, $parts, $newsGroupsRef, $meta);
     say "NZB $nzbName created!";
 
   }else {
@@ -458,7 +458,7 @@ sub _launch_header_check{
 }
 
 sub _create_nzb{
-  my ($from, $nzbName, $parts, $newsGroups)=@_;
+  my ($from, $nzbName, $parts, $newsGroups, $meta)=@_;
   $from = _get_xml_escaped_string($from);
   my %files=();
   for my $connectionParts (@$parts) {
@@ -476,6 +476,11 @@ sub _create_nzb{
   
   print $ofh "<?xml version=\"1.0\" encoding=\"iso-8859-1\" ?>\n";
   print $ofh "<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">\n";
+  print $ofh "<head>\n";
+#  print $ofh "<meta>";
+  print $ofh "<meta type=\"$_\">".$meta->{$_}."</meta>\n" for (keys %$meta);
+#  print $ofh "</meta>\n";
+  print $ofh "</head>\n";
   for my $filename (sort keys %files) {
 
     my @segments = @{$files{$filename}};
