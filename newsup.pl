@@ -194,8 +194,13 @@ sub _parse_command_line{
 
   my ($server, $port, $username,$userpasswd,
       @filesToUpload, $threads, @comments,
-      $from, $headerCheck, $headerCheckSleep, $headerCheckServer, $headerCheckPort,
-      $headerCheckUserName, $headerCheckPassword, $headerCheckRetries, $nzbName, $tempDir);
+      $from, $headerCheck, $headerCheckSleep,
+      $headerCheckServer, $headerCheckPort,
+      $headerCheckUserName, $headerCheckPassword,
+      $headerCheckRetries, $nzbName, $tempDir);
+
+  #Parameters with default values
+  my $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';
 
   #default value
   my @newsGroups = ();
@@ -219,12 +224,13 @@ sub _parse_command_line{
 	     'headerCheckUserName=s'=>\$headerCheckUserName,
 	     'headerCheckPassword=s'=>\$headerCheckPassword,
 	     'headerCheckRetries|retries=i'=>\$headerCheckRetries,
-	     'uploadsize=i'=>\$NNTP_MAX_UPLOAD_SIZE
+	     'uploadsize=i'=>\$NNTP_MAX_UPLOAD_SIZE,
+	     'configuration=s'=>\$configurationFile
 	    );
 
-  if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
+  if (-e $configurationFile) {
 
-    my $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
+    my $config = Config::Tiny->read( $configurationFile );
     %metadata = %{$config->{metadata}};
     
     if (!defined $server) {
