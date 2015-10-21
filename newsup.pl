@@ -444,7 +444,9 @@ sub _launch_header_check{
   my $output = _read_from_socket($socket);
   if ($output =~ /^211\s/) {
 
+    my $partsIdx = 0;
     for my $connectionSegmentList (@$parts) {
+      
       for my $segment (@$connectionSegmentList) {
 	
 	_print_args_to_socket($socket, "head <",$segment->{id},">",$CRLF);
@@ -455,10 +457,19 @@ sub _launch_header_check{
 	  while ($output !~ /\.\r\n/m) {
 	    $output = _read_from_socket($socket);
 	  }
+	}elsif ($output =~ /^400\s.*$/m){
+	  #special case: session expired
+	  push @missingParts, _launch_header_check($headerCheckServer, $headerCheckPort,
+						   $headerCheckUsername, $headerCheckPassword,
+						   $newsgroup, [@$parts[$partsIdx..$#{$parts}]]);
+	  my %hash = map{$_=>1} @missingParts;
+	  @missingParts = keys %hash;
+	  return \@missingParts;
 	}else {
 	  push @missingParts, $segment;
 	}
       }
+      $partsIdx++;
     }
   }
 
