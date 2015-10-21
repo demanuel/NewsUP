@@ -334,17 +334,20 @@ sub _get_files_to_upload{
   
   my $filesToUploadRef = shift;
 
-  my $tempFilesRef=[];
+  my @tempFiles=();
   for my $dir (@$filesToUploadRef) {
 
     find(sub{
 	   if (-f $_) {
 	     my $newName = $File::Find::name;
-	     push @$tempFilesRef, $newName;
+	     push @tempFiles, $newName;
 	     
 	   }
 	 }, ($dir));
   }
+
+  @tempFiles = sort @tempFiles;
+  my $tempFilesRef = \@tempFiles;
   return $tempFilesRef;
 }
 
@@ -570,8 +573,8 @@ sub _launch_upload{
   my $baseName='';
   my $fileSize=0;
 
-  for my $segment (@$segments) {
-
+  for (my $idx = 0;  $idx < @$segments; $idx++) {
+    my $segment = @$segments[$idx];
     my $startPosition=1+$NNTP_MAX_UPLOAD_SIZE*($segment->{segmentNumber}-1);
 
     
@@ -615,16 +618,27 @@ sub _launch_upload{
 			    "=yend size=",$readSize, " pcrc32=",sprintf("%x",$encoded_data->[1]),$CRLF,'.',$CRLF
 			   );
       $output = _read_from_socket($socket);
-
       undef $byteString;
       undef $subject;
       print '.';
-      
-      if ($output !~ /^240\s/) {
+
+
+      #Session timeout is a special case
+      if ($output =~ /^400\s/) {
+	close $ifh;
+	_logout($socket);
+	say "Session timeout - creating a new session for resuming!";
+	_launch_upload($server, $port, $user, $password, [@$segments[$idx..$#{$segments}]], $commentsRef, $metadata);
+	exit 0;
+	
+      }elsif ($output !~ /^240\s/) {
 	close $ifh;
 	_logout ($socket);
 	die "Error: Post failed: $output";
       }
+
+      
+      
     }else {
       close $ifh;
       _logout ($socket);
