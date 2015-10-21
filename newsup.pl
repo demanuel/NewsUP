@@ -458,7 +458,9 @@ sub _launch_header_check{
 	    $output = _read_from_socket($socket);
 	  }
 	}elsif ($output =~ /^400\s.*$/m){
+
 	  #special case: session expired
+	  say "Session timeout - creating a new session for resuming!";
 	  push @missingParts, _launch_header_check($headerCheckServer, $headerCheckPort,
 						   $headerCheckUsername, $headerCheckPassword,
 						   $newsgroup, [@$parts[$partsIdx..$#{$parts}]]);
