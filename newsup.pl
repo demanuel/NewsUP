@@ -371,16 +371,18 @@ sub main{
 
   say "Splitting files per connection";
   my $parts = _split_files_per_connection($files, $connections);
-  
   _launch_upload_processes($server, $port, $username, $userpasswd, $connections, $parts, $commentsRef, {from=>$from, newsgroups=>join(',',@$newsGroupsRef)});
 
+  my $time = time()-$init;
+  say "Operation completed ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Speed: [".int($size/$time)." KBytes/Sec]";
+  
   my $missingSegments = [];
   if ($headerCheck) {
     sleep($headerCheckSleep);
     $missingSegments = _launch_header_check($headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword,
 					    $newsGroupsRef->[0], $parts);
     say "\nFound ".scalar(@$missingSegments)." missing segments!";
-
+    
     while ((scalar(@$missingSegments) > 0) && ($headerCheckRetries-- > 0)) {
       
       my $splitMissingSegments=[];
@@ -401,16 +403,13 @@ sub main{
   }
 
   say "Upload Finished!";
-  my $time = time()-$init;
+  $time = time()-$init;
 
   $time=1 if($time==0);
-  
+
+  say "Total Time: ". int($time/60)." m ".int($time%60)."s";
   if (scalar(@$missingSegments) == 0) {
-    print STDOUT "Transfered ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Speed";
-    if ($headerCheck) {
-      print STDOUT " with header check";
-    }
-    say ": [".int($size/$time)." KBytes/Sec]";
+
 
     if (!defined $nzbName){
       $nzbName='newsup.nzb'; 
@@ -452,7 +451,7 @@ sub _launch_header_check{
 	_print_args_to_socket($socket, "head <",$segment->{id},">",$CRLF);
 	$output = _read_from_socket($socket);
 
-	print '.';
+	print '-';
 	if ($output =~ /^221\s.*$/m){
 	  while ($output !~ /\.\r\n/m) {
 	    $output = _read_from_socket($socket);
@@ -460,12 +459,13 @@ sub _launch_header_check{
 	}elsif ($output =~ /^400\s.*$/m){
 
 	  #special case: session expired
-	  say "Session timeout - creating a new session for resuming!";
+	  say "Header checking session timeout - creating a new session for resuming!";
 	  push @missingParts, _launch_header_check($headerCheckServer, $headerCheckPort,
 						   $headerCheckUsername, $headerCheckPassword,
 						   $newsgroup, [@$parts[$partsIdx..$#{$parts}]]);
-	  my %hash = map{$_=>1} @missingParts;
-	  @missingParts = keys %hash;
+#	  say Dumper(@missingParts);
+	  my %hash = map{$_->{id} => $_} @missingParts;
+	  @missingParts = values %hash;
 	  return \@missingParts;
 	}else {
 	  push @missingParts, $segment;
@@ -555,18 +555,16 @@ sub _launch_upload_processes{
     }
   }
 
-
-  for my $child (@processes) {
-    waitpid($child,0);
-    #say "\nParent: Uploading Child $child was reaped - ", scalar localtime, ".";
-    #print STDOUT "\n";
+  for my $pid (@processes) {
+    
+    my $return_code = waitpid($pid,0);#blocking
   }
+  say "All connections finished!";
   
 }
 
 sub _launch_upload{
   my ($server, $port, $user, $password, $segments, $commentsRef, $metadata) =@_;
-  
   my $pid;
   
   unless (defined($pid = fork())) {
@@ -633,15 +631,19 @@ sub _launch_upload{
       $output = _read_from_socket($socket);
       undef $byteString;
       undef $subject;
-      print '.';
+      print STDOUT '+';
 
 
       #Session timeout is a special case
       if ($output =~ /^400\s/) {
 	close $ifh;
 	_logout($socket);
-	say "Session timeout - creating a new session for resuming!";
-	_launch_upload($server, $port, $user, $password, [@$segments[$idx..$#{$segments}]], $commentsRef, $metadata);
+	chomp $output;
+	say "\nSession timeout - creating a new session for resuming! [$output]";
+
+	my $kid = _launch_upload($server, $port, $user, $password, [@$segments[$idx..$#{$segments}]], $commentsRef, $metadata);
+	my $return_code = waitpid($kid,0);
+	#say "$$ kid $kid dead: $? - ".${^CHILD_ERROR_NATIVE}." - $return_code";
 	exit 0;
 	
       }elsif ($output !~ /^240\s/) {
@@ -668,9 +670,12 @@ sub _launch_upload{
 
 sub _logout{
   my ($socket) = @_;
-  _print_args_to_socket ($socket, "quit", $CRLF);
-  _read_from_socket($socket);
-  shutdown $socket, 2;  
+  if ($socket -> connected) {
+    _print_args_to_socket ($socket, "quit", $CRLF);
+    _read_from_socket($socket);
+    shutdown $socket, 2;  
+  }
+
 }
 
 sub _split_files_per_connection{
@@ -754,8 +759,10 @@ sub _get_available_cpus{
 sub _read_from_socket{
   my ($socket) = @_;
 
+  return "400 Socket closed" if (! $socket->connected);
+  
   my ($output, $buffer) = ('', '');
-
+  usleep(100);
   while(1){
 
     my $status = $socket->read($buffer, 1);
@@ -785,9 +792,15 @@ sub _print_args_to_socket{
   #     $offset += $written;
   #   }
   # }
+  if ($socket->connected) {
   
-  print $socket @args;
-  return 0;
+    usleep 100;
+    print $socket @args;
+    return 0;
+  }
+  else {
+    return 1;
+  }
 }
 
 sub _authenticate{
