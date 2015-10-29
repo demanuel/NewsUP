@@ -762,7 +762,6 @@ sub _read_from_socket{
   return "400 Socket closed" if (! $socket->connected);
   
   my ($output, $buffer) = ('', '');
-  usleep(100);
   while(1){
 
     my $status = $socket->read($buffer, 1);
