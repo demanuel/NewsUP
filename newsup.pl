@@ -1,7 +1,5 @@
 #!/usr/bin/perl -w
 
-#!/usr/bin/perl -w
-
 ###############################################################################
 #     NewsUP - create backups of your files to the usenet.
 #     Copyright (C) David Santiago
@@ -20,6 +18,10 @@
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ##############################################################################
 
+#TODO:
+# *- Some servers don't return the exit code 205 and just close the connection
+# *- Unable to recover from a 400 idle timeout
+#
 use warnings;
 use strict;
 use utf8;
@@ -37,7 +39,7 @@ use IO::Socket::SSL; #qw(debug1);
 use File::Path qw(remove_tree);
 use IO::Select;
 use Inline C => <<'C_CODE';
-
+#include <stdint.h>;
 static uint32_t crc32_tab[] = {
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f,
     0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
@@ -377,8 +379,10 @@ sub main{
   $size /=1024;
 
   my $uploadParts = _split_files($files);
-  my @partsCopy = @$uploadParts;
-
+  my $nzbParts = \@{$uploadParts};
+  my @missingSegments = @$uploadParts;
+#  use Data::Dumper;
+#  say Dumper($uploadParts);
 
   my $init = time;
   _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $uploadParts);
@@ -392,53 +396,58 @@ sub main{
     sleep($headerCheckSleep);
     say "Warping up engines!";
     my $headerCheckConnections=3;
-    my $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
-    my $select = IO::Select->new();
-    $select->add($_) for (@$connectionList);
-
-    while ($select->count()>0) {
-      my @ready = $select->can_write(1/10);
-      for my $socket (@ready) {
-	_print_args_to_socket($socket, "GROUP ",$newsGroupsRef->[0],$CRLF);
-	$select->remove($socket);
-      }
-    }
-    $select->add($_) for (@$connectionList);
-    while ($select->count()>0) {
-      my @ready = $select->can_read(1/10);
-      for my $socket (@ready) {
-	_read_from_socket($socket);
-	$select->remove($socket);
-      }
-    }
     
-    my @missingSegments = @partsCopy;
+#    my @missingSegments = @partsCopy;
     $init = time();
+
     while (@missingSegments>0) {
+      my $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
+      my $select = IO::Select->new();
+      $select->add($_) for (@$connectionList);
+      
+      while ($select->count()>0) {
+	my @ready = $select->can_write(1/100);
+	for my $socket (@ready) {
+	  _print_args_to_socket($socket, "GROUP ",$newsGroupsRef->[0],$CRLF);
+	  _read_from_socket($socket);
+	  $select->remove($socket);
+	}
+      }
+
+#      say "Authenticate and in group!";
+      
       my $idx=0;
-      my @missedSegments = ();
+      my @tempSegments = ();
       for my $part (@missingSegments) {
 	my $socket = $connectionList->[$idx++%$headerCheckConnections];
 	_print_args_to_socket($socket, "head <",$part->{id},'>',$CRLF);
 	my $output = _read_from_socket($socket);
-	if ($output =~ /221/) {
+#	say $output;
+	if ($output =~ /221 /) {
 	  do {
 	    $output = _read_from_socket($socket);
 	    chomp $output;
 	    $output =~ s/\r//g;
+#	    say $output;
 	  }while ($output ne '.');
 
 	}else {
-	  push @missedSegments, $part if ($output !~ /221/);	  
+	  push @tempSegments, $part if ($output !~ /221/);	  
 	}
-
-	
       }
-      @missingSegments = @missedSegments;
-      _print_args_to_socket($_, "QUIT",$CRLF) for @$connectionList;
-      _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $uploadParts);
-      
-      last if(--$headerCheckRetries <= 0);
+      @missingSegments = @tempSegments;
+      say "There are ".scalar @tempSegments." segments missing!";
+      for my $socket (@$connectionList){
+	_print_args_to_socket($socket, "QUIT",$CRLF);
+	shutdown $socket, 2;
+      }
+
+      if (@missingSegments > 0) {
+	$connections = scalar @missingSegments if ($connections > @missingSegments);
+	_start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, \@tempSegments);
+      }
+
+      last if($headerCheckRetries-- <= 0 ||  @missingSegments == 0);
     }
     $time = time()-$init;
     say "HeaderCheck done in ".int($time/60)."m ".($time%60)."s";
@@ -446,7 +455,7 @@ sub main{
   }
 
 
-  _create_nzb($from, $nzbName, \@partsCopy, $newsGroupsRef, $meta);
+  _create_nzb($from, $nzbName, $nzbParts, $newsGroupsRef, $meta);
   say "NZB $nzbName created!";
   
 }
@@ -479,7 +488,11 @@ sub _start_upload{
       }
     }
   }
-  _print_args_to_socket($_, "QUIT", $CRLF) for @$connectionList;    
+  sleep(2);
+  for my $socket (@$connectionList){
+    _print_args_to_socket($socket, "QUIT", $CRLF) if ($socket->connected);
+  }
+
 }
 
 sub _get_xml_escaped_string{
@@ -557,14 +570,24 @@ sub _launch_upload_read_process{
 
   while ($readSelect->count()>0) {
     my @ready = $readSelect->can_read(1/10);
-    for my $socket (@ready) {
-      my $output = _read_from_socket($socket);
-      chomp $output;
-      #say "[$output]";
-      if ($output =~ /205/) {
-	$readSelect->remove($socket);
-      }elsif ($output !~ /240|250|281|340/) {
-	die "Unable to post: $output";
+    if (@ready == 0) {
+
+      for ($readSelect->handles) {
+	$readSelect->remove($_) if !$_->connected ;
+      }
+    }else {
+      for my $socket (@ready) {
+	my $output = _read_from_socket($socket);
+	chomp $output;
+	#say "[$output]";
+	if ($output =~ /205/) {
+	  $readSelect->remove($socket);
+	}elsif ($output =~ /400 /) {
+	  $readSelect->remove($socket);
+	  shutdown($socket, 2);
+	}elsif ($output !~ /^(240|340)/) {
+	  die "Unable to post: $output";
+	}
       }
     }
   }
