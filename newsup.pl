@@ -379,14 +379,14 @@ sub main{
   $size /=1024;
 
   my $uploadParts = _split_files($files);
-  my $nzbParts = \@{$uploadParts};
-  my @missingSegments = @$uploadParts;
+  my @nzbParts = @{$uploadParts};
+
 #  use Data::Dumper;
 #  say Dumper($uploadParts);
 
   my $init = time;
   _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $uploadParts);
-
+  
   my $time = time()-$init;
   say "Operation completed ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Speed: [".int($size/$time)." KBytes/Sec]";
   wait();
@@ -396,7 +396,7 @@ sub main{
     sleep($headerCheckSleep);
     say "Warping up engines!";
     my $headerCheckConnections=3;
-    
+    my @missingSegments = @nzbParts;  
 #    my @missingSegments = @partsCopy;
     $init = time();
 
@@ -454,8 +454,7 @@ sub main{
 
   }
 
-
-  _create_nzb($from, $nzbName, $nzbParts, $newsGroupsRef, $meta);
+  _create_nzb($from, $nzbName, \@nzbParts, $newsGroupsRef, $meta);
   say "NZB $nzbName created!";
   
 }
@@ -488,11 +487,11 @@ sub _start_upload{
       }
     }
   }
-  sleep(2);
   for my $socket (@$connectionList){
     _print_args_to_socket($socket, "QUIT", $CRLF) if ($socket->connected);
   }
-
+  sleep 2;
+  shutdown ($_,2) for @$connectionList;
 }
 
 sub _get_xml_escaped_string{
