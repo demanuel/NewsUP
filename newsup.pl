@@ -385,11 +385,10 @@ sub main{
 #  say Dumper($uploadParts);
 
   my $init = time;
-  _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $uploadParts);
+  my $readPid = _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $uploadParts);
   
   my $time = time()-$init;
   say "Operation completed ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Speed: [".int($size/$time)." KBytes/Sec]";
-  wait();
 
   if ($headerCheck) {
     say "Header Checking";
@@ -422,13 +421,13 @@ sub main{
 	my $socket = $connectionList->[$idx++%$headerCheckConnections];
 	_print_args_to_socket($socket, "head <",$part->{id},'>',$CRLF);
 	my $output = _read_from_socket($socket);
-#	say $output;
+
 	if ($output =~ /221 /) {
 	  do {
 	    $output = _read_from_socket($socket);
 	    chomp $output;
 	    $output =~ s/\r//g;
-#	    say $output;
+
 	  }while ($output ne '.');
 
 	}else {
@@ -471,7 +470,7 @@ sub _start_upload{
   my $newsgroups = join(',',@$newsGroupsRef);
   my $totalParts=scalar @$parts;
   my $currentPart = 0;
-  _launch_upload_read_process($select);
+  my $readPid = _launch_upload_read_process($select);
   while (@$parts > 0) {
     my @ready = $select->can_write(1/1000);
     for my $socket (@ready) {
@@ -488,10 +487,13 @@ sub _start_upload{
     }
   }
   for my $socket (@$connectionList){
-    _print_args_to_socket($socket, "QUIT", $CRLF) if ($socket->connected);
+    if ($socket->connected){
+      _print_args_to_socket($socket, "QUIT", $CRLF);
+      shutdown ($socket, 2);
+    }
   }
-  sleep 2;
-  shutdown ($_,2) for @$connectionList;
+
+  kill 'TERM', $readPid;
 }
 
 sub _get_xml_escaped_string{
@@ -567,31 +569,35 @@ sub _launch_upload_read_process{
     return $pid; # I'm the parent
   }
 
-  while ($readSelect->count()>0) {
+  my $loop = 1;
+  $SIG{TERM} = sub{
+    my @handles = $readSelect->handles;
+    for my $socket (@handles) {
+      shutdown($socket, 2);
+      $readSelect->remove($socket);
+    }
+    $loop = 0;
+  };
+  
+  while ($loop) {
     my @ready = $readSelect->can_read(1/10);
-    if (@ready == 0) {
-
-      for ($readSelect->handles) {
-	$readSelect->remove($_) if !$_->connected ;
-      }
-    }else {
-      for my $socket (@ready) {
-	my $output = _read_from_socket($socket);
-	chomp $output;
-	#say "[$output]";
-	if ($output =~ /205/) {
-	  $readSelect->remove($socket);
-	}elsif ($output =~ /400 /) {
-	  $readSelect->remove($socket);
-	  shutdown($socket, 2);
-	}elsif ($output !~ /^(240|340)/) {
-	  die "Unable to post: $output";
-	}
+    for my $socket (@ready) {
+      my $output = _read_from_socket($socket);
+      chomp $output;
+      #say "[$output]";
+      if ($output =~ /205/) {
+	$readSelect->remove($socket);
+      }elsif ($output =~ /400 /) {
+	$readSelect->remove($socket);
+	shutdown($socket, 2);
+      }elsif ($output !~ /^(240|340)/) {
+	die "Unable to post: $output";
       }
     }
+    usleep(100);
+    
   }
   exit 0;
-  
 }
 
 sub _post_part{
@@ -673,12 +679,12 @@ sub _print_args_to_socket{
 sub _read_from_socket{
   my ($socket) = @_;
 
-  return "400 Socket closed" if (! $socket->connected);
-  
+ 
   my ($output, $buffer) = ('', '');
   my $counter=1;
 
   while (1) {
+      return "400 Socket closed" if (! $socket->connected);
       my $status = $socket->read($buffer,1);
       die "Error: $!" if(!defined $status);
       $output.= $buffer;
