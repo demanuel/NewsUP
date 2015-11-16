@@ -19,7 +19,6 @@
 ##############################################################################
 
 #TODO:
-# *- Some servers don't return the exit code 205 and just close the connection
 # *- Unable to recover from a 400 idle timeout
 #
 use warnings;
@@ -718,7 +717,7 @@ sub _get_connections{
   my ($connections, $server, $port, $user, $password) = @_;
 
   my @connectionList = ();
-  for (0..$connections) {
+  for (0..$connections-1) {
 
     my $socket = _create_socket($server, $port);
     _authenticate($socket, $user, $password);
