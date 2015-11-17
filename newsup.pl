@@ -189,6 +189,7 @@ my %MESSAGE_IDS=();
 
 my $CURRENT_OPEN_FILE;
 my $CURRENT_OPEN_FILE_FH;
+my $CURRENT_OPEN_FILE_SIZE=0;
 
 #Returns a bunch of options that it will be used on the upload. Options passed through command line have precedence over
 #options on the config file
@@ -607,7 +608,7 @@ sub _post_part{
 			"Subject: ",$subject,$CRLF,
 			"Message-ID: <", $part->{id},">",$CRLF,
 			$CRLF,
-			"=ybegin part=", $part->{segmentNumber}, " total=",$part->{totalSegments}," line=", $YENC_NNTP_LINESIZE, " size=",(-s $CURRENT_OPEN_FILE), " name=",$baseName,$CRLF,
+			"=ybegin part=", $part->{segmentNumber}, " total=",$part->{totalSegments}," line=", $YENC_NNTP_LINESIZE, " size=", $CURRENT_OPEN_FILE_SIZE, " name=",$baseName,$CRLF,
 			"=ypart begin=",$startPosition," end=",tell $CURRENT_OPEN_FILE_FH, $CRLF,
 			$encoded_data->[0],$CRLF,
 			"=yend size=",$data->[1], " pcrc32=",sprintf("%x",$encoded_data->[1]),$CRLF,'.',$CRLF
@@ -625,6 +626,7 @@ sub _get_file_data{
     $CURRENT_OPEN_FILE = $fileName;
     open $CURRENT_OPEN_FILE_FH, '<:bytes', $fileName;
     binmode $CURRENT_OPEN_FILE_FH;
+    $CURRENT_OPEN_FILE_SIZE = -s $fileName;
   }
   my $readSize = read($CURRENT_OPEN_FILE_FH, my $byteString, $NNTP_MAX_UPLOAD_SIZE);
   
