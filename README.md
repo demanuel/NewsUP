@@ -150,7 +150,7 @@ port= 563 #If doesn't exist then it will use the port defined in server section
 user= My_username #If doesn't exist then it will use the user defined in auth section
 password= my_password #If doesn't exist then it will use the password defined in auth section
 retries = 10 #Number of times it will perform the header check to confirm if the upload was successfull
-
+connections = 4 #Number of connections it will use to connect to the headercheck server.
 
 [script_vars]
 ############################
@@ -253,6 +253,8 @@ The NZB file It will have on the ```<head>``` tag the childs:
 -retries <number of retries> : The number of times the header check should be performed until all the segments are reported as ok on the server. This needs the option headerCheck enabled.
 
 -headerCheckRetries <number of retries> : the same option as -retries. Consult above for the description.
+
+-headerCheckConnections <number of connections>: the number of connections it will use to connect to the headercheck server
 
 -uploadsize <size>: size in bytes, of the segment to be uploaded. **This option is not available on the configuration file**
 

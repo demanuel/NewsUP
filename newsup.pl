@@ -200,7 +200,8 @@ sub _parse_command_line{
       $from, $headerCheck, $headerCheckSleep,
       $headerCheckServer, $headerCheckPort,
       $headerCheckUserName, $headerCheckPassword,
-      $headerCheckRetries, $nzbName, $tempDir);
+      $headerCheckRetries, $headerCheckConnections,
+      $nzbName);
 
   #Parameters with default values
   my $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';
@@ -227,6 +228,7 @@ sub _parse_command_line{
 	     'headerCheckUserName=s'=>\$headerCheckUserName,
 	     'headerCheckPassword=s'=>\$headerCheckPassword,
 	     'headerCheckRetries|retries=i'=>\$headerCheckRetries,
+	     'headerCheckConnections=i'=>\$headerCheckConnections,
 	     'uploadsize=i'=>\$NNTP_MAX_UPLOAD_SIZE,
 	     'configuration=s'=>\$configurationFile
 	    );
@@ -300,7 +302,15 @@ sub _parse_command_line{
 
       if (!defined $headerCheckRetries) {
 	$headerCheckRetries = $config->{headerCheck}{retries} if exists $config->{headerCheck}{retries};
-      }      
+      }
+      if (!defined $headerCheckConnections) {
+	if (exists $config->{headerCheck}{connections}){
+	  $headerCheckConnections = $config->{headerCheck}{connections};
+	}else {
+	  $headerCheckConnections = 1;
+	}
+
+      }
     }
 
     if ($NNTP_MAX_UPLOAD_SIZE < 100*1024) {
@@ -309,8 +319,6 @@ sub _parse_command_line{
     }
 
     
-
-    $tempDir = $config->{generic}{tempDir} if exists $config->{generic}{tempDir};
 
     if ( @newsGroups == 0) {
       if (exists $config->{upload}{newsgroup}){
@@ -332,7 +340,8 @@ sub _parse_command_line{
 	  \@filesToUpload, $threads, \@newsGroups, 
 	  \@comments, $from, \%metadata, $headerCheck, $headerCheckSleep,
 	  $headerCheckServer, $headerCheckPort, $headerCheckUserName,
-	  $headerCheckPassword, $headerCheckRetries, $nzbName, $tempDir);
+	  $headerCheckPassword, $headerCheckRetries,
+	  $headerCheckConnections, $nzbName);
 }
 
 sub _get_files_to_upload{
@@ -363,8 +372,8 @@ sub main{
       $filesToUploadRef, $connections, $newsGroupsRef, 
       $commentsRef, $from, $meta, $headerCheck, $headerCheckSleep,
       $headerCheckServer, $headerCheckPort,
-      $headerCheckUsername, $headerCheckPassword, $headerCheckRetries, $nzbName,
-      $tempDir)=_parse_command_line();
+      $headerCheckUsername, $headerCheckPassword,
+      $headerCheckRetries, $headerCheckConnections,$nzbName)=_parse_command_line();
   
   #Check if the files passed on the cmd are folders or not and if they are folders,
   #it will search inside for files
@@ -385,8 +394,8 @@ sub main{
   if ($headerCheck) {
     say "Header Checking";
     sleep($headerCheckSleep);
-    say "Warping up header check engines!";
-    my $headerCheckConnections=3;
+    say "Warping up header check engines with $headerCheckConnections connections!";
+#    my $headerCheckConnections=3;
     my @missingSegments = @nzbParts;
 #    my @missingSegments = @partsCopy;
     $init = time();
