@@ -32,9 +32,8 @@ use File::Basename;
 use Carp qw/carp/;
 use Time::HiRes qw/gettimeofday usleep/;
 use POSIX qw/ceil/;
-use Compress::Zlib;
 use IO::Socket::INET;
-use IO::Socket::SSL; #qw(debug1);
+use IO::Socket::SSL;# qw(debug2);
 use File::Path qw(remove_tree);
 use IO::Select;
 use Inline C => <<'C_CODE';
@@ -84,10 +83,6 @@ static uint32_t crc32_tab[] = {
     0x54de5729, 0x23d967bf, 0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94,
     0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
   };
-
-
-
-
 
 //Thank you Tomas Novysedlak for yenc encoding piece :-)
 AV* _yenc_encode_c(unsigned char* data, size_t data_size)
@@ -379,10 +374,7 @@ sub main{
 
   my $uploadParts = _split_files($files);
   my @nzbParts = @{$uploadParts};
-
-#  use Data::Dumper;
-#  say Dumper($uploadParts);
-
+  
   my $init = time;
   my $readPid = _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $uploadParts);
   
@@ -392,9 +384,9 @@ sub main{
   if ($headerCheck) {
     say "Header Checking";
     sleep($headerCheckSleep);
-    say "Warping up engines!";
+    say "Warping up header check engines!";
     my $headerCheckConnections=3;
-    my @missingSegments = @nzbParts;  
+    my @missingSegments = @nzbParts;
 #    my @missingSegments = @partsCopy;
     $init = time();
 
@@ -402,7 +394,7 @@ sub main{
       my $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
       my $select = IO::Select->new();
       $select->add($_) for (@$connectionList);
-      
+	
       while ($select->count()>0) {
 	my @ready = $select->can_write(1/100);
 	for my $socket (@ready) {
@@ -421,7 +413,7 @@ sub main{
 	_print_args_to_socket($socket, "head <",$part->{id},'>',$CRLF);
 	my $output = _read_from_socket($socket);
 
-	if ($output =~ /221 /) {
+	if ($output =~ /^221/) {
 	  do {
 	    $output = _read_from_socket($socket);
 	    chomp $output;
@@ -430,7 +422,7 @@ sub main{
 	  }while ($output ne '.');
 
 	}else {
-	  push @tempSegments, $part if ($output !~ /221/);	  
+	  push @tempSegments, $part if ($output !~ /^221/);	  
 	}
       }
       @missingSegments = @tempSegments;
@@ -491,7 +483,7 @@ sub _start_upload{
       shutdown ($socket, 2);
     }
   }
-
+  usleep(100);
   kill 'TERM', $readPid;
 }
 
@@ -568,17 +560,17 @@ sub _launch_upload_read_process{
     return $pid; # I'm the parent
   }
 
-  my $loop = 1;
+
   $SIG{TERM} = sub{
     my @handles = $readSelect->handles;
     for my $socket (@handles) {
       shutdown($socket, 2);
       $readSelect->remove($socket);
     }
-    $loop = 0;
+    exit 0;
   };
   
-  while ($loop) {
+  while (1) {
     my @ready = $readSelect->can_read(1/10);
     for my $socket (@ready) {
       my $output = _read_from_socket($socket);
@@ -593,9 +585,8 @@ sub _launch_upload_read_process{
 	die "Unable to post: $output";
       }
     }
-    usleep(100);
-    
   }
+  #Just to make sure it dies... We don't want this to jump to another function
   exit 0;
 }
 
@@ -647,31 +638,31 @@ sub _print_args_to_socket{
   local $,;
   local $\;
 
-  my $counter = 1;
-  for (@args) {
-    say "$counter undefined" if !defined $_;
-    $counter++;
-  }
+  # my $counter = 1;
+  # for (@args) {
+  #   say "$counter undefined" if !defined $_;
+  #   $counter++;
+  # }
   
   # use bytes;
   
-  # for (@args){
-  #   my $len = length $_;
-  #   my $offset = 0;
-  #   while ($len) {
-  #     my $written = $socket->syswrite($_, $len, $offset);
-  #     return 1 unless($written); 
-  #     $len -= $written;
-  #     $offset += $written;
-  #   }
+  for (@args){
+    my $len = length $_;
+    my $offset = 0;
+    while ($len) {
+      my $written = $socket->syswrite($_, $len, $offset);
+      return 1 unless($written); 
+      $len -= $written;
+      $offset += $written;
+    }
+  }
+  # if ($socket->connected) {
+  #   print $socket @args;
+  #   return 0;
   # }
-  if ($socket->connected) {
-    print $socket @args;
-    return 0;
-  }
-  else {
-    return 1;
-  }
+  # else {
+  #   return 1;
+  # }
 }
 
 
@@ -681,13 +672,16 @@ sub _read_from_socket{
  
   my ($output, $buffer) = ('', '');
   my $counter=1;
-
+  
+  return "400 Socket closed" if (! $socket->connected);
   while (1) {
-      return "400 Socket closed" if (! $socket->connected);
       my $status = $socket->read($buffer,1);
-      die "Error: $!" if(!defined $status);
       $output.= $buffer;
-      last if ($output =~ /\r\n\z/);
+      if ($output =~ /\r\n\z/){
+	last;
+      }elsif (!defined $status) {
+	die "Error: $!";
+      }
   }
   
   return $output;
@@ -696,7 +690,7 @@ sub _read_from_socket{
 
 sub _authenticate{
   my ($socket,  $user, $password) = @_;
-  
+
   my $output = _read_from_socket $socket;
   die "Error: Unable to print to socket" if (_print_args_to_socket ($socket, "authinfo user ",$user,$CRLF) != 0);
   
@@ -811,7 +805,7 @@ sub _create_socket{
   }
   
   $socket->autoflush(1);
-
+  
   #Set read/write timeout
   my $timeout  = pack( 'l!l!', 30, 0); #$seconds, $useconds;
 #  $socket->setsockopt( SOL_SOCKET, SO_RCVTIMEO, $timeout ); #reading timeout
