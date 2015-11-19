@@ -30,7 +30,7 @@ use Config::Tiny;
 use File::Find;
 use File::Basename;
 use Carp qw/carp/;
-use Time::HiRes qw/gettimeofday usleep/;
+use Time::HiRes qw/gettimeofday usleep gettimeofday tv_interval/;
 use POSIX qw/ceil/;
 use IO::Socket::INET;
 use IO::Socket::SSL;# qw(debug2);
@@ -309,7 +309,6 @@ sub _parse_command_line{
 	}else {
 	  $headerCheckConnections = 1;
 	}
-
       }
     }
 
@@ -317,8 +316,6 @@ sub _parse_command_line{
       $NNTP_MAX_UPLOAD_SIZE=750*1024;
       say "Upload Size too small. Setting the upload size at 750KBytes!";
     }
-
-    
 
     if ( @newsGroups == 0) {
       if (exists $config->{upload}{newsgroup}){
@@ -389,66 +386,21 @@ sub main{
   my $readPid = _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $uploadParts);
   
   my $time = time()-$init;
-  say "Operation completed ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Speed: [".int($size/$time)." KBytes/Sec]";
+  say "Operation completed ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Avg. Speed: [".int($size/$time)." KBytes/Sec]";
 
   if ($headerCheck) {
-    say "Header Checking";
+    print "Header Checking\r";
     sleep($headerCheckSleep);
     say "Warping up header check engines with $headerCheckConnections connections!";
 #    my $headerCheckConnections=3;
     my @missingSegments = @nzbParts;
-#    my @missingSegments = @partsCopy;
+
     $init = time();
-
-    while (@missingSegments>0) {
-      my $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
-      my $select = IO::Select->new();
-      $select->add($_) for (@$connectionList);
-	
-      while ($select->count()>0) {
-	my @ready = $select->can_write(1/100);
-	for my $socket (@ready) {
-	  _print_args_to_socket($socket, "GROUP ",$newsGroupsRef->[0],$CRLF);
-	  _read_from_socket($socket);
-	  $select->remove($socket);
-	}
-      }
-
-#      say "Authenticate and in group!";
-      
-      my $idx=0;
-      my @tempSegments = ();
-      for my $part (@missingSegments) {
-	my $socket = $connectionList->[$idx++%$headerCheckConnections];
-	_print_args_to_socket($socket, "head <",$part->{id},'>',$CRLF);
-	my $output = _read_from_socket($socket);
-
-	if ($output =~ /^221/) {
-	  do {
-	    $output = _read_from_socket($socket);
-	    chomp $output;
-	    $output =~ s/\r//g;
-
-	  }while ($output ne '.');
-
-	}else {
-	  push @tempSegments, $part if ($output !~ /^221/);	  
-	}
-      }
-      @missingSegments = @tempSegments;
-      say "There are ".scalar @tempSegments." segments missing!";
-      for my $socket (@$connectionList){
-	_print_args_to_socket($socket, "QUIT",$CRLF);
-	shutdown $socket, 2;
-      }
-
-      if (@missingSegments > 0) {
-	$connections = scalar @missingSegments if ($connections > @missingSegments);
-	_start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, \@tempSegments);
-      }
-
-      last if($headerCheckRetries-- <= 0 ||  @missingSegments == 0);
-    }
+    _start_header_check($headerCheckConnections, $headerCheckServer, $headerCheckPort,
+			$headerCheckUsername, $headerCheckPassword, $headerCheckRetries,
+			$newsGroupsRef, $connections, $server, $port, $username,
+			$userpasswd, $from, $commentsRef, \@missingSegments);
+    
     $time = time()-$init;
     say "HeaderCheck done in ".int($time/60)."m ".($time%60)."s";
 
@@ -459,11 +411,68 @@ sub main{
   
 }
 
+sub _start_header_check{
+  
+  my ($headerCheckConnections, $headerCheckServer, $headerCheckPort,
+      $headerCheckUsername, $headerCheckPassword, $headerCheckRetries,
+      $newsGroupsRef, $connections, $server, $port, $username,
+      $userpasswd, $from, $commentsRef, $missingSegmentsRef) = @_;
+  
+  my @missingSegments= @$missingSegmentsRef;
+  while (@missingSegments>0) {
+    my $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
+    my $select = IO::Select->new();
+    $select->add($_) for (@$connectionList);
+    
+    while ($select->count()>0) {
+      my @ready = $select->can_write(1/100);
+      for my $socket (@ready) {
+	_print_args_to_socket($socket, "GROUP ",$newsGroupsRef->[0],$CRLF);
+	_read_from_socket($socket);
+	$select->remove($socket);
+      }
+    }
+    
+    #      say "Authenticate and in group!";
+    
+    my @tempSegments = ();
+    for my $i (0..@missingSegments-1) {
+      my $part = $missingSegments[$i];
+      my $socket = $connectionList->[$i%$headerCheckConnections];
+      _print_args_to_socket($socket, "head <",$part->{id},'>',$CRLF);
+      my $output = _read_from_socket($socket);
+      print int(($i / @missingSegments)*100),"%\e[J\r";
+      if ($output =~ /^221/) {
+	do {
+	  $output = _read_from_socket($socket);
+	  chomp $output;
+	  $output =~ s/\r//g;
+	  
+	}while ($output ne '.');
+	
+      }else {
+	push @tempSegments, $part if ($output !~ /^221/);	  
+      }
+    }
+    @missingSegments = @tempSegments;
+    say "There are ".scalar @tempSegments." segments missing!";
+    for my $socket (@$connectionList){
+      _print_args_to_socket($socket, "QUIT",$CRLF);
+      shutdown $socket, 2;
+    }
+    
+    if (@missingSegments > 0) {
+      $connections = scalar @missingSegments if ($connections > @missingSegments);
+      _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, \@tempSegments);
+    }
+    
+    last if($headerCheckRetries-- <= 0 ||  @missingSegments == 0);
+  }
+}
+
 sub _start_upload{
   my ($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $parts) = @_;
 
-  my @progressMeter = ('-','\\','|','/');
-  my $progressMeterCounter = 0;
   my $connectionList = _get_connections($connections, $server, $port, $username, $userpasswd);
   my $select = IO::Select->new();
   $select->add($_) for @$connectionList;
@@ -472,21 +481,23 @@ sub _start_upload{
   my $totalParts=scalar @$parts;
   my $currentPart = 0;
   my $readPid = _launch_upload_read_process($select);
+
   while (@$parts > 0) {
     my @ready = $select->can_write(1/1000);
     for my $socket (@ready) {
       if (@$parts > 0) {
 	my $part = shift @$parts;
+	my $t0 = [gettimeofday];
 	_print_args_to_socket($socket, "POST", $CRLF);
-	
 	_post_part ($socket, $from, $newsgroups, $commentsRef, $part);
-	printf("%2.0f%% ", (++$currentPart/$totalParts)*100);
-	print "[",$progressMeter[$progressMeterCounter++%@progressMeter],"]\r";
+	print int((++$currentPart / $totalParts)*100),"% [",int(($NNTP_MAX_UPLOAD_SIZE/1024)/tv_interval($t0)), " KB/s]\e[J\r";
+	#print "[",int(($NNTP_MAX_UPLOAD_SIZE/1024)/tv_interval($t0)), " KB/s]\e[J\r";
       }else {
 	last;
       }
     }
   }
+  
   for my $socket (@$connectionList){
     if ($socket->connected){
       _print_args_to_socket($socket, "QUIT", $CRLF);
@@ -495,6 +506,14 @@ sub _start_upload{
   }
   usleep(100);
   kill 'TERM', $readPid;
+}
+
+sub _print_progress{
+  my @progressMeter = ('-','\\','|','/');
+  #print("%2.0f%% \r", $_[0]*100);
+
+  #print "[",$progressMeter[$_[1]%@progressMeter],"]\r";
+
 }
 
 sub _get_xml_escaped_string{
@@ -533,7 +552,6 @@ sub _create_nzb{
 #  print $ofh "</meta>\n";
   print $ofh "</head>\n";
   for my $filename (sort keys %files) {
-
     my @segments = @{$files{$filename}};
     my $time=time();
     print $ofh "<file poster=\"$from\" date=\"$time\" subject=\"&quot;".$filename."&quot; yEnc (1/",scalar(@segments),") \">\n";
@@ -555,7 +573,6 @@ sub _create_nzb{
   print $ofh "</nzb>\n";
   
 }
-
 
 
 sub _launch_upload_read_process{
