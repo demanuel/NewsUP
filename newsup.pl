@@ -187,6 +187,8 @@ my $CRLF="\x0D\x0A";
 my %MESSAGE_IDS=();
 
 
+$SIG{PIPE}='IGNORE';
+
 my $CURRENT_OPEN_FILE;
 my $CURRENT_OPEN_FILE_FH;
 my $CURRENT_OPEN_FILE_SIZE=0;
@@ -383,8 +385,11 @@ sub main{
   my @nzbParts = @{$uploadParts};
   
   my $init = time;
-  my $readPid = _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $uploadParts);
-  
+  eval{
+    _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $uploadParts);
+  };
+  warn $@ if $@;
+
   my $time = time()-$init;
   say "Operation completed ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Avg. Speed: [".int($size/$time)." KBytes/Sec]";
 
@@ -419,41 +424,29 @@ sub _start_header_check{
       $userpasswd, $from, $commentsRef, $missingSegmentsRef) = @_;
   
   my @missingSegments= @$missingSegmentsRef;
+  my %IDTable = ();
+  
   while (@missingSegments>0) {
     my $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
-    my $select = IO::Select->new();
-    $select->add($_) for (@$connectionList);
-    
-    while ($select->count()>0) {
-      my @ready = $select->can_write(1/100);
-      for my $socket (@ready) {
-	_print_args_to_socket($socket, "GROUP ",$newsGroupsRef->[0],$CRLF);
-	_read_from_socket($socket);
-	$select->remove($socket);
-      }
-    }
-    
-    #      say "Authenticate and in group!";
-    
     my @tempSegments = ();
     for my $i (0..@missingSegments-1) {
       my $part = $missingSegments[$i];
-      my $socket = $connectionList->[$i%$headerCheckConnections];
-      _print_args_to_socket($socket, "head <",$part->{id},'>',$CRLF);
+      my $idx = $i%$headerCheckConnections;
+      my $socket = $connectionList->[$idx];
+
+      if (!exists $IDTable{$part->{id}}) {
+	$IDTable{$part->{id}}=$part;
+      }
+      
+      _print_args_to_socket($socket, "stat <",$part->{id},'>',$CRLF);
+
       my $output = _read_from_socket($socket);
       print int(($i / @missingSegments)*100),"%\e[J\r";
-      if ($output =~ /^221/) {
-	do {
-	  $output = _read_from_socket($socket);
-	  chomp $output;
-	  $output =~ s/\r//g;
-	  
-	}while ($output ne '.');
-	
-      }else {
-	push @tempSegments, $part if ($output !~ /^221/);	  
+      if ($output !~ /^223/) {
+	push @tempSegments, $part;
       }
     }
+    
     @missingSegments = @tempSegments;
     say "There are ".scalar @tempSegments." segments missing!";
     for my $socket (@$connectionList){
@@ -462,7 +455,7 @@ sub _start_header_check{
     }
     
     if (@missingSegments > 0) {
-      $connections = scalar @missingSegments if ($connections > @missingSegments);
+      $connections = scalar @missingSegments if ($connections > scalar @missingSegments);
       _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, \@tempSegments);
     }
     
@@ -474,29 +467,33 @@ sub _start_upload{
   my ($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $parts) = @_;
 
   my $connectionList = _get_connections($connections, $server, $port, $username, $userpasswd);
-  my $select = IO::Select->new();
-  $select->add($_) for @$connectionList;
-
+  # my $select = IO::Select->new();
+  # $select->add($_) for @$connectionList;
+  
   my $newsgroups = join(',',@$newsGroupsRef);
   my $totalParts=scalar @$parts;
   my $currentPart = 0;
-  my $readPid = _launch_upload_read_process($select);
+  my $readPid = _launch_upload_read_process($connectionList);
 
+  my $idx = 0;
   while (@$parts > 0) {
-    my @ready = $select->can_write(1/1000);
-    for my $socket (@ready) {
-      if (@$parts > 0) {
-	my $part = shift @$parts;
-	my $t0 = [gettimeofday];
-	_print_args_to_socket($socket, "POST", $CRLF);
-	_post_part ($socket, $from, $newsgroups, $commentsRef, $part);
-	print int((++$currentPart / $totalParts)*100),"% [",int(($NNTP_MAX_UPLOAD_SIZE/1024)/tv_interval($t0)), " KB/s]\e[J\r";
-	#print "[",int(($NNTP_MAX_UPLOAD_SIZE/1024)/tv_interval($t0)), " KB/s]\e[J\r";
-      }else {
-	last;
-      }
-    }
+    my $socket = $connectionList->[$idx++%$connections];
+    my $part = shift @$parts;
+
+    my $t0 = [gettimeofday];
+    if (_print_args_to_socket($socket, "POST", $CRLF)) {
+      say "Connection died. Recreating connection!";
+      $socket = _get_connections(1, $server, $port, $username, $userpasswd)->[0];
+      @$connectionList[$idx%$connections]=$socket;
+      _print_args_to_socket($socket, "POST", $CRLF);
+    } 
+    _post_part ($socket, $from, $newsgroups, $commentsRef, $part);
+    
+
+    print int((++$currentPart / $totalParts)*100),"% [",int(($NNTP_MAX_UPLOAD_SIZE/1024)/tv_interval($t0)), " KB/s]\e[J\r";
   }
+
+#  say "SENDING QUIT";
   
   for my $socket (@$connectionList){
     if ($socket->connected){
@@ -575,9 +572,10 @@ sub _create_nzb{
 }
 
 
+
 sub _launch_upload_read_process{
 
-  my ($readSelect) = @_;
+  my ($connectionList) = @_;
   my $pid;
   unless (defined($pid = fork())) {
     say "cannot fork: $!";
@@ -588,31 +586,28 @@ sub _launch_upload_read_process{
   }
 
 
-  $SIG{TERM} = sub{
-    my @handles = $readSelect->handles;
-    for my $socket (@handles) {
-      shutdown($socket, 2);
-      $readSelect->remove($socket);
-    }
-    exit 0;
-  };
-  
+  my $idx = 0;
+  my $totalConnections = scalar @$connectionList;
   while (1) {
-    my @ready = $readSelect->can_read(1/10);
-    for my $socket (@ready) {
-      my $output = _read_from_socket($socket);
+    #my @ready = $readSelect->can_read(1/10);
+    my $socket = $connectionList->[$idx++%$totalConnections];
+    my $output = _read_from_socket($socket);
       chomp $output;
-      #say "[$output]";
-      if ($output =~ /205/) {
-	$readSelect->remove($socket);
-      }elsif ($output =~ /400 /) {
-	$readSelect->remove($socket);
-	shutdown($socket, 2);
-      }elsif ($output !~ /^(240|340)/) {
-	die "Unable to post: $output";
-      }
+#      say "[$output]";
+    if ($output =~ /^205/ || $output =~ /^400/) {
+      #      $readSelect->remove($socket);
+      my @connections = @$connectionList;
+      splice @connections, $idx%$totalConnections,1;
+      $connectionList = \@connections;
+      $totalConnections -= 1; 
+      shutdown($socket, 2) if $output =~ /^400/;
+      last if $totalConnections == 0;
+      
+    }elsif ($output !~ /^(240|340)/) {
+      die "Unable to post: $output";
     }
   }
+  
   #Just to make sure it dies... We don't want this to jump to another function
   exit 0;
 }
@@ -628,17 +623,17 @@ sub _post_part{
     $subject = $commentsRef->[0]." $subject" ;
     $subject .= ' ['.$commentsRef->[1].']' if(scalar(@$commentsRef)>0 && defined $commentsRef->[1] && $commentsRef->[1] ne '');
   }
-  _print_args_to_socket($socket,
-			"From: ",$from,$CRLF,
-			"Newsgroups: ",$newsgroups,$CRLF,
-			"Subject: ",$subject,$CRLF,
-			"Message-ID: <", $part->{id},">",$CRLF,
-			$CRLF,
-			"=ybegin part=", $part->{segmentNumber}, " total=",$part->{totalSegments}," line=", $YENC_NNTP_LINESIZE, " size=", $CURRENT_OPEN_FILE_SIZE, " name=",$baseName,$CRLF,
-			"=ypart begin=",$startPosition," end=",tell $CURRENT_OPEN_FILE_FH, $CRLF,
-			$encoded_data->[0],$CRLF,
-			"=yend size=",$data->[1], " pcrc32=",sprintf("%x",$encoded_data->[1]),$CRLF,'.',$CRLF
-		       );
+  return _print_args_to_socket($socket,
+			       "From: ",$from,$CRLF,
+			       "Newsgroups: ",$newsgroups,$CRLF,
+			       "Subject: ",$subject,$CRLF,
+			       "Message-ID: <", $part->{id},">",$CRLF,
+			       $CRLF,
+			       "=ybegin part=", $part->{segmentNumber}, " total=",$part->{totalSegments}," line=", $YENC_NNTP_LINESIZE, " size=", $CURRENT_OPEN_FILE_SIZE, " name=",$baseName,$CRLF,
+			       "=ypart begin=",$startPosition," end=",tell $CURRENT_OPEN_FILE_FH, $CRLF,
+			       $encoded_data->[0],$CRLF,
+			       "=yend size=",$data->[1], " pcrc32=",sprintf("%x",$encoded_data->[1]),$CRLF,'.',$CRLF
+			      );
   
   
   
@@ -673,17 +668,23 @@ sub _print_args_to_socket{
   # }
   
   # use bytes;
+  return 1 if !$socket->connected;
   
-  for (@args){
-    my $len = length $_;
+  for my $arg (@args){
+    my $len = length $arg;
     my $offset = 0;
+
     while ($len) {
-      my $written = $socket->syswrite($_, $len, $offset);
+      my $written = syswrite($socket, $arg, $len, $offset);
+
+      #my $written = $socket->syswrite();
       return 1 unless($written); 
       $len -= $written;
       $offset += $written;
     }
   }
+
+  return 0;
   # if ($socket->connected) {
   #   print $socket @args;
   #   return 0;
@@ -835,7 +836,8 @@ sub _create_socket{
   $socket->autoflush(1);
   
   #Set read/write timeout
-  my $timeout  = pack( 'l!l!', 30, 0); #$seconds, $useconds;
+#  my $timeout  = pack( 'l!l!', 30, 0); #$seconds, $useconds;
+  #  say "timeout: '$timeout'";
 #  $socket->setsockopt( SOL_SOCKET, SO_RCVTIMEO, $timeout ); #reading timeout
 #  $socket->setsockopt( SOL_SOCKET, SO_SNDTIMEO, $timeout ); #sending timeout
   return $socket;
