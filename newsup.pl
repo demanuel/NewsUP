@@ -424,7 +424,7 @@ sub _start_header_check{
       $userpasswd, $from, $commentsRef, $missingSegmentsRef) = @_;
   
   my @missingSegments= @$missingSegmentsRef;
-  my %IDTable = ();
+  # my %IDTable = ();
   
   while (@missingSegments>0) {
     my $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
@@ -434,9 +434,9 @@ sub _start_header_check{
       my $idx = $i%$headerCheckConnections;
       my $socket = $connectionList->[$idx];
 
-      if (!exists $IDTable{$part->{id}}) {
-	$IDTable{$part->{id}}=$part;
-      }
+      # if (!exists $IDTable{$part->{id}}) {
+      # 	$IDTable{$part->{id}}=$part;
+      # }
       
       _print_args_to_socket($socket, "stat <",$part->{id},'>',$CRLF);
 
@@ -483,8 +483,18 @@ sub _start_upload{
     my $t0 = [gettimeofday];
     if (_print_args_to_socket($socket, "POST", $CRLF)) {
       say "Connection died. Recreating connection!";
-      $socket = _get_connections(1, $server, $port, $username, $userpasswd)->[0];
-      @$connectionList[$idx%$connections]=$socket;
+      my $newConnections = 0;
+      my @newConnections = ();
+      for my $sock (@$connectionList) {
+	if ($sock->connected){
+	  push @newConnections, $sock;
+	}else {
+	  ++$newConnections;
+	}
+      }
+      push @newConnections, @{_get_connections($newConnections, $server, $port, $username, $userpasswd)};
+      $socket = $newConnections[$idx%$connections]; 
+      $connectionList=\@newConnections;
       _print_args_to_socket($socket, "POST", $CRLF);
     } 
     _post_part ($socket, $from, $newsgroups, $commentsRef, $part);
@@ -818,7 +828,7 @@ sub _create_socket{
 				   SSL_verify_mode=>SSL_VERIFY_NONE,
 				   SSL_version=>'TLSv1_2',
 				   Blocking => 1,
-				   Timeout=> 20, #connection timeout
+				   Timeout=> 5, #connection timeout
 				   #SSL_version=>'TLSv1_2',
 				   #SSL_cipher_list=>'DHE-RSA-AES128-SHA',
 				   SSL_ca_path=>'/etc/ssl/certs',
@@ -829,7 +839,7 @@ sub _create_socket{
 				     PeerPort => $port,
 				     Blocking => 1,
 				     Proto => 'tcp',
-				     Timeout => 20, #connection timeout
+				     Timeout => 5, #connection timeout
 				    ) or die "Error: Failed to connect : $!\n";
   }
   
