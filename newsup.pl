@@ -35,7 +35,7 @@ use POSIX qw/ceil/;
 use IO::Socket::INET;
 use IO::Socket::SSL;# qw(debug2);
 use File::Path qw(remove_tree);
-use IO::Select;
+use Carp;
 use Inline C => <<'C_CODE';
 #include <stdint.h>;
 static uint32_t crc32_tab[] = {
@@ -385,10 +385,7 @@ sub main{
   my @nzbParts = @{$uploadParts};
   
   my $init = time;
-  eval{
-    _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $uploadParts);
-  };
-  warn $@ if $@;
+  _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $uploadParts);
 
   my $time = time()-$init;
   say "Operation completed ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Avg. Speed: [".int($size/$time)." KBytes/Sec]";
@@ -424,7 +421,6 @@ sub _start_header_check{
       $userpasswd, $from, $commentsRef, $missingSegmentsRef) = @_;
   
   my @missingSegments= @$missingSegmentsRef;
-  # my %IDTable = ();
   
   while (@missingSegments>0) {
     my $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
@@ -434,12 +430,8 @@ sub _start_header_check{
       my $idx = $i%$headerCheckConnections;
       my $socket = $connectionList->[$idx];
 
-      # if (!exists $IDTable{$part->{id}}) {
-      # 	$IDTable{$part->{id}}=$part;
-      # }
-      
       _print_args_to_socket($socket, "stat <",$part->{id},'>',$CRLF);
-
+      
       my $output = _read_from_socket($socket);
       print int(($i / @missingSegments)*100),"%\e[J\r";
       if ($output !~ /^223/) {
@@ -473,13 +465,12 @@ sub _start_upload{
   my $newsgroups = join(',',@$newsGroupsRef);
   my $totalParts=scalar @$parts;
   my $currentPart = 0;
-  my $readPid = _launch_upload_read_process($connectionList);
+  #my $readPid = _launch_upload_read_process($connectionList);
 
   my $idx = 0;
   while (@$parts > 0) {
     my $socket = $connectionList->[$idx++%$connections];
     my $part = shift @$parts;
-
     my $t0 = [gettimeofday];
     if (_print_args_to_socket($socket, "POST", $CRLF)) {
       say "Connection died. Recreating connection!";
@@ -492,18 +483,19 @@ sub _start_upload{
 	  ++$newConnections;
 	}
       }
-      push @newConnections, @{_get_connections($newConnections, $server, $port, $username, $userpasswd)};
+       push @newConnections, @{_get_connections($newConnections, $server, $port, $username, $userpasswd)};
       $socket = $newConnections[$idx%$connections]; 
       $connectionList=\@newConnections;
       _print_args_to_socket($socket, "POST", $CRLF);
-    } 
+    }
+
     _post_part ($socket, $from, $newsgroups, $commentsRef, $part);
-    
+
+    my $output = _read_from_socket($socket);
+    croak "Unable to send $output $output" if ($output !~ /^(2|3)40 |^500 |^441 /);
 
     print int((++$currentPart / $totalParts)*100),"% [",int(($NNTP_MAX_UPLOAD_SIZE/1024)/tv_interval($t0)), " KB/s]\e[J\r";
   }
-
-#  say "SENDING QUIT";
   
   for my $socket (@$connectionList){
     if ($socket->connected){
@@ -511,17 +503,9 @@ sub _start_upload{
       shutdown ($socket, 2);
     }
   }
-  usleep(100);
-  kill 'TERM', $readPid;
-}
-
-sub _print_progress{
-  my @progressMeter = ('-','\\','|','/');
-  #print("%2.0f%% \r", $_[0]*100);
-
-  #print "[",$progressMeter[$_[1]%@progressMeter],"]\r";
 
 }
+
 
 sub _get_xml_escaped_string{
   my $string = shift;
@@ -539,6 +523,11 @@ sub _get_xml_escaped_string{
 sub _create_nzb{
   my ($from, $nzbName, $parts, $newsGroups, $meta)=@_;
   $from = _get_xml_escaped_string($from);
+  if ($nzbName !~ /\.nzb$/i) {
+    $nzbName .='.nzb';
+  }
+
+  
   my %files=();
 
   for my $segment (@$parts) {
@@ -581,46 +570,6 @@ sub _create_nzb{
   
 }
 
-
-
-sub _launch_upload_read_process{
-
-  my ($connectionList) = @_;
-  my $pid;
-  unless (defined($pid = fork())) {
-    say "cannot fork: $!";
-    return -1;
-  }
-  elsif ($pid) {
-    return $pid; # I'm the parent
-  }
-
-
-  my $idx = 0;
-  my $totalConnections = scalar @$connectionList;
-  while (1) {
-    #my @ready = $readSelect->can_read(1/10);
-    my $socket = $connectionList->[$idx++%$totalConnections];
-    my $output = _read_from_socket($socket);
-      chomp $output;
-#      say "[$output]";
-    if ($output =~ /^205/ || $output =~ /^400/) {
-      #      $readSelect->remove($socket);
-      my @connections = @$connectionList;
-      splice @connections, $idx%$totalConnections,1;
-      $connectionList = \@connections;
-      $totalConnections -= 1; 
-      shutdown($socket, 2) if $output =~ /^400/;
-      last if $totalConnections == 0;
-      
-    }elsif ($output !~ /^(240|340)/) {
-      die "Unable to post: $output";
-    }
-  }
-  
-  #Just to make sure it dies... We don't want this to jump to another function
-  exit 0;
-}
 
 sub _post_part{
   my ($socket, $from, $newsgroups, $commentsRef, $part) = @_;
@@ -714,7 +663,7 @@ sub _read_from_socket{
   
   return "400 Socket closed" if (! $socket->connected);
   while (1) {
-      my $status = $socket->read($buffer,1);
+      my $status = sysread($socket, $buffer,1024);
       $output.= $buffer;
       if ($output =~ /\r\n\z/){
 	last;
