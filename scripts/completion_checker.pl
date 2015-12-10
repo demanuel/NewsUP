@@ -109,7 +109,7 @@ sub verify_nzbs{
       
       my $subject = $file->getAttribute('subject');
       my $correctSegments = 1;
-      $subject =~ /"(.*)".*yenc \(1\/(\d+)\)/;
+      $subject =~ /"(.*)".*yenc \(1\/(\d+)\)/i;
       my $fileName = $1;
       $correctSegments = $2;
       
@@ -159,10 +159,12 @@ sub _verify_segments{
     
     my $segmentID = $_->textContent;
     print $socket "stat <$segmentID>\r\n";
-    sysread($socket, $output, 8192);
-    chomp $output;
-	say $output;
-    $existingSegments +=1 if (substr($output,0,3) == 223);
+    do{
+      sysread($socket, $output, 8192);
+      chomp $output;
+      say $output;
+      $existingSegments +=1 if (substr($output,0,3) == 223);
+      }while($output eq '');
   }
   return $existingSegments;
 
