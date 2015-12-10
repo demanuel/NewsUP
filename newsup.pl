@@ -492,7 +492,7 @@ sub _start_upload{
     _post_part ($socket, $from, $newsgroups, $commentsRef, $part);
 
     my $output = _read_from_socket($socket);
-    croak "Unable to send $output $output" if ($output !~ /^(2|3)40 |^500 |^441 /);
+    croak "Unable to send $output $output" if ($output !~ /^(2|3)40 /);
 
     print int((++$currentPart / $totalParts)*100),"% [",int(($NNTP_MAX_UPLOAD_SIZE/1024)/tv_interval($t0)), " KB/s]\e[J\r";
   }
