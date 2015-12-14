@@ -174,8 +174,6 @@ PATH_TO_PAR2=/usr/bin/par2
 # It's obigatory to terminate on the separator folder char.
 # Don't point this to the folder you have the original files - They will be removed. You are warned!
 TEMP_DIR=/tmp/
-# Par recovery %
-PAR_REDUNDANCY=10
 # Randomize Names
 # The names are toggled. Imagine 3 files: a, b and c. The file a will keep the name. The file b  will exchange name with file c. This is done randomly.
 

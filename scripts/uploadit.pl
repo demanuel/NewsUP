@@ -40,12 +40,16 @@ sub main{
   my $UP_ARGS='';
   my $DELETE=1;
   my $FORCE_RENAME=0;
+  my $SFV=0;
+  my $NFO;
   
   GetOptions('directory=s'=>\$DIRECTORY,
 	     'debug!'=>\$DEBUG,
 	     'args=s'=>\$UP_ARGS,
 	     'delete!'=>\$DELETE,
 	     'group=s'=>\@GROUPS,
+	     'sfv!'=>\$SFV,
+	     'nfo=s'=>\$NFO,
 	     'force_rename|rename!'=>\$FORCE_RENAME);
   
   
@@ -64,11 +68,17 @@ sub main{
 	  say "You need to define a valid path to the rar program. Please change the variable RAR_PATH on the newsup.conf file.";
 	  exit 0;
       }
-      if (!-e $other_configs{PATH_TO_PAR2} && exists $other_configs{ENABLE_PAR_CREATION}>0) {
+      if (exists $other_configs{ENABLE_PAR_CREATION} && $other_configs{ENABLE_PAR_CREATION} && !-e $other_configs{PATH_TO_PAR2}) {
 	  say "You need to define a valid path to par2repair program. Please change the variable PATH_TO_PAR2 on the newsup.conf file.";
-	  say "If you want to disable the creation of the parity files set the option PAR_REDUNDANCY to 0 (zero)";
 	  exit 0;
+	}
+
+      if (!$SFV) {
+
+	$SFV=1 if (exists $other_configs{ENABLE_SFV_GENERATION} && $other_configs{ENABLE_SFV_GENERATION});
+	
       }
+      
       
       # say "Splitting files!";
       my $preProcessedFiles = pre_process_folder ($DIRECTORY, \%other_configs, $DEBUG);
@@ -77,8 +87,11 @@ sub main{
       push @$preProcessedFiles, create_sfv_file(basename($DIRECTORY), $preProcessedFiles, \%other_configs, $DEBUG) if ($other_configs{ENABLE_SFV_GENERATION});
       say Dumper($preProcessedFiles) if $DEBUG;
 
-      
-      if (defined $other_configs{NFO_FILE} && $other_configs{NFO_FILE}) {
+
+      if (defined $NFO && -e $NFO) {
+	push @$preProcessedFiles, $NFO;
+	
+      }elsif (!defined $NFO && defined $other_configs{NFO_FILE} && $other_configs{NFO_FILE}) {
 	my($filename, $dirs, $suffix) = fileparse($other_configs{NFO_FILE}, '.nfo');
 	
 	cp($other_configs{NFO_FILE}, $other_configs{TEMP_DIR});

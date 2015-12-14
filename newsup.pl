@@ -492,7 +492,7 @@ sub _start_upload{
     _post_part ($socket, $from, $newsgroups, $commentsRef, $part);
 
     my $output = _read_from_socket($socket);
-    croak "Unable to send $output $output" if ($output !~ /^(2|3)40 /);
+    croak "Unable to send $output $output" if ($output !~ /^(2|3)40|400 /);
 
     print int((++$currentPart / $totalParts)*100),"% [",int(($NNTP_MAX_UPLOAD_SIZE/1024)/tv_interval($t0)), " KB/s]\e[J\r";
   }
@@ -628,29 +628,33 @@ sub _print_args_to_socket{
   
   # use bytes;
   return 1 if !$socket->connected;
+
+  #Note: using syswrite or print is the same (im assuming if we don't disable nagle's algorithm):
+  # Network Programming with Perl. Page: 311.
+  #So I'm going to use the simplest code.
   
-  for my $arg (@args){
-    my $len = length $arg;
-    my $offset = 0;
+  # Using syswrite
+  
+  # for my $arg (@args){
+  #   my $len = length $arg;
+  #   my $offset = 0;
 
-    while ($len) {
-      my $written = syswrite($socket, $arg, $len, $offset);
+  #   while ($len) {
+  #     my $written = syswrite($socket, $arg, $len, $offset);
 
-      #my $written = $socket->syswrite();
-      return 1 unless($written); 
-      $len -= $written;
-      $offset += $written;
-    }
-  }
-
-  return 0;
-  # if ($socket->connected) {
-  #   print $socket @args;
-  #   return 0;
+  #     #my $written = $socket->syswrite();
+  #     return 1 unless($written); 
+  #     $len -= $written;
+  #     $offset += $written;
+  #   }
   # }
-  # else {
-  #   return 1;
-  # }
+
+  # return 0;
+
+  #Using print
+  return 0 if (print $socket @args);
+  return 1;
+
 }
 
 
@@ -777,7 +781,7 @@ sub _create_socket{
 				   SSL_verify_mode=>SSL_VERIFY_NONE,
 				   SSL_version=>'TLSv1_2',
 				   Blocking => 1,
-				   Timeout=> 5, #connection timeout
+				   Timeout=> 30, #connection timeout
 				   #SSL_version=>'TLSv1_2',
 				   #SSL_cipher_list=>'DHE-RSA-AES128-SHA',
 				   SSL_ca_path=>'/etc/ssl/certs',
@@ -788,7 +792,7 @@ sub _create_socket{
 				     PeerPort => $port,
 				     Blocking => 1,
 				     Proto => 'tcp',
-				     Timeout => 5, #connection timeout
+				     Timeout => 30, #connection timeout
 				    ) or die "Error: Failed to connect : $!\n";
   }
   
