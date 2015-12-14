@@ -59,6 +59,12 @@ perl uploadit.pl -directory my_folder -a "-com \"extra arguments for newsup.pl\"
 This will create a bunch of rars (check the rar configuration) of the dirctory "my_folder". It will also print a bunch of debug messages. 
 You need to configure the path to the rar, par2 utilities, temporary folder and to newsup.pl on the newsup.conf file.
 
+```
+perl uploadit.pl -directory my_folder -a "-com \"extra arguments for newsup.pl\"" -debug -sfv -nfo <path to nfo file>
+```
+The same as the example above but this time it will create SFV file, and it will upload a nfo file.
+
+
 * completion_checker.pl - this script will check the completion of all files in a NZB:
 ```
 perl completion_checker.pl -nzb my_nzb_file.nzb -server my_server.com -port 444 -user newsup -passwd newsup
