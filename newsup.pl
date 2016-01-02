@@ -747,7 +747,7 @@ sub _authenticate{
   my $firstReadSelect = IO::Select->new(@connectionList);
   my $firstWriteSelect = IO::Select->new(@connectionList);
   while ($firstReadSelect->count()>0) {
-    for my $sock ($firstReadSelect->can_read(0.1)) {
+    for my $sock ($firstReadSelect->can_read(0.01)) {
       $firstReadSelect->remove($sock);
       _read_from_socket $sock;
     }
@@ -755,7 +755,7 @@ sub _authenticate{
   
   while ($firstWriteSelect->count()>0) {
 
-    for my $sock ($firstWriteSelect->can_write(0.1)) {
+    for my $sock ($firstWriteSelect->can_write(0.01)) {
       $firstWriteSelect->remove($sock);
       die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo user ",$user,$CRLF) != 0);
     }
@@ -765,7 +765,7 @@ sub _authenticate{
 
   my $readSelect = IO::Select->new(@connectionList);
   while ($readSelect->count()>0) {
-    for my $sock ($readSelect->can_read(0.1)) {
+    for my $sock ($readSelect->can_read(0.01)) {
       $readSelect->remove($sock);
       my $output= _read_from_socket $sock;
       die "Error: $output" if ( $output !~ /^381/);
@@ -773,14 +773,14 @@ sub _authenticate{
   }
   my $writeSelect = IO::Select->new(@connectionList);
   while ($writeSelect->count()>0) {
-    for my $sock ($writeSelect->can_write(0.1)) {
+    for my $sock ($writeSelect->can_write(0.01)) {
       $writeSelect->remove($sock);
       die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo pass ",$password,$CRLF) != 0);
     }
   }
   my $secondReadSelect = IO::Select->new(@connectionList);
   while ($secondReadSelect->count()>0) {
-    for my $sock ($secondReadSelect->can_read(0.1)) {
+    for my $sock ($secondReadSelect->can_read(0.01)) {
       $secondReadSelect->remove($sock);
       my $output= _read_from_socket $sock;
       die "Error: $output" if ( $output !~ /^281/);
