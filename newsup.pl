@@ -34,6 +34,7 @@ use IO::Socket::SSL;# qw(debug2);
 use File::Path qw(remove_tree);
 use Carp;
 use IO::Select;
+
 use Inline C => <<'C_CODE';
 #include <stdint.h>;
 static uint32_t crc32_tab[] = {
@@ -93,7 +94,6 @@ AV* _yenc_encode_c(unsigned char* data, size_t data_size)
 	unsigned char c;
 	int i;
 	unsigned int crc32 = 0xFFFFFFFF;
-
 
 
 	if (NULL == (encbuffer = malloc(data_size << 1)))
@@ -161,15 +161,13 @@ AV* _yenc_encode_c(unsigned char* data, size_t data_size)
 	encoded_size++;
 	crc32 = crc32 ^ 0xFFFFFFFF;
         encbuffer = (char*) realloc(encbuffer, encoded_size);
-	AV* ret = newAV();
-	av_push(ret, newSVpv(encbuffer, 0));
+        SV* yenc_string = newSVpv(encbuffer, 0);
+	SV* ret = sv_2mortal(newAV());
+	av_push(ret, yenc_string);
 	av_push(ret, newSVuv(crc32));
         free(encbuffer);
-	return ret;
+        return ret;
 }
-
-
-
 
 C_CODE
 
@@ -196,20 +194,21 @@ my $CURRENT_OPEN_FILE_SIZE=0;
 sub _parse_command_line{
 
   my ($server, $port, $username,$userpasswd,
-      @filesToUpload, $threads, @comments,
-      $from, $headerCheck, $headerCheckSleep,
-      $headerCheckServer, $headerCheckPort,
-      $headerCheckUserName, $headerCheckPassword,
-      $headerCheckRetries, $headerCheckConnections,
-      $nzbName);
+      $threads, $from, $headerCheck,
+      $headerCheckSleep, $headerCheckServer,
+      $headerCheckPort, $headerCheckUserName,
+      $headerCheckPassword, $headerCheckRetries,
+      $headerCheckConnections, $nzbName);
 
   #Parameters with default values
   my $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';
 
   #default value
+  my @filesToUpload=();
   my @newsGroups = ();
   my %metadata=();
-    
+  my @comments=();
+  
   GetOptions('server=s'=>\$server,
 	     'port=i'=>\$port,
 	     'username=s'=>\$username,
@@ -221,7 +220,7 @@ sub _parse_command_line{
 	     'connections=i'=>\$threads,
 	     'metadata=s'=>\%metadata,
 	     'nzb=s'=>\$nzbName,
-	     'headerCheck'=>\$headerCheck,
+	     'headerCheck=i'=>\$headerCheck,
 	     'headerCheckSleep=i'=>\$headerCheckSleep,
 	     'headerCheckServer=s'=>\$headerCheckServer,
 	     'headerCheckPort=i'=>\$headerCheckPort,
@@ -384,11 +383,11 @@ sub main{
   
   my $init = time;
   _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $uploadParts);
-
+  undef $uploadParts;
+  
   my $time = time()-$init;
   say "Operation completed ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Avg. Speed: [".int($size/$time)." KBytes/Sec]";
   if ($headerCheck) {
-#    my $headerCheckConnections=3;
     my @missingSegments = @nzbParts;
 
     $init = time();
@@ -451,6 +450,7 @@ sub _start_header_check{
 	    $statSelect->add($socket);
 	  }elsif ($output =~ /^400 /) {
 	    shutdown ($socket, 2);
+	    undef $socket;
 	    my $conList = _get_connections(1, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
 	    $statSelect->add($conList->[0]);
 	  }else {
@@ -461,12 +461,21 @@ sub _start_header_check{
     }
     
     @missingSegments = values %candidates;
-    
+    undef %candidates;
+	
     for my $socket ($statSelect->handles()){
       _print_args_to_socket($socket, "QUIT", $CRLF) ;
       shutdown $socket, 2;
     }
+    for my $socket ($readSelect->handles()){
+      _print_args_to_socket($socket, "QUIT", $CRLF) ;
+      shutdown $socket, 2;
+    }
 
+    undef $statSelect;
+    undef $readSelect;
+
+    
     say "There are ", scalar @missingSegments, " segments missing";
     
     if (@missingSegments > 0) {
@@ -475,11 +484,12 @@ sub _start_header_check{
       
       my @tempSegments = @missingSegments;
       _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, \@tempSegments);
-
+      undef @tempSegments;
     }else {
       last;
     }
   }
+  undef @missingSegments;
 }
 
 
@@ -523,6 +533,7 @@ sub _start_upload{
       }else {
 	print "Read after post: $output";
       }
+      undef $output;
     }
 
     for my $socket ($articleSelect->can_write(1/1000)) {
@@ -533,9 +544,10 @@ sub _start_upload{
 	_post_part ($socket, $from, $newsgroups, $commentsRef, $part);
 
 	$readArticleSelect->add($socket);
+	undef $part;
       }
     }
-
+	
     for my $socket ($readArticleSelect->can_read(1/1000)) {
       my $output = _read_from_socket($socket);
       $readArticleSelect->remove($socket);
@@ -548,10 +560,11 @@ sub _start_upload{
 	print "Read after article: $output";
       }
       $postSelect->add($socket);
+      undef $output;
     }
     print int(($currentPart / $totalParts)*100),"%\r";
   }
-  
+  #close $CURRENT_OPEN_FILE_FH;
   for my $socket (@$connectionList){
     if ($socket->connected){
       _print_args_to_socket($socket, "QUIT", $CRLF);
@@ -562,12 +575,15 @@ sub _start_upload{
 
 sub _get_xml_escaped_string{
   my $string = shift;
+  my %replacements=('&'=>'&amp;', '<' => '&lt;', '>' => '&gt;','"' => '&quot;', "'"=>'&apos;' );
 
-  $string=~ s/&/&amp;/g;
-  $string=~ s/</&lt;/g;
-  $string=~ s/>/&gt;/g;
-  $string=~ s/"/&quot;/g;
-  $string=~ s/'/&apos;/g;
+  $string =~ s/('|&|<|>|")/$replacements{$1}/g;
+  
+#  $string=~ s/&/&amp;/g;
+#  $string=~ s/</&lt;/g;
+#  $string=~ s/>/&gt;/g;
+#  $string=~ s/"/&quot;/g;
+#  $string=~ s/'/&apos;/g;
 
   return $string;
 }
@@ -628,40 +644,38 @@ sub _post_part{
   my ($socket, $from, $newsgroups, $commentsRef, $part) = @_;
   my $baseName = fileparse($part->{fileName});
   my $startPosition=1+$NNTP_MAX_UPLOAD_SIZE*($part->{segmentNumber}-1);
-  my $data = _get_file_data($part->{fileName});
-  my $encoded_data = _yenc_encode_c($data->[0], $data->[1]);
+  my ($binString, $readSize, $endPosition, $fileSize) = _get_file_data($part->{fileName}, $startPosition-1);
+  my $yenc = _yenc_encode_c($binString, $readSize);
+  my ($yenc_data, $crc32_data) = @{$yenc};
+  
   my $subject = '['.$part->{fileNumber}.'/'.$part->{totalFiles}.'] - "'.$baseName.'" ('.$part->{segmentNumber}.'/'.$part->{totalSegments}.')';
   if(defined $commentsRef && scalar(@$commentsRef)>0 && defined $commentsRef->[0] && $commentsRef->[0] ne ''){
     $subject = $commentsRef->[0]." $subject" ;
     $subject .= ' ['.$commentsRef->[1].']' if(scalar(@$commentsRef)>0 && defined $commentsRef->[1] && $commentsRef->[1] ne '');
   }
-  return _print_args_to_socket($socket,
-			       "From: ",$from,$CRLF,
-			       "Newsgroups: ",$newsgroups,$CRLF,
-			       "Subject: ",$subject,$CRLF,
-			       "Message-ID: <", $part->{id},">",$CRLF,
-			       $CRLF,
-			       "=ybegin part=", $part->{segmentNumber}, " total=",$part->{totalSegments}," line=", $YENC_NNTP_LINESIZE, " size=", $CURRENT_OPEN_FILE_SIZE, " name=",$baseName,$CRLF,
-			       "=ypart begin=",$startPosition," end=",tell $CURRENT_OPEN_FILE_FH, $CRLF,
-			       $encoded_data->[0],$CRLF,
-			       "=yend size=",$data->[1], " pcrc32=",sprintf("%x",$encoded_data->[1]),$CRLF,'.',$CRLF
-			      );
+  
+  _print_args_to_socket($socket,
+			"From: ",$from, $CRLF,
+			"Newsgroups: ",$newsgroups,$CRLF,
+			"Subject: ",$subject,$CRLF,
+			"Message-ID: <", $part->{id},">",$CRLF,$CRLF,
+			"=ybegin part=", $part->{segmentNumber}, " total=",$part->{totalSegments}," line=", $YENC_NNTP_LINESIZE, " size=", $fileSize, " name=",$baseName, $CRLF,
+			"=ypart begin=",$startPosition," end=", $endPosition, $CRLF,
+			$yenc_data, $CRLF,
+			"=yend size=",$readSize, " pcrc32=",sprintf("%x",$crc32_data),$CRLF,'.',$CRLF
+		       );
+
 }
 
 sub _get_file_data{
-  my ($fileName) = @_;
-
-  if (!defined $CURRENT_OPEN_FILE || $fileName ne $CURRENT_OPEN_FILE ) {
-    close $CURRENT_OPEN_FILE_FH if defined $CURRENT_OPEN_FILE_FH;
-    $CURRENT_OPEN_FILE = $fileName;
-    open $CURRENT_OPEN_FILE_FH, '<:bytes', $fileName;
-    binmode $CURRENT_OPEN_FILE_FH;
-    $CURRENT_OPEN_FILE_SIZE = -s $fileName;
-  }
-  my $readSize = read($CURRENT_OPEN_FILE_FH, my $byteString, $NNTP_MAX_UPLOAD_SIZE);
-  
-  return [$byteString, $readSize];
-
+  my ($fileName, $position) = @_;
+  open my $fh, '<:bytes', $fileName;
+  binmode $fh;
+  seek $fh, $position,0;
+  my $readSize = read($fh, my $byteString, $NNTP_MAX_UPLOAD_SIZE);
+  my $endPosition = tell $fh;
+  close $fh;
+  return ($byteString, $readSize, $endPosition, -s $fileName);
 }
 
 sub _print_args_to_socket{
@@ -669,14 +683,7 @@ sub _print_args_to_socket{
   my ($socket, @args) = @_;
   local $,;
   local $\;
-
-  # my $counter = 1;
-  # for (@args) {
-  #   say "$counter undefined" if !defined $_;
-  #   $counter++;
-  # }
   
-  # use bytes;
   return 1 if !$socket->connected;
 
   #Note: using syswrite or print is the same (im assuming if we don't disable nagle's algorithm):
@@ -696,9 +703,10 @@ sub _print_args_to_socket{
       return 1 unless($written); 
       $len -= $written;
       $offset += $written;
+      undef $written;
     }
   }
-
+  undef @args;
   return 0;
 
   #Using print
@@ -712,7 +720,7 @@ sub _read_from_socket{
   my ($socket) = @_;
 
  
-  my ($output, $buffer) = ('', '');
+  my $output='';
   my $counter=1;
   
   return "400 Socket closed\r\n" if (! $socket->connected);
@@ -720,8 +728,9 @@ sub _read_from_socket{
   # return <$socket>;
   
   while (1) {
-      my $status = sysread($socket, $buffer,1024);
+      my $status = sysread($socket, my $buffer,1024);
       $output.= $buffer;
+      undef $buffer;
       if ($output =~ /\r\n\z/){
   	last;
       }elsif (!defined $status) {
@@ -734,24 +743,27 @@ sub _read_from_socket{
 
 sub _authenticate{
   my ($connectionList,  $user, $password) = @_;
-  my $readSelect = IO::Select->new(@$connectionList);
-  my $writeSelect = IO::Select->new(@$connectionList);
-  while ($readSelect->count()>0) {
-    for my $sock ($readSelect->can_read(0.1)) {
-      $readSelect->remove($sock);
+  my @connectionList = @{$connectionList};
+  my $firstReadSelect = IO::Select->new(@connectionList);
+  my $firstWriteSelect = IO::Select->new(@connectionList);
+  while ($firstReadSelect->count()>0) {
+    for my $sock ($firstReadSelect->can_read(0.1)) {
+      $firstReadSelect->remove($sock);
       _read_from_socket $sock;
     }
   }
   
-  while ($writeSelect->count()>0) {
+  while ($firstWriteSelect->count()>0) {
 
-    for my $sock ($writeSelect->can_write(0.1)) {
-      $writeSelect->remove($sock);
+    for my $sock ($firstWriteSelect->can_write(0.1)) {
+      $firstWriteSelect->remove($sock);
       die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo user ",$user,$CRLF) != 0);
     }
   }
-  
-  $readSelect = IO::Select->new(@$connectionList);
+  undef $firstReadSelect;
+  undef $firstWriteSelect;
+
+  my $readSelect = IO::Select->new(@connectionList);
   while ($readSelect->count()>0) {
     for my $sock ($readSelect->can_read(0.1)) {
       $readSelect->remove($sock);
@@ -759,22 +771,25 @@ sub _authenticate{
       die "Error: $output" if ( $output !~ /^381/);
     }
   }
-  $writeSelect = IO::Select->new(@$connectionList);
+  my $writeSelect = IO::Select->new(@connectionList);
   while ($writeSelect->count()>0) {
     for my $sock ($writeSelect->can_write(0.1)) {
       $writeSelect->remove($sock);
       die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo pass ",$password,$CRLF) != 0);
     }
   }
-  $readSelect = IO::Select->new(@$connectionList);
-  while ($readSelect->count()>0) {
-    for my $sock ($readSelect->can_read(0.1)) {
-      $readSelect->remove($sock);
+  my $secondReadSelect = IO::Select->new(@connectionList);
+  while ($secondReadSelect->count()>0) {
+    for my $sock ($secondReadSelect->can_read(0.1)) {
+      $secondReadSelect->remove($sock);
       my $output= _read_from_socket $sock;
       die "Error: $output" if ( $output !~ /^281/);
     }
   }
-
+  undef @connectionList;
+  undef $readSelect;
+  undef $writeSelect;
+  undef $secondReadSelect;
 }
 
 sub _authenticate_old{
@@ -829,10 +844,9 @@ sub _split_files{
 		    totalFiles=>scalar(@$files),
 		    id=>"$segmentNumber"._get_message_id(),
 		   };
-      
     }
   }
-
+  undef %MESSAGE_IDS;
   return \@parts;
 }
 
@@ -851,7 +865,6 @@ sub _get_message_id{
   }else {
     return _get_message_id();
   }
-
 }
 
 sub _encode_base36 {
@@ -906,11 +919,6 @@ sub _create_socket{
   }
   $socket->autoflush(1);
 
-  #Set read/write timeout
-#  my $timeout  = pack( 'l!l!', 30, 0); #$seconds, $useconds;
-  #  say "timeout: '$timeout'";
-#  $socket->setsockopt( SOL_SOCKET, SO_RCVTIMEO, $timeout ); #reading timeout
-#  $socket->setsockopt( SOL_SOCKET, SO_SNDTIMEO, $timeout ); #sending timeout
   return $socket;
 }
 
