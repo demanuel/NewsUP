@@ -554,10 +554,10 @@ sub _start_upload{
 
       if ($output =~ /^400 /) {
 	my $conList = _get_connections(1, $server, $port, $username, $userpasswd);
-	$postSelect->add($conList->[0]);
+	$socket = $conList->[0];
 	shutdown ($socket, 2);
       }elsif ($output !~ /^240 /) {
-	print "Read after article: $output";
+	say "Read after article: $output";
       }
       $postSelect->add($socket);
       undef $output;
