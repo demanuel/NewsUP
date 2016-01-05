@@ -553,9 +553,10 @@ sub _start_upload{
       $readArticleSelect->remove($socket);
 
       if ($output =~ /^400 /) {
+	shutdown ($socket, 2);
 	my $conList = _get_connections(1, $server, $port, $username, $userpasswd);
 	$socket = $conList->[0];
-	shutdown ($socket, 2);
+
       }elsif ($output !~ /^240 /) {
 	say "Read after article: $output";
       }
