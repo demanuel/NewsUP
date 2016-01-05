@@ -13,6 +13,10 @@ This program is licensed with GPLv3.
 This readme contains the basic info on how to run newsup and it's options.
 For windows installation, or another stuff more specific to some environment/script please check the wiki.
 
+## note 2
+This is developed in a Linux box. I can guarantee that it will work on it. I'm unable to guarantee that the latest version will work on windows.
+For a working solution in windows (with minimal testing on the windows platform) please check the tags W (in the form of Wx.x)
+
 
 ## Alternatives
 * newsmangler (https://github.com/madcowfred/newsmangler)
