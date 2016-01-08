@@ -443,7 +443,7 @@ sub _start_header_check{
       while ($readSelect->count()>0) {
 	for my $socket ($readSelect->can_read(1/1000)) {
 	  my $output = _read_from_socket($socket);
-	  print int((++$countProgress / $totalMissingSegments)*100),"%\e[J\r";
+	  print int((++$countProgress / $totalMissingSegments)*100),"%\r";
 	  $readSelect->remove($socket);
 	  if ($output =~ /^223 \d <(.+)>/) {
 	    delete $candidates{$1};
@@ -484,6 +484,7 @@ sub _start_header_check{
       
       my @tempSegments = @missingSegments;
       _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, \@tempSegments);
+      say "\tUpload of the missing segments done!";
       undef @tempSegments;
     }else {
       last;
@@ -531,7 +532,8 @@ sub _start_upload{
       }elsif($output =~ /340 /) {
 	$articleSelect->add($socket);
       }else {
-	print "Read after post: $output";
+	chomp $output;
+	print "\r\tRead after post: $output";
       }
       undef $output;
     }
@@ -558,14 +560,15 @@ sub _start_upload{
 	$socket = $conList->[0];
 
       }elsif ($output !~ /^240 /) {
-	say "Read after article: $output";
+	chomp $output;
+	say "\tRead after article: $output";
       }
       $postSelect->add($socket);
       undef $output;
     }
     print int(($currentPart / $totalParts)*100),"%\r";
   }
-  #close $CURRENT_OPEN_FILE_FH;
+
   for my $socket (@$connectionList){
     if ($socket->connected){
       _print_args_to_socket($socket, "QUIT", $CRLF);
