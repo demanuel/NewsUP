@@ -454,8 +454,7 @@ sub _start_header_check{
 	    my $conList = _get_connections(1, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
 	    $statSelect->add($conList->[0]);
 	  }else {
-	    chomp $output;
-	    say "\t$output";
+	    #On the header checking, we dont care about other status
 	    $statSelect->add($socket);
 	  }
 	}
@@ -563,7 +562,7 @@ sub _start_upload{
 
       }elsif ($output !~ /^240 /) {
 	chomp $output;
-	say "\tRead after article: $output";
+	warn "Read after article: $output";
       }
       $postSelect->add($socket);
       undef $output;
