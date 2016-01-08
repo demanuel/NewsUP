@@ -454,6 +454,8 @@ sub _start_header_check{
 	    my $conList = _get_connections(1, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
 	    $statSelect->add($conList->[0]);
 	  }else {
+	    chomp $output;
+	    say "\t$output";
 	    $statSelect->add($socket);
 	  }
 	}
