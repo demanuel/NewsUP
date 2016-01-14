@@ -386,6 +386,7 @@ sub main{
   undef $uploadParts;
   
   my $time = time()-$init;
+  $time = 1 if $time==0;
   say "Operation completed ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Avg. Speed: [".int($size/$time)." KBytes/Sec]";
   if ($headerCheck) {
     my @missingSegments = @nzbParts;
@@ -569,6 +570,24 @@ sub _start_upload{
     }
     print int(($currentPart / $totalParts)*100),"%\r";
   }
+  
+  #No more articles.
+  #Now we need to be sure that all sockets are ready for being written
+  # while ($readPostSelect->count()>0) {
+  #   for my $socket ($readPostSelect->can_read(1/1000)) {
+  #     my $output = _read_from_socket($socket);
+  #     $readPostSelect->remove($socket);
+  #     next if ($output =~ /^400 /);
+  #     _print_args_to_socket($socket, ".", $CRLF);
+  #   }
+  # }
+  while ($readArticleSelect->count()>0) {
+    for my $socket ($readArticleSelect->can_read(1/1000)) {
+      my $output = _read_from_socket($socket);
+      $readArticleSelect->remove($socket);
+    }
+  }
+  #All the sockets must be ready for write
 
   for my $socket (@$connectionList){
     if ($socket->connected){
