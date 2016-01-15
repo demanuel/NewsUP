@@ -163,6 +163,9 @@ sub _verify_segments{
       sysread($socket, $output, 8192);
       chomp $output;
       say $output;
+      if ($output =~/^430 /) {
+	say "\tMissing: $segmentID";
+      }
       $existingSegments +=1 if (substr($output,0,3) == 223);
       }while($output eq '');
   }
