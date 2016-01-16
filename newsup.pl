@@ -864,8 +864,8 @@ sub _split_files{
 		    fileSize=> $fileSize,
 		    segmentNumber=>$segmentNumber,
 		    totalSegments=>$totalSegments,
-		    fileNumber=>$fileNumber+1,
-		    totalFiles=>scalar(@$files),
+		    fileNumber=>sprintf("%03d",$fileNumber+1),
+		    totalFiles=>sprintf("%03d",scalar(@$files)),
 		    id=>"$segmentNumber"._get_message_id(),
 		   };
     }
