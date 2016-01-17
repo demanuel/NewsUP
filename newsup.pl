@@ -238,7 +238,6 @@ sub _parse_command_line{
     my $config = Config::Tiny->read( $configurationFile );
     %metadata = %{$config->{metadata}} if exists $config->{metadata};
     $metadata{$_}=$cmdMetadata{$_} for (keys (%cmdMetadata)); #merge metadata from cmd line and from conf file
-
     
     if (!defined $server) {
       $server = $config->{server}{server} if exists $config->{server}{server};
@@ -630,6 +629,8 @@ sub _create_nzb{
     my $basename = fileparse($segment->{fileName});
     my $bytes = $NNTP_MAX_UPLOAD_SIZE;
     $bytes =  $segment-> {fileSize} % $NNTP_MAX_UPLOAD_SIZE if($segment->{segmentNumber} == $segment->{totalSegments});
+    $bytes = $NNTP_MAX_UPLOAD_SIZE if $bytes == 0;
+    
     push @{$files{$basename}},
       "<segment bytes=\"$bytes\" number=\"".$segment->{segmentNumber}."\">".$segment->{id}."</segment>";
   }
