@@ -206,7 +206,9 @@ sub _parse_command_line{
   #default value
   my @filesToUpload=();
   my @newsGroups = ();
-  my %metadata=();
+  
+  my %cmdMetadata=(); #temp var to allocate what the user defines on the command line
+  my %metadata=(); #variable that will contain what the user defines in the conf file and what he will pass on the
   my @comments=();
   
   GetOptions('server=s'=>\$server,
@@ -218,7 +220,7 @@ sub _parse_command_line{
 	     'uploader=s'=>\$from,
 	     'newsgroup|group=s'=>\@newsGroups,
 	     'connections=i'=>\$threads,
-	     'metadata=s'=>\%metadata,
+	     'metadata=s'=>\%cmdMetadata,
 	     'nzb=s'=>\$nzbName,
 	     'headerCheck=i'=>\$headerCheck,
 	     'headerCheckSleep=i'=>\$headerCheckSleep,
@@ -233,9 +235,10 @@ sub _parse_command_line{
 	    );
 
   if (-e $configurationFile) {
-
     my $config = Config::Tiny->read( $configurationFile );
-    %metadata = %{$config->{metadata}};
+    %metadata = %{$config->{metadata}} if exists $config->{metadata};
+    $metadata{$_}=$cmdMetadata{$_} for (keys (%cmdMetadata)); #merge metadata from cmd line and from conf file
+
     
     if (!defined $server) {
       $server = $config->{server}{server} if exists $config->{server}{server};
