@@ -277,8 +277,23 @@ If <bin_file> is a folder, it will transverse the folder searching for files.
 The files will be uploaded. A NZB file with <some_name> will then be created.
 
 
-# Acknowledgements
-* Cavalia88 <cavalier2888 AT outlook DOT com> for his suggesions and his testing on windows platform.
+# Gratitude
+I want to express my gratitude to:
+
+* All the users who use newsup.
+
+* All the users who report bugs, features.
+
+* All the users who send me info for the wiki (or anyone who updates the wiki)
+
+* All the users who spread the word about this project.
+
+* Everyone who sends me an email about this project.
+
+* [XS News](https://www.xsnews.nl/en/index.html) for giving me a test account for free.
+
+* [Newsbin](https://www.newsbin.com) for helping me with small yenc encoding warning.
+
 
 
 
