@@ -857,19 +857,28 @@ sub _get_connections{
 
 sub _split_files{
   my ($files) =@_;
+  my $totalFiles=scalar(@$files);
+  my $digitNumber = split(//,$totalFiles);
+  $digitNumber = 2 if $digitNumber < 2;
+  
+  my $digitString='%0'.$digitNumber.'d';
 
+  
   my @parts = ();
-  for (my $fileNumber=0; $fileNumber < scalar(@$files); $fileNumber++) {
+  for (my $fileNumber=0; $fileNumber < $totalFiles; $fileNumber++) {
     my $fileSize=-s $files->[$fileNumber];
     my $segmentNumber=0;
+    
     my $totalSegments=ceil($fileSize/$NNTP_MAX_UPLOAD_SIZE);
+
+    
     while (++$segmentNumber <= $totalSegments) {
       push @parts, {fileName=> $files->[$fileNumber],
 		    fileSize=> $fileSize,
 		    segmentNumber=>$segmentNumber,
 		    totalSegments=>$totalSegments,
-		    fileNumber=>sprintf("%03d",$fileNumber+1),
-		    totalFiles=>sprintf("%03d",scalar(@$files)),
+		    fileNumber=>sprintf($digitString,$fileNumber+1),
+		    totalFiles=>sprintf($digitString,scalar(@$files)),
 		    id=>"$segmentNumber"._get_message_id(),
 		   };
     }
