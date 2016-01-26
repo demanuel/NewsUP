@@ -30,7 +30,6 @@ use File::Basename;
 use File::Find;
 use File::Copy qw/mv cp/;
 use Time::HiRes qw /time/;
-use Compress::Zlib;
 
 sub main{
   my $DIRECTORY='';
@@ -43,7 +42,8 @@ sub main{
   my $SFV=0;
   my $NFO;
   
-  GetOptions('directory=s'=>\$DIRECTORY,
+  GetOptions('help'=>sub{help();},
+	     'directory=s'=>\$DIRECTORY,
 	     'debug!'=>\$DEBUG,
 	     'args=s'=>\$UP_ARGS,
 	     'delete!'=>\$DELETE,
@@ -283,6 +283,44 @@ sub randomize_archives{
 }
 
 
+
+sub help{
+  say << "END";
+This program is part of NewsUP.
+
+The goal of this program is to make your uploading more easy.
+
+This is an auxiliary script that will compress and/or split the files to be uploaded, 
+create the parity files, create sfv files and finally invoke the newsup to upload the
+files.
+
+Options available:
+\t-directory <folder> = the directory to upload
+
+\t-debug = to show debug messages. Usefull when you're configuring the switches on the several 
+\t\tprograms that this invokes.
+
+\t-args <extra args> = extra args to be passed to newsup. Usually they need to be between double quotes ('"')
+
+\t-delete = if you want the temporary folder (the folder where the compressed/split and pars are
+\t\tgoing to be created) deleted.
+
+\t-group <group> = group to where you want to upload. You can have multiple `group` switches.
+
+\t-sfv = if you want a sfv to be generated.
+
+\t-nfo <.NFO> = if you have a NFO to be uploaded. Usually the .nfo files aren't inside of the rars, so 
+\t\tthey live somewhere else in the filesystem.
+
+\t-force_rename = option that is used in the IRC bot. 
+
+\t-rename = the same as `force_rename`
+
+END
+
+exit 0;
+  
+}
 
 
 main();

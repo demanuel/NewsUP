@@ -211,7 +211,8 @@ sub _parse_command_line{
   my %metadata=(); #variable that will contain what the user defines in the conf file and what he will pass on the
   my @comments=();
   
-  GetOptions('server=s'=>\$server,
+  GetOptions('help'=>=>sub{help();},
+	     'server=s'=>\$server,
 	     'port=i'=>\$port,
 	     'username=s'=>\$username,
 	     'password=s'=>\$userpasswd,
@@ -958,5 +959,75 @@ sub _create_socket{
 
   return $socket;
 }
+
+
+
+sub help{
+  say << "END";
+This program is part of NewsUP.
+
+The goal of this program is to upload files to the usenet as fast as possible.
+
+I was not satisfied with the state of options to upload to usenet. There were not
+simple solutions that were able to run on a server without minimal configuration
+or installations. 
+Since perl is available everywhere and you don't even need to
+be root/administrator to install it, i decided to it for development of this.
+
+Options available:
+\t-server <server> = the server to which the script will connect and upload the files
+
+\t-port <port> = the port on the server that it will use to connect. 119 for plain connection, 443 or 563 for TLS
+
+\t-username <username> = username to connect to the server
+
+\t-password <password> = user password to connect to the server
+
+\t-file <file> = the file (or folder) to be uploaded
+
+\t-comment <comment> = comment to be passed to the subject of the file's segments. The maximum number of comments you 
+might have is two. 
+
+\t-group <group> = group to where you want to upload. You can have multiple `group` switches.
+
+\t-newsgroup <group> = the same as the `group` switch.
+
+\t-connections <conn> = Number of connections to use for upload
+
+\t-metadata <metadata> = Metadata that will be in the nzb file. You can have as many metadata you want.
+
+\t-nzb <nzb> = the nzb file name that it will create. It will always create one nzb. By default the name is newsup.nzb
+
+\t-headerCheck <1|0> = you want to enable the header check or not.
+
+\t-headerCheckSleep <secs> = the number of seconds to sleep before starting a header check
+
+\t-headerCheckServer <server> = the server where you can perform the header check. This is only usefull if you want
+\t\t to upload to a server and perform the header check on a different one.
+
+\t-headerCheckPort <port> = the port on the header check server to where newsup is going to connect.
+
+\t-headerCheckUserName <username> = the username on the header check server to where newsup is going to connect.
+
+\t-headerCheckPassword <password> = the password for the headerCheckUsername on the header check server to where newsup 
+\t\tis going to connect.
+
+\t-headerCheckRetries <retries> = the number of upload retries it should do before it gives up (one retry is one 
+\t\theadercheck followed by one upload).
+
+\t-headerCheckConnections <conn> = the number of connections to use while performing the headercheck (not the 
+\t\tconnections that will use to perform the uploads).
+
+\t-uploadSize <size> = the size of the segments to be uploaded. By default is 768000 (750KBytes)
+
+\t-configuration <file> = If you want to use a different newsup.conf, other than the default on in ~/.config/newsup.conf
+
+END
+
+exit 0;
+  
+}
+
+
 
 main;

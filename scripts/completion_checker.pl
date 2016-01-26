@@ -15,7 +15,8 @@ use IO::Socket::SSL;# qw(debug3);
 sub main{
 
   my ($server, $port, $username, $userpasswd,@nzbs, $conNumber);
-  GetOptions('server=s'=>\$server,
+  GetOptions('help'=>sub{help();},
+	     'server=s'=>\$server,
 	     'port=i'=>\$port,
 	     'username=s'=>\$username,
 	     'password=s'=>\$userpasswd,
@@ -233,6 +234,39 @@ sub _logout{
   print $socket "quit\r\n";
   shutdown $socket, 2;  
 }
+
+
+sub help{
+  say << "END";
+This program is part of NewsUP.
+
+The goal of this program is to make your uploading more easy.
+
+This is an auxiliary script that will check if the NZB is still complete on server or not.
+It will print which segments are missing and what's the completion percentage of a file
+
+Options available:
+\t-server <server> = the server to which the script will connect and check check the completion of the NZB
+
+\t-port <port> = the port on the server that it will use to connect. 119 for plain connection, 443 or 563 for TLS
+
+\t-username <username> = username to connect to the server
+
+\t-password <password> = user password to connect to the server
+
+\t-connections <conn> = Number of connections to use for verification
+
+\t-nzb <nzb> = The nzb that you want to check if it's complete in the server or not
+
+\t-file <file> = the same a the -nzb switch
+
+
+END
+
+exit 0;
+  
+}
+
 
 
 main;
