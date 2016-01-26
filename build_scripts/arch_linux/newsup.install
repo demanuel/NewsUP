@@ -1,0 +1,10 @@
+post_install() {
+    echo "NOTE:"
+    echo "\tThe newsup.conf file was installed in /etc/newsup/"
+    echo "\tIn order for newsup to find it, you need to copy it to ~/.config/"
+    echo "\tMake your changes on ~/.config/newsup.conf"
+    echo ""
+    echo "NOTE 2:"
+    echo "\tThis package build doesn't install the IRC bot."
+    echo "\tIf you want it, you'll need to install it manually, or adapt this PKGBUILD"
+}
