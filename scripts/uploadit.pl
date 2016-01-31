@@ -191,6 +191,7 @@ sub create_sfv_file{
     my $file = $_;
     my $fileName=(fileparse($file))[0];
     open my $ifh, '<', $file or die "Couldn't open file $file : $!";
+    binmode $ifh;
     my $crc32 = 0;
     while (read ($ifh, my $input, 512*1024)!=0) {
       $crc32 = crc32($input,$crc32);
