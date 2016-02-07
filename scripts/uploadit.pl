@@ -30,6 +30,7 @@ use File::Basename;
 use File::Find;
 use File::Copy qw/mv cp/;
 use Time::HiRes qw /time/;
+use Compress::Zlib;
 
 sub main{
   my $DIRECTORY='';
@@ -51,7 +52,9 @@ sub main{
 	     'sfv!'=>\$SFV,
 	     'nfo=s'=>\$NFO,
 	     'force_rename|rename!'=>\$FORCE_RENAME);
-  
+
+  $UP_ARGS .=' ' if $UP_ARGS ne '';
+  $UP_ARGS ="-group ".join(' -group ', @GROUPS) if @GROUPS;
   
   if ($DIRECTORY eq '' || !-e $DIRECTORY ) {
     
@@ -185,7 +188,7 @@ sub create_sfv_file{
   $sfv_file .= "/" if substr($sfv_file,-1,1) ne '/';
   $sfv_file = "$sfv_file$sfvFileName.sfv";
   open my $ofh, '>', $sfv_file or die "Unable to create sfv file!";
-  binmode $ofh;
+#  binmode $ofh;
 
   for (@$preProcessedFiles) {
     my $file = $_;
@@ -247,8 +250,10 @@ sub upload_files{
   if (@$preProcessedFiles) {
     my @escapedFiles=();
     push @escapedFiles, "\"$_\"" for @$preProcessedFiles;
-    
-    my $args = $configs->{EXTRA_ARGS_TO_UPLOADER}." $extra_args"." -f ".join(' -f ', @escapedFiles);
+
+    my $args = '';
+    $args .=  $configs->{EXTRA_ARGS_TO_UPLOADER} if $configs->{EXTRA_ARGS_TO_UPLOADER} ne '';
+    $args .= "$extra_args -f ".join(' -f ', @escapedFiles);
     my $invoke = $configs->{PATH_TO_UPLOADER}.' '.$args;
     $invoke =~ s/\/\//\//g;
     say "$invoke" if $DEBUG;
@@ -282,7 +287,6 @@ sub randomize_archives{
   }
   return $compressedFiles;
 }
-
 
 
 sub help{
