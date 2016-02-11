@@ -202,8 +202,6 @@ sub _parse_command_line{
 
   #Parameters with default values
   my $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';
-  $headerCheckRetries=3;
-  
   
   #default value
   my @filesToUpload=();
@@ -305,7 +303,13 @@ sub _parse_command_line{
       }
 
       if (!defined $headerCheckRetries) {
-	$headerCheckRetries = $config->{headerCheck}{retries} if exists $config->{headerCheck}{retries};
+	
+	if (exists $config->{headerCheck}{retries}){
+	  $headerCheckRetries = $config->{headerCheck}{retries};
+	}
+	else {
+	  $headerCheckRetries=3;
+	}
       }
       if (!defined $headerCheckConnections) {
 	if (exists $config->{headerCheck}{connections}){
