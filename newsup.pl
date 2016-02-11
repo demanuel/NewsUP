@@ -202,7 +202,9 @@ sub _parse_command_line{
 
   #Parameters with default values
   my $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';
-
+  $headerCheckRetries=3;
+  
+  
   #default value
   my @filesToUpload=();
   my @newsGroups = ();
