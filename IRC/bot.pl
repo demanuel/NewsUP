@@ -177,36 +177,36 @@ sub start{
       my @tokens = split(' ', $input);
 
       if (@tokens) {
-	if ($tokens[1] eq 'PRIVMSG') {
-	  $tokens[0]=~ /^:(.*)\!.*$/;
-
-	  my @inputParams= ($1 , substr join(' ',@tokens[3..$#tokens]), 1);
-	  if ($tokens[2] eq $nick) {#private message
-	    say "Got a private message: '".$inputParams[1]."'";
-	    
-	  }elsif (substr($tokens[2],0,1) eq '#') {#public message -> check if it's the channel
-	    say "Public message: '".$inputParams[1]."'";
-	    if ($inputParams[1] =~ /^\!(\w+) (.*)$/) {# All the public commands must start with a !
-	      if ($1 eq 'upload') {
-		my @args = split(' ', $2);
-		start_upload (\@args, $socket, $config);
-	      }elsif ($1 eq 'check') {
-		my @args = split(' ', $2);
-		check_nzb(\@args, $socket, $config);
-	      }elsif($1 eq 'process'){
-		
-		for(`tasklist /FI "IMAGENAME eq $2"`){
-		  print_message_to_channel($socket, $channel, $_); 
-		}
-		  
-	      }
-	      
-	    }
-	    else {
-	      say "Didn't match!";
-	    }
-	  }
-	}
+        if ($tokens[1] eq 'PRIVMSG') {
+          $tokens[0]=~ /^:(.*)\!.*$/;
+    
+          my @inputParams= ($1 , substr join(' ',@tokens[3..$#tokens]), 1);
+          if ($tokens[2] eq $nick) {#private message
+            say "Got a private message: '".$inputParams[1]."'";
+            
+          }elsif (substr($tokens[2],0,1) eq '#') {#public message -> check if it's the channel
+            say "Public message: '".$inputParams[1]."'";
+            if ($inputParams[1] =~ /^\!(\w+) (.*)$/) {# All the public commands must start with a !
+              if ($1 eq 'upload') {
+            my @args = split(' ', $2);
+            start_upload (\@args, $socket, $config);
+              }elsif ($1 eq 'check') {
+            my @args = split(' ', $2);
+            check_nzb(\@args, $socket, $config);
+              }elsif($1 eq 'process'){
+            
+            for(`tasklist /FI "IMAGENAME eq $2"`){
+              print_message_to_channel($socket, $channel, $_); 
+            }
+              
+              }
+              
+            }
+            else {
+              say "Didn't match!";
+            }
+          }
+        }
       }
     }
   }
@@ -356,23 +356,23 @@ sub start_upload{
       my @newFiles = ();
 
       for my $oldName (@files) {
-	(my $newName = $oldName) =~ s/$toReplace/$replacement/;
-	push @newFiles, $newName;
+        (my $newName = $oldName) =~ s/$toReplace/$replacement/;
+        push @newFiles, $newName;
 
-	if ($oldName =~ /\.sfv/) {
-	  open my $ih, '<', $oldName;
-	  open my $oh, '>', $newName;
-	  while (<$ih>) {
-	    s/$toReplace/$replacement/;
-	    print $oh "$_";
-	  }
-	  close $ih;
-	  close $oh;
-	  unlink ($oldName) or print_message_to_channel($socket, $channel,"[ \x0304Error deleting files!\x03 ]: $! ");
-	  
-	}else {
-	  rename ($oldName, $newName) or print_message_to_channel($socket, $channel,"[ \x0304Error renaming file!\x03 ]: $oldName to $newName ");
-	}
+        if ($oldName =~ /\.sfv/) {
+          open my $ih, '<', $oldName;
+          open my $oh, '>', $newName;
+          while (<$ih>) {
+            s/$toReplace/$replacement/;
+            print $oh "$_";
+          }
+          close $ih;
+          close $oh;
+          unlink ($oldName) or print_message_to_channel($socket, $channel,"[ \x0304Error deleting files!\x03 ]: $! ");
+          
+        }else {
+          rename ($oldName, $newName) or print_message_to_channel($socket, $channel,"[ \x0304Error renaming file!\x03 ]: $oldName to $newName ");
+        }
       }
 
       upload_files($newsup, \@newFiles, $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$folder."_backup_$i", $socket, $channel);
