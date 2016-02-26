@@ -54,7 +54,7 @@ sub main{
 	     'force_rename|rename!'=>\$FORCE_RENAME);
 
   $UP_ARGS .=' ' if $UP_ARGS ne '';
-  $UP_ARGS ="-group ".join(' -group ', @GROUPS) if @GROUPS;
+  $UP_ARGS .="-group ".join(' -group ', @GROUPS) if @GROUPS;
   
   if ($DIRECTORY eq '' || !-e $DIRECTORY ) {
     
@@ -252,7 +252,7 @@ sub upload_files{
     push @escapedFiles, "\"$_\"" for @$preProcessedFiles;
 
     my $args = '';
-    $args .=  $configs->{EXTRA_ARGS_TO_UPLOADER} if $configs->{EXTRA_ARGS_TO_UPLOADER} ne '';
+    $args .=  $configs->{EXTRA_ARGS_TO_UPLOADER}.' ' if $configs->{EXTRA_ARGS_TO_UPLOADER} ne '';
     $args .= "$extra_args -f ".join(' -f ', @escapedFiles);
     my $invoke = $configs->{PATH_TO_UPLOADER}.' '.$args;
     $invoke =~ s/\/\//\//g;
