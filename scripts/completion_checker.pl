@@ -110,7 +110,7 @@ sub verify_nzbs{
       
       my $subject = $file->getAttribute('subject');
       my $correctSegments = 1;
-      $subject =~ /"(.*)".*yenc \(1\/(\d+)\)/i;
+      $subject =~ /"(.*)"\s.*\(1\/(\d+)\)/i;
       my $fileName = $1;
       $correctSegments = $2;
       
