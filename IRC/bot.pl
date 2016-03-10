@@ -29,6 +29,7 @@ use Config::Tiny;
 
 # We will use a raw socket to connect to the IRC server.
 use IO::Socket;
+use IO::Socket::SSL;
 use File::Copy::Recursive qw/dircopy/;
 $File::Copy::Recursive::CPRFComp = 1;
 use File::Copy qw/mv/;
@@ -93,12 +94,27 @@ sub get_options{
 
 sub get_IRC_socket{
   my $config = shift;
-  my $sock = new IO::Socket::INET(PeerAddr => $config->{other}{IRC_SERVER},
-				  PeerPort => $config->{other}{IRC_PORT},
-				  Timeout=> 5,
-				  Blocking=> 0,
-				  Proto => 'tcp') or
-                                    die "Can't connect\n";
+  my $sock;
+  
+  if ($config->{other}{IRC_PORT} == 6667) {
+    $sock = new IO::Socket::INET(
+                                  PeerAddr => $config->{other}{IRC_SERVER},
+                                  PeerPort => $config->{other}{IRC_PORT},
+                                  Timeout=> 5,
+                                  Blocking=> 0,
+                                  Proto => 'tcp') or die "Can't connect\n";
+  }else{
+    $sock = new IO::Socket::SSL->new(
+                                PeerAddr => $config->{other}{IRC_SERVER},
+                                PeerPort => $config->{other}{IRC_PORT},
+                                SSL_verify_mode=>SSL_VERIFY_NONE,
+                                Timeout=> 5,
+                                Blocking=> 0,
+                                Proto => 'tcp') or die "Can't connect\n";
+    
+  }
+  
+
   $sock->autoflush(1);
   
   
