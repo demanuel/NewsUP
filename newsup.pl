@@ -189,6 +189,9 @@ my $CURRENT_OPEN_FILE;
 my $CURRENT_OPEN_FILE_FH;
 my $CURRENT_OPEN_FILE_SIZE=0;
 
+my $post;
+
+
 #Returns a bunch of options that it will be used on the upload. Options passed through command line have precedence over
 #options on the config file
 sub _parse_command_line{
@@ -210,6 +213,8 @@ sub _parse_command_line{
   my %cmdMetadata=(); #temp var to allocate what the user defines on the command line
   my %metadata=(); #variable that will contain what the user defines in the conf file and what he will pass on the
   my @comments=();
+  
+  my $extraHeaders=$CRLF; #Variable that will contain the extra headers as a string
   
   GetOptions('help'=>=>sub{help();},
 	     'server=s'=>\$server,
@@ -266,60 +271,59 @@ sub _parse_command_line{
       $headerCheck = $config->{headerCheck}{enabled} if exists $config->{headerCheck}{enabled};
     }
     if ($headerCheck){
+        
       if (!defined $headerCheckSleep) {
-	if (exists $config->{headerCheck}{sleep}){
-	  $headerCheckSleep = $config->{headerCheck}{sleep};
-	}else {
-	  $headerCheckSleep=20;
-	}
+        if (exists $config->{headerCheck}{sleep}){
+          $headerCheckSleep = $config->{headerCheck}{sleep};
+        }else {
+          $headerCheckSleep=20;
+        }
       }
       if (!defined $headerCheckServer || $headerCheckServer eq '') {
-	if (exists $config->{headerCheck}{server} && $config->{headerCheck}{server} ne ''){
-	  $headerCheckServer = $config->{headerCheck}{server};
-	}else {
-	  $headerCheckServer=$server;
-	}
+        if (exists $config->{headerCheck}{server} && $config->{headerCheck}{server} ne ''){
+          $headerCheckServer = $config->{headerCheck}{server};
+        }else {
+          $headerCheckServer=$server;
+        }
       }
       if (!defined $headerCheckPort || $headerCheckPort eq '') {
-	if (exists $config->{headerCheck}{port} &&  $config->{headerCheck}{port} ne ''){
-	  $headerCheckPort = $config->{headerCheck}{port};
-	}else {
-	  $headerCheckPort=$port;
-	}
+        if (exists $config->{headerCheck}{port} &&  $config->{headerCheck}{port} ne ''){
+          $headerCheckPort = $config->{headerCheck}{port};
+        }else {
+          $headerCheckPort=$port;
+        }
       }
       if (!defined $headerCheckUserName || $headerCheckUserName eq '') {
-	if (exists $config->{headerCheck}{user} && $config->{headerCheck}{user} ne ''){
-	  $headerCheckUserName = $config->{headerCheck}{user};
-	}else {
-	  $headerCheckUserName=$username;
-	}
+        if (exists $config->{headerCheck}{user} && $config->{headerCheck}{user} ne ''){
+          $headerCheckUserName = $config->{headerCheck}{user};
+        }else {
+          $headerCheckUserName=$username;
+        }
       }
       if (!defined $headerCheckPassword || $headerCheckPassword eq '') {
-	if (exists $config->{headerCheck}{password} && $config->{headerCheck}{password} ne ''){
-	  $headerCheckPassword = $config->{headerCheck}{password};
-	}else {
-	  $headerCheckPassword=$userpasswd;
-	}
+        if (exists $config->{headerCheck}{password} && $config->{headerCheck}{password} ne ''){
+          $headerCheckPassword = $config->{headerCheck}{password};
+        }else {
+          $headerCheckPassword=$userpasswd;
+        }
       }
-
       if (!defined $headerCheckRetries) {
-	
-	if (exists $config->{headerCheck}{retries}){
-	  $headerCheckRetries = $config->{headerCheck}{retries};
-	}
-	else {
-	  $headerCheckRetries=3;
-	}
+        if (exists $config->{headerCheck}{retries}){
+          $headerCheckRetries = $config->{headerCheck}{retries};
+        }
+        else {
+          $headerCheckRetries=3;
+        }
       }
       if (!defined $headerCheckConnections) {
-	if (exists $config->{headerCheck}{connections}){
-	  $headerCheckConnections = $config->{headerCheck}{connections};
-	}else {
-	  $headerCheckConnections = 1;
-	}
+        if (exists $config->{headerCheck}{connections}){
+          $headerCheckConnections = $config->{headerCheck}{connections};
+        }else {
+          $headerCheckConnections = 1;
+        }
       }
     }
-
+    
     if ($NNTP_MAX_UPLOAD_SIZE < 100*1024) {
       $NNTP_MAX_UPLOAD_SIZE=750*1024;
       say "Upload Size too small. Setting the upload size at 750KBytes!";
@@ -327,10 +331,31 @@ sub _parse_command_line{
 
     if ( @newsGroups == 0) {
       if (exists $config->{upload}{newsgroup}){
-	@newsGroups = split(',', $config->{upload}{newsgroup});
-	$_ =~ s/^\s+|\s+$//g for @newsGroups;
+        @newsGroups = split(',', $config->{upload}{newsgroup});
+        $_ =~ s/^\s+|\s+$//g for @newsGroups;
       }
     }
+    
+    if (exists $config->{extraHeaders}){
+      my $newHeaders = $config->{extraHeaders};  
+      for my $key (keys %$newHeaders){
+        if (lc($key) eq 'from' || lc($key) eq 'message-id' || lc($key) eq 'subject' || lc($key) eq 'newsgoups'){
+          delete $newHeaders->{$key};
+          next;
+        }
+        
+        if ($key !~ /^X-/ ) {
+          my $newKey="X-$key";
+          if (exists $newHeaders->{$newKey}) {
+            say "There's incompatible headers: $newKey and $key";
+            next;
+          }
+          $extraHeaders = $newKey.': '.$newHeaders->{$key}.$CRLF.$extraHeaders;
+        } 
+      }
+    }
+    
+    
     undef $config;
   }
 
@@ -346,7 +371,7 @@ sub _parse_command_line{
 	  \@comments, $from, \%metadata, $headerCheck, $headerCheckSleep,
 	  $headerCheckServer, $headerCheckPort, $headerCheckUserName,
 	  $headerCheckPassword, $headerCheckRetries,
-	  $headerCheckConnections, $nzbName);
+	  $headerCheckConnections, $nzbName, $extraHeaders);
 }
 
 sub _get_files_to_upload{
@@ -378,7 +403,7 @@ sub main{
       $commentsRef, $from, $meta, $headerCheck, $headerCheckSleep,
       $headerCheckServer, $headerCheckPort,
       $headerCheckUsername, $headerCheckPassword,
-      $headerCheckRetries, $headerCheckConnections,$nzbName)=_parse_command_line();
+      $headerCheckRetries, $headerCheckConnections,$nzbName, $extraHeaders)=_parse_command_line();
   
   #Check if the files passed on the cmd are folders or not and if they are folders,
   #it will search inside for files
@@ -391,7 +416,7 @@ sub main{
   my @nzbParts = @{$uploadParts};
   
   my $init = time;
-  _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $uploadParts);
+  _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, $uploadParts);
   undef $uploadParts;
   
   my $time = time()-$init;
@@ -404,7 +429,7 @@ sub main{
     _start_header_check($headerCheckConnections, $headerCheckServer, $headerCheckPort,
 			$headerCheckUsername, $headerCheckPassword, $headerCheckRetries,
 			$headerCheckSleep, $newsGroupsRef, $connections, $server, $port, $username,
-			$userpasswd, $from, $commentsRef, \@missingSegments);
+			$userpasswd, $from, $commentsRef, $extraHeaders, \@missingSegments);
     
     $time = time()-$init;
     say "HeaderCheck done in ".int($time/60)."m ".($time%60)."s";
@@ -421,7 +446,7 @@ sub _start_header_check{
   my ($headerCheckConnections, $headerCheckServer, $headerCheckPort,
       $headerCheckUsername, $headerCheckPassword, $headerCheckRetries,
       $headerCheckSleep, $newsGroupsRef, $connections, $server, $port, $username,
-      $userpasswd, $from, $commentsRef, $missingSegmentsRef) = @_;
+      $userpasswd, $from, $commentsRef, $extraHeaders, $missingSegmentsRef) = @_;
   
   my @missingSegments= @$missingSegmentsRef;
   my $totalMissingSegments = scalar @missingSegments;
@@ -494,7 +519,7 @@ sub _start_header_check{
       $connections = scalar @missingSegments if ($connections > scalar @missingSegments);
       
       my @tempSegments = @missingSegments;
-      _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, \@tempSegments);
+      _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, \@tempSegments);
       say "\tUpload of the missing segments done!";
       undef @tempSegments;
     }else {
@@ -507,7 +532,7 @@ sub _start_header_check{
 
 
 sub _start_upload{
-  my ($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $parts) = @_;
+  my ($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, $parts) = @_;
 
   my $connectionList = _get_connections($connections, $server, $port, $username, $userpasswd);
   my $newsgroups = join(',',@$newsGroupsRef);
@@ -554,7 +579,7 @@ sub _start_upload{
       if (scalar @$parts != 0){
 	my $part = shift @$parts;
 	$currentPart++;
-	_post_part ($socket, $from, $newsgroups, $commentsRef, $part);
+	_post_part ($socket, $from, $newsgroups, $commentsRef, $extraHeaders, $part);
 
 	$readArticleSelect->add($socket);
 	undef $part;
@@ -675,8 +700,9 @@ sub _create_nzb{
 }
 
 
+
 sub _post_part{
-  my ($socket, $from, $newsgroups, $commentsRef, $part) = @_;
+  my ($socket, $from, $newsgroups, $commentsRef, $extraHeaders, $part) = @_;
   my $baseName = fileparse($part->{fileName});
   my $startPosition=1+$NNTP_MAX_UPLOAD_SIZE*($part->{segmentNumber}-1);
   my ($binString, $readSize, $endPosition, $fileSize) = _get_file_data($part->{fileName}, $startPosition-1);
@@ -688,12 +714,12 @@ sub _post_part{
     $subject = $commentsRef->[0]." $subject" ;
     $subject .= ' ['.$commentsRef->[1].']' if(scalar(@$commentsRef)>0 && defined $commentsRef->[1] && $commentsRef->[1] ne '');
   }
-  
+
   _print_args_to_socket($socket,
 			"From: ",$from, $CRLF,
 			"Newsgroups: ",$newsgroups,$CRLF,
 			"Subject: ",$subject,$CRLF,
-			"Message-ID: <", $part->{id},">",$CRLF,$CRLF,
+			"Message-ID: <", $part->{id},">",$CRLF, $extraHeaders, #extraHeaders by default is $CRLF. It needs to contain at least 1. 
 			"=ybegin part=", $part->{segmentNumber}, " total=",$part->{totalSegments}," line=", $YENC_NNTP_LINESIZE, " size=", $fileSize, " name=",$baseName, $CRLF,
 			"=ypart begin=",$startPosition," end=", $endPosition, $CRLF,
 			$yenc_data, $CRLF,

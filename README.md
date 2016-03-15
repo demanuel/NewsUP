@@ -162,6 +162,12 @@ password= my_password #If doesn't exist then it will use the password defined in
 retries = 10 #Number of times it will perform the header check to confirm if the upload was successfull
 connections = 4 #Number of connections it will use to connect to the headercheck server.
 
+[extraHeaders]
+extra-header= value1 #extra header. It will became X-extra-header
+X-extra-header= value3 #extra header. Non valid because there's already one
+extra-header2= value2 #second extra header
+from= test #non valid. Non valid headers are: from, newsgroups, message-id and subject.
+
 [script_vars]
 ############################
 #
