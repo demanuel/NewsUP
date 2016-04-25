@@ -537,97 +537,74 @@ sub _start_upload{
   my $connectionList = _get_connections($connections, $server, $port, $username, $userpasswd);
   my $newsgroups = join(',',@$newsGroupsRef);
 
-
-  my $postSelect=IO::Select->new(@$connectionList);
-  my $readPostSelect=IO::Select->new();
-  my $articleSelect=IO::Select->new();
-  my $readArticleSelect=IO::Select->new();
   my $totalParts = scalar @$parts;
-
-  my $currentPart = 0;
   
-  while (@$parts > 0) {
-    my $t0 = [gettimeofday];
-    my $uploadCounterPart=0;
-    for my $socket ($postSelect->can_write(1/1000)) {
-      _print_args_to_socket($socket, "POST", $CRLF);
-      $postSelect->remove($socket);
-      $readPostSelect->add($socket);
-    }
-    
-    for my $socket ($readPostSelect->can_read(1/1000)) {
-      my $output = _read_from_socket($socket);
-      $readPostSelect->remove($socket);
+  my $select = IO::Select->new(@$connectionList);
+  my %status = map { $_ => 0} @$connectionList;
+  my @percentages =(0) x scalar @$parts;
+  for(my $i = 0; $i < scalar @$parts; $i++){
+    $percentages[$i]=int(($i / scalar @$parts)*100)."%\r";
+  }
+  
+  my $currentPart = 0;
 
-      #If we get a 400 we return to the begining: postSelect
-      if ($output =~ /^400 /) {
-	shutdown ($socket, 2);
-	my $conList = _get_connections(1, $server, $port, $username, $userpasswd);
-	$postSelect->add($conList->[0]);
-
-      }elsif($output =~ /340 /) {
-	$articleSelect->add($socket);
-      }else {
-	chomp $output;
-	print "\r\tRead after post: $output";
-      }
-      undef $output;
-    }
-
-    for my $socket ($articleSelect->can_write(1/1000)) {
-      $articleSelect->remove($socket);
-      if (scalar @$parts != 0){
-	my $part = shift @$parts;
-	$currentPart++;
-	_post_part ($socket, $from, $newsgroups, $commentsRef, $extraHeaders, $part);
-
-	$readArticleSelect->add($socket);
-	undef $part;
+  while(@$parts > 0){
+      
+    for my $socket ($select->can_write(1/1000)){
+      if($status{$socket} == 0){
+        _print_args_to_socket($socket, "POST", $CRLF);
+	      $status{$socket}=1;
+      }elsif($status{$socket} == 2){
+        if (scalar @$parts != 0){
+          my $part = shift @$parts;
+          _post_part ($socket, $from, $newsgroups, $commentsRef, $extraHeaders, $part);
+          undef $part;
+          $status{$socket}=3;
+          print $percentages[$currentPart++];
+        }
       }
     }
-	
-    for my $socket ($readArticleSelect->can_read(1/1000)) {
-      my $output = _read_from_socket($socket);
-      $readArticleSelect->remove($socket);
 
-      if ($output =~ /^400 /) {
-	shutdown ($socket, 2);
-	my $conList = _get_connections(1, $server, $port, $username, $userpasswd);
-	$socket = $conList->[0];
-
-      }elsif ($output !~ /^240 /) {
-	chomp $output;
-	warn "Read after article: $output";
-      }
-      $postSelect->add($socket);
-      undef $output;
+    for my $socket ($select->can_read(1/1000)){
+      my $output = _read_from_socket($socket);	
+      if($status{$socket} == 1){      
+	      #If we get a 400 we return to the begining
+	      if ($output =~ /^400 /) {
+          shutdown ($socket, 2);
+          my $conList = _get_connections(1, $server, $port, $username, $userpasswd);
+          $select->remove($socket);
+          $select->add($conList->[0]);
+          $status{$conList->[0]} = 0;
+          undef $output;
+          delete $status{$socket};
+	      }elsif($output =~ /340 /) {
+          $status{$socket}=2;
+	      }else {
+          chomp $output;
+          print "\r\tRead after POST: $output";
+          $status{$socket}=0;
+	      }
+      }else{
+          #A post was done and we need to confirm the post was done OK
+        if ($output =~ /^400 /) {
+          shutdown ($socket, 2);
+          my $conList = _get_connections(1, $server, $port, $username, $userpasswd);
+          $socket = $conList->[0];
+          
+        }elsif ($output !~ /^240 /) {
+          chomp $output;
+          warn "Read after posting article: $output ";
+        }
+        $status{$socket}=0;
+        undef $output;
+      }          
     }
-    print int(($currentPart / $totalParts)*100),"%\r";
   }
   
   #No more articles.
   #Now we need to be sure that all sockets are ready for being written
-  # while ($readPostSelect->count()>0) {
-  #   for my $socket ($readPostSelect->can_read(1/1000)) {
-  #     my $output = _read_from_socket($socket);
-  #     $readPostSelect->remove($socket);
-  #     next if ($output =~ /^400 /);
-  #     _print_args_to_socket($socket, ".", $CRLF);
-  #   }
-  # }
-  while ($readArticleSelect->count()>0) {
-    for my $socket ($readArticleSelect->can_read(1/1000)) {
-      my $output = _read_from_socket($socket);
-      $readArticleSelect->remove($socket);
-    }
-  }
-  #All the sockets must be ready for write
-
-  for my $socket (@$connectionList){
-    if ($socket->connected){
-      _print_args_to_socket($socket, "QUIT", $CRLF);
-      shutdown ($socket, 2);
-    }
+  for my $sock ($select->handles){
+    shutdown ($sock,2);
   }
 }
 
@@ -779,108 +756,73 @@ sub _print_args_to_socket{
 
 sub _read_from_socket{
   my ($socket) = @_;
-
- 
+  
   my $output='';
-  my $counter=1;
   
   return "400 Socket closed\r\n" if (! $socket->connected);
 
   # return <$socket>;
   
   while (1) {
-      my $status = sysread($socket, my $buffer,1024);
-      $output.= $buffer;
-      undef $buffer;
-      if ($output =~ /\r\n\z/){
-  	last;
-      }elsif (!defined $status) {
-  	die "Error: $!";
-      }
+    my $status = sysread($socket, my $buffer,1024);
+    $output.= $buffer;
+    undef $buffer;
+    if ($output =~ /\r\n\z/){
+      last;
+    }elsif (!defined $status) {
+      die "Error: $!";
+    }
   }
   
   return $output;
 }
 
 sub _authenticate{
-  my ($connectionList,  $user, $password) = @_;
-  my @connectionList = @{$connectionList};
-  my $firstReadSelect = IO::Select->new(@connectionList);
-  my $firstWriteSelect = IO::Select->new(@connectionList);
-  while ($firstReadSelect->count()>0) {
-    for my $sock ($firstReadSelect->can_read(0.01)) {
-      $firstReadSelect->remove($sock);
-      _read_from_socket $sock;
-    }
-  }
-  
-  while ($firstWriteSelect->count()>0) {
+    my ($connectionList,  $user, $password) = @_;
+    my @connectionList = @{$connectionList};
+    my %status = map {$_ => 0} @connectionList;
 
-    for my $sock ($firstWriteSelect->can_write(0.01)) {
-      $firstWriteSelect->remove($sock);
-      die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo user ",$user,$CRLF) != 0);
-    }
-  }
-  undef $firstReadSelect;
-  undef $firstWriteSelect;
+    my $select = IO::Select->new(@connectionList);
 
-  my $readSelect = IO::Select->new(@connectionList);
-  while ($readSelect->count()>0) {
-    for my $sock ($readSelect->can_read(0.01)) {
-      $readSelect->remove($sock);
-      my $output= _read_from_socket $sock;
-      die "Error: $output" if ( $output !~ /^381/);
+    while($select->count() > 0){
+      for my $sock ($select->can_read(0.01)){
+        if($status{$sock} == 0){
+          _read_from_socket $sock;
+          $status{$sock} = 1;
+        }elsif($status{$sock} == 2){
+          my $output= _read_from_socket $sock;
+          die "Error: $output" if ( $output !~ /^381/);
+          $status{$sock} = 3;
+        }elsif($status{$sock} == 4){
+          my $output= _read_from_socket $sock;
+          die "Error: $output" if ( $output !~ /^281/);
+          $select->remove($sock);
+        }
+      }
+      
+      for my $sock ($select->can_write(0.01)){
+        if($status{$sock} == 1){
+          die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo user ",$user,$CRLF) != 0);
+          $status{$sock} = 2;
+        }elsif($status{$sock} == 3){
+          die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo pass ",$password,$CRLF) != 0);
+          $status{$sock} = 4;
+        }
+      }
     }
-  }
-  my $writeSelect = IO::Select->new(@connectionList);
-  while ($writeSelect->count()>0) {
-    for my $sock ($writeSelect->can_write(0.01)) {
-      $writeSelect->remove($sock);
-      die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo pass ",$password,$CRLF) != 0);
-    }
-  }
-  my $secondReadSelect = IO::Select->new(@connectionList);
-  while ($secondReadSelect->count()>0) {
-    for my $sock ($secondReadSelect->can_read(0.01)) {
-      $secondReadSelect->remove($sock);
-      my $output= _read_from_socket $sock;
-      die "Error: $output" if ( $output !~ /^281/);
-    }
-  }
-  undef @connectionList;
-  undef $readSelect;
-  undef $writeSelect;
-  undef $secondReadSelect;
+    undef $select;
 }
 
-sub _authenticate_old{
-  my ($socket,  $user, $password) = @_;
-
-  my $output = _read_from_socket $socket;
-  die "Error: Unable to print to socket" if (_print_args_to_socket ($socket, "authinfo user ",$user,$CRLF) != 0);
-  
-  $output =  _read_from_socket $socket;
-    
-  die "Error: $output" if ($output !~ /381/);
-
-  die "Error: Unable to print to socket" if (_print_args_to_socket ($socket, "authinfo pass ",$password,$CRLF) != 0);
-  
-  $output =  _read_from_socket $socket;
-
-  if ($output !~ /281/){
-    die "Error: $output";
-  }
-}
 
 sub _get_connections{
   my ($connections, $server, $port, $user, $password) = @_;
 
-  my @connectionList = ();
+  my @connectionList = (0) x ($connections-1);
 
-  for (0..$connections-1) {
-
-    my $socket = _create_socket($server, $port);
-    push @connectionList, $socket;    
+  for my $i (0..$connections-1) {
+    $connectionList[$i]=_create_socket($server, $port);
+    #my $socket = _create_socket($server, $port);
+    #push @connectionList, $socket;    
   }
   _authenticate(\@connectionList, $user, $password);
   
@@ -903,9 +845,8 @@ sub _split_files{
     my $segmentNumber=0;
     
     my $totalSegments=ceil($fileSize/$NNTP_MAX_UPLOAD_SIZE);
-
     
-    while (++$segmentNumber <= $totalSegments) {
+    while ($segmentNumber++ < $totalSegments) {
       push @parts, {fileName=> $files->[$fileNumber],
 		    fileSize=> $fileSize,
 		    segmentNumber=>$segmentNumber,
@@ -919,7 +860,6 @@ sub _split_files{
   undef %MESSAGE_IDS;
   return \@parts;
 }
-
 
 sub _get_message_id{
 
@@ -948,7 +888,6 @@ sub _encode_base36 {
   return $b36 || '0';
 }
 
-
 sub _create_socket{
 
   my ($server, $port) = @_;
@@ -956,26 +895,26 @@ sub _create_socket{
   while (1) {
     eval{
       if ($port != 119) {
-	$socket = IO::Socket::SSL->new(
-				       PeerHost=>$server,
-				       PeerPort=>$port,
-				       SSL_verify_mode=>SSL_VERIFY_NONE,
-				       #SSL_version=>'TLSv1_2',
-				       Blocking => 1,
-				       Timeout=> 30, #connection timeout
-				       #SSL_hostname=>'',
-				       #SSL_version=>'TLSv1_2',
-				       #SSL_cipher_list=>'DHE-RSA-AES128-SHA',
-				       #SSL_ca_path=>'/etc/ssl/certs',
-				      ) or die "Error: Failed to connect or ssl handshake: $!, $SSL_ERROR";
+        $socket = IO::Socket::SSL->new(
+                                        PeerHost=>$server,
+                                        PeerPort=>$port,
+                                        SSL_verify_mode=>SSL_VERIFY_NONE,
+                                        #SSL_version=>'TLSv1_2',
+                                        Blocking => 1,
+                                        Timeout=> 30, #connection timeout
+                                        #SSL_hostname=>'',
+                                        #SSL_version=>'TLSv1_2',
+                                        #SSL_cipher_list=>'DHE-RSA-AES128-SHA',
+                                        #SSL_ca_path=>'/etc/ssl/certs',
+                                      ) or die "Error: Failed to connect or ssl handshake: $!, $SSL_ERROR";
       }else {
-	$socket = IO::Socket::INET->new (
-					 PeerAddr => $server,
-					 PeerPort => $port,
-					 Blocking => 1,
-					 Proto => 'tcp',
-					 Timeout => 30, #connection timeout
-					) or die "Error: Failed to connect : $!\n";
+        $socket = IO::Socket::INET->new (
+                                          PeerAddr => $server,
+                                          PeerPort => $port,
+                                          Blocking => 1,
+                                          Proto => 'tcp',
+                                          Timeout => 30, #connection timeout
+                                        ) or die "Error: Failed to connect : $!\n";
       }
     };
 
@@ -991,8 +930,6 @@ sub _create_socket{
 
   return $socket;
 }
-
-
 
 sub help{
   say << "END";

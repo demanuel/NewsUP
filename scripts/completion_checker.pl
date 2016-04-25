@@ -63,8 +63,6 @@ sub main{
     }
   }
   
-  
-  
   my $incomplete = verify_nzbs(\@nzbs,$conNumber , $server, $port, $username, $userpasswd); #TODO
   
   exit 3 if $incomplete == 1;
@@ -100,12 +98,12 @@ sub verify_nzbs{
       my $group = $file->getElementsByTagName('group')->[0]->textContent;
       my ($output, $existingSegments)=('',0);
       if ($group ne $currentGroup) {
-	for (@sockets) {
-	  print $_ "group $group\r\n";
-	  sysread($_, $output, 8192);
+        for (@sockets) {
+          print $_ "group $group\r\n";
+          sysread($_, $output, 8192);
 	  
-	}
-	$currentGroup = $group;
+        }
+        $currentGroup = $group;
       }
       
       my $subject = $file->getAttribute('subject');
@@ -117,9 +115,9 @@ sub verify_nzbs{
       my @segments = @{$file->getElementsByTagName('segment')};
       my $totalSegments=@segments;
       if($correctSegments != $totalSegments){
-	printf("File %s is %f%% completed\r\n",$fileName, ($totalSegments/$correctSegments)*100.0 );
-	next;
-      }    
+        printf("File %s is %f%% completed\r\n",$fileName, ($totalSegments/$correctSegments)*100.0 );
+        next;
+      }
       
       my @segmentsByConnection = ();
       
@@ -132,7 +130,7 @@ sub verify_nzbs{
       }
       my @threads=();
       for (0..$conNumber) {
-	push @threads, threads->create(\&_verify_segments, $sockets[$_], $segmentsByConnection[$_] );
+        push @threads, threads->create(\&_verify_segments, $sockets[$_], $segmentsByConnection[$_] );
       }
       
       $existingSegments += $_->join() for @threads;
