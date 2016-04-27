@@ -35,7 +35,8 @@ use File::Path qw(remove_tree);
 use Carp;
 use IO::Select;
 
-use Inline C => Config => ccflags => '-O3';
+use Inline C => Config => cc => exists $ENV{NEWSUP_CC}?$ENV{NEWSUP_CC}:"gcc";
+use Inline C => Config => ccflags => exists $ENV{NEWSUP_CCFLAGS}?$ENV{NEWSUP_CCFLAGS}:"-O3";
 use Inline C => <<'C_CODE';
 #include <stdint.h>;
 static uint32_t crc32_tab[] = {

@@ -23,6 +23,7 @@ For a working solution in windows (with minimal testing on the windows platform)
 * newspost (https://github.com/joehillen/newspost)
 * pan (http://pan.rebelbase.com/)
 * sanguinews (https://github.com/tdobrovolskij/sanguinews)
+* nyuu (https://github.com/animetosho/Nyuu)
 
 
 # What does this program do
@@ -271,6 +272,19 @@ The NZB file It will have on the ```<head>``` tag the childs:
 -headerCheckConnections <number of connections>: the number of connections it will use to connect to the headercheck server
 
 -uploadsize <size>: size in bytes, of the segment to be uploaded. **This option is not available on the configuration file**
+
+# Advanced
+NewsUP uses C code to do the yenc enconding. The code needs to be compiled.
+You can change the C compiler (GCC, CLang,..) and the compiler flags by
+setting the environment variables NEWSUP_CC (for the compiler to be used)
+and NEWSUP_CCFLAGS (for the compiler flags).
+By default it's set to use GCC with -O3 flag.
+
+This can be a difference between being a bit faster or a bit slower.
+
+Only set this options if you know what you're doing.
+After this option is set or change you need to remove the inline folder
+so that the code is recompiled again.
 
 
 
