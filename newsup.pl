@@ -21,7 +21,7 @@
 use warnings;
 use strict;
 use utf8;
-use 5.018;
+use 5.022;
 use Getopt::Long;
 use Config::Tiny;
 use File::Find;
@@ -35,6 +35,7 @@ use File::Path qw(remove_tree);
 use Carp;
 use IO::Select;
 
+use Inline C => Config => ccflags => '-O3';
 use Inline C => <<'C_CODE';
 #include <stdint.h>;
 static uint32_t crc32_tab[] = {
