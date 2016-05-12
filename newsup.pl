@@ -21,7 +21,7 @@
 use warnings;
 use strict;
 use utf8;
-use 5.022;
+use 5.020;
 use Getopt::Long;
 use Config::Tiny;
 use File::Find;
