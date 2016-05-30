@@ -635,13 +635,9 @@ sub _create_nzb{
 
   if (!defined($commentsRef->[0])){ $commentsRef->[0]='';}
   else{$commentsRef->[0].=' ';}
-  if (!defined($commentsRef->[1])){ $commentsRef->[1]='';}
-  else{$commentsRef->[1].=' ';}
+  if (!defined($commentsRef->[1])){ $commentsRef->[1]=' ';}
+  else{$commentsRef->[1]=' - '.$commentsRef->[1].' ';}
 
-
-
-  use Data::Dumper;
-  say Dumper($parts);
 
   my %files=();
 
@@ -655,6 +651,7 @@ sub _create_nzb{
       "<segment bytes=\"$bytes\" number=\"".$segment->{segmentNumber}."\">".$segment->{id}."</segment>";
   }
 
+  my $totalFiles = scalar(keys %files);
   open my $ofh, '>', $nzbName;
 
   print $ofh "<?xml version=\"1.0\" encoding=\"iso-8859-1\" ?>\n";
@@ -664,10 +661,11 @@ sub _create_nzb{
   print $ofh "<meta type=\"$_\">".$meta->{$_}."</meta>\n" for (keys %$meta);
 #  print $ofh "</meta>\n";
   print $ofh "</head>\n";
+  my $currentFileNumber = 0;
   for my $filename (sort keys %files) {
     my @segments = @{$files{$filename}};
     my $time=time();
-    print $ofh "<file poster=\"$from\" date=\"$time\" subject=\"".$commentsRef->[0]."&quot;".$filename."&quot;".$commentsRef->[1]." yEnc (1/",scalar(@segments),") \">\n";
+    print $ofh "<file poster=\"$from\" date=\"$time\" subject=\"".$commentsRef->[0]."[".++$currentFileNumber."/".$totalFiles."] - &quot;".$filename."&quot;".$commentsRef->[1]."yEnc (1/",scalar(@segments),")\">\n";
     print $ofh "<groups>\n";
     print $ofh "<group>$_</group>\n" for @$newsGroups;
     print $ofh "</groups>\n";
