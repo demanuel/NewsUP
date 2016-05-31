@@ -26,11 +26,10 @@ use Getopt::Long;
 use Config::Tiny;
 use File::Find;
 use File::Basename;
-use Time::HiRes qw/gettimeofday usleep gettimeofday tv_interval/;
+use Time::HiRes qw/gettimeofday/;
 use POSIX qw/ceil/;
 use IO::Socket::INET;
 use IO::Socket::SSL;# qw(debug2);
-use File::Path qw(remove_tree);
 use IO::Select;
 use Config;
 
