@@ -464,36 +464,36 @@ sub _start_header_check{
     my $countProgress = 0;
     while (@missingSegments > 0) {
 
-      while ($statSelect->count()>0) {
-	for my $socket ($statSelect->can_write(1/1000)) {
-	  my $part = shift @missingSegments;
-	  $statSelect->remove($socket);
-	  if (defined $part) {
-	    _print_args_to_socket($socket, "stat <",$part->{id},'>',$CRLF);
-	    $readSelect->add($socket);
-	    $candidates{$part->{id}}=$part;
-	  }
-	}
+    while ($statSelect->count()>0) {
+      for my $socket ($statSelect->can_write(1/1000)) {
+        my $part = shift @missingSegments;
+        $statSelect->remove($socket);
+        if (defined $part) {
+          _print_args_to_socket($socket, "stat <",$part->{id},'>',$CRLF);
+          $readSelect->add($socket);
+          $candidates{$part->{id}}=$part;
+        }
       }
+    }
 
-      while ($readSelect->count()>0) {
-	for my $socket ($readSelect->can_read(1/1000)) {
-	  my $output = _read_from_socket($socket);
-	  print int((++$countProgress / $totalMissingSegments)*100),"%\r";
-	  $readSelect->remove($socket);
-	  if ($output =~ /^223 \d <(.+)>/) {
-	    delete $candidates{$1};
-	    $statSelect->add($socket);
-	  }elsif ($output =~ /^400 /) {
-	    shutdown ($socket, 2);
-	    undef $socket;
-	    my $conList = _get_connections(1, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
-	    $statSelect->add($conList->[0]);
-	  }else {
-	    #On the header checking, we dont care about other status
-	    $statSelect->add($socket);
-	  }
-	}
+    while ($readSelect->count()>0) {
+      for my $socket ($readSelect->can_read(1/1000)) {
+    	  my $output = _read_from_socket($socket);
+    	  print int((++$countProgress / $totalMissingSegments)*100),"%\r";
+    	  $readSelect->remove($socket);
+    	  if ($output =~ /^223 \d <(.+)>/) {
+    	    delete $candidates{$1};
+    	    $statSelect->add($socket);
+	      }elsif ($output =~ /^400 /) {
+	         shutdown ($socket, 2);
+	          undef $socket;
+	           my $conList = _get_connections(1, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
+	            $statSelect->add($conList->[0]);
+	      }else {
+    	    #On the header checking, we dont care about other status
+    	    $statSelect->add($socket);
+	      }
+	     }
       }
     }
 
@@ -550,8 +550,9 @@ sub _start_upload{
   my $currentPart = 0;
 
   while(@$parts > 0){
+    my ($readers, $writers) = IO::Select->select($select, $select, undef);
 
-    for my $socket ($select->can_write(1/1000)){
+    for my $socket (@$writers){
       if($status{$socket} == 0){
         _print_args_to_socket($socket, "POST", $CRLF);
 	      $status{$socket}=1;
@@ -566,7 +567,7 @@ sub _start_upload{
       }
     }
 
-    for my $socket ($select->can_read(1/1000)){
+    for my $socket (@$readers){
       my $output = _read_from_socket($socket);
       if($status{$socket} == 1){
 	      #If we get a 400 we return to the begining
