@@ -9,7 +9,7 @@ It will run on any platform that supports perl that matches the requirements (ch
 This program will upload binary files to the usenet.
 This program is licensed with GPLv3.
 
-## note 
+## note
 This readme contains the basic info on how to run newsup and it's options.
 For windows installation, or another stuff more specific to some environment/script please check the wiki.
 
@@ -28,7 +28,7 @@ For a working solution in windows (with minimal testing on the windows platform)
 
 # What does this program do
 
-It will upload a file or folder to the usenet. 
+It will upload a file or folder to the usenet.
 If it is a folder it will search for files inside of the folder.
 A NZB file will be generated for later retrieving.
 
@@ -45,7 +45,7 @@ A NZB file will be generated for later retrieving.
 * SFV creation
 * IRC bot
 
-## What doesn't do 
+## What doesn't do
 But it may exist a script with these functionalities on the scripts folder.
 
 * Create compressed archive files to upload (rar, zip, 7zip, etc...)
@@ -61,7 +61,7 @@ To run it you just need to:
 ```
 perl uploadit.pl -directory my_folder -a "-com \"extra arguments for newsup.pl\"" -debug
 ```
-This will create a bunch of rars (check the rar configuration) of the dirctory "my_folder". It will also print a bunch of debug messages. 
+This will create a bunch of rars (check the rar configuration) of the dirctory "my_folder". It will also print a bunch of debug messages.
 You need to configure the path to the rar, par2 utilities, temporary folder and to newsup.pl on the newsup.conf file.
 
 ```
@@ -92,9 +92,9 @@ This bot will listen only to public messages on the channel he is connected.
 !upload <folder_to_be_uploaded> <upload name 1> <upload name 2> .... <upload name N>
 ```
 This will rar, par2 (it will invoke the uploadit script) the folder <folder_to_be_uploaded> - It will look for that folder inside the
-folders defined on the option PATH_TO_UPLOAD_ROOT on the conf file, and after that it will upload N times the <folder_to_be_uploaded> 
-with name "upload name 1" to "upload name N". This will also create a NZB file on the PATH_TO_SAVE_NZBS 
-(option on the newsup.conf file) and that NZB will also be uploaded to the same groups as the upload. The rest of the uploads will not 
+folders defined on the option PATH_TO_UPLOAD_ROOT on the conf file, and after that it will upload N times the <folder_to_be_uploaded>
+with name "upload name 1" to "upload name N". This will also create a NZB file on the PATH_TO_SAVE_NZBS
+(option on the newsup.conf file) and that NZB will also be uploaded to the same groups as the upload. The rest of the uploads will not
 have a nzb file.
 
 ```
@@ -111,7 +111,7 @@ The <file_nzb.nzb> should be inside the PATH_TO_SAVE_NZBS option defined on the 
 
 
 # Requirements:
-* Perl (preferably 5.018 or higher)
+* Perl (preferably 5.020 or higher)
 * Perl modules: Config::Tiny, IO::Socket::SSL, Inline::C (all other modules should exist on core.)
 
 
@@ -179,7 +179,7 @@ from= test #non valid. Non valid headers are: from, newsgroups, message-id and s
 PATH_TO_UPLOADER=../newsup.pl
 # Path to RAR executable
 PATH_TO_RAR=/usr/bin/rar
-# RAR volume size in megabytes 
+# RAR volume size in megabytes
 RAR_VOLUME_SIZE=50
 # RAR compression level
 RAR_COMPRESSION=0
@@ -197,7 +197,7 @@ TEMP_DIR=/tmp/
 # Regular expression to find files reverse the name. Used only on the IRC bot
 REGEXP_FIND_NAMES=.*(\.mkv|\.avi|\.mp4|\.ogv|\.flv) #Regular expression that will be used to find files where the names will be reversed if the option REVERSE_NAMES_FOUND
 # The names are inverted. Used only on the IRC bot
-REVERSE_NAMES_FOUND=1 #If you want to reverse the names (to obfuscate) of the files discovered by the regexp defined on the option REGEXP_FIND_NAMES 
+REVERSE_NAMES_FOUND=1 #If you want to reverse the names (to obfuscate) of the files discovered by the regexp defined on the option REGEXP_FIND_NAMES
 # Path to uploadit script. Used only on the IRC bot
 PATH_TO_UPLOADIT=/path/to/uploadit/script -debug #Path to the uploadit script
 # Path to upload root folder. Used only on the IRC bot
@@ -250,13 +250,13 @@ Check sample newsup.conf for the available options
 
 -connections <connections>: number of connections (or threads) for uploading the files (default: 2). Tip: you can use this to throttle your bandwidth usage :-P
 
--metadata: metadata for the nzb. You can put every text you want! Example: 
+-metadata: metadata for the nzb. You can put every text you want! Example:
 ```bash
 -metadata powered=NewsUP -metadata subliminar_message="NewsUp: the best usenet autoposter crossplatform"
 ```
 
 The NZB file It will have on the ```<head>``` tag the childs:
-```html 
+```html
 <metadata type="powered">NewsUP</metadata>
 <metadata type="subliminar_message">NewsUp: the best usenet autoposter crossplatform</metadata>
 ```
