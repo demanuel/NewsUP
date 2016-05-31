@@ -26,13 +26,11 @@ use Getopt::Long;
 use Config::Tiny;
 use File::Find;
 use File::Basename;
-use Carp qw/carp/;
 use Time::HiRes qw/gettimeofday usleep gettimeofday tv_interval/;
 use POSIX qw/ceil/;
 use IO::Socket::INET;
 use IO::Socket::SSL;# qw(debug2);
 use File::Path qw(remove_tree);
-use Carp;
 use IO::Select;
 
 use Inline C => Config => cc => exists $ENV{NEWSUP_CC}?$ENV{NEWSUP_CC}:"gcc";
