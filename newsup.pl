@@ -21,7 +21,7 @@
 use warnings;
 use strict;
 use utf8;
-use 5.020;
+use 5.018;
 use Getopt::Long;
 use Config::Tiny;
 use File::Find;
@@ -794,7 +794,8 @@ sub _authenticate{
     my $select = IO::Select->new(@connectionList);
 
     while($select->count() > 0){
-      for my $sock ($select->can_read(0.01)){
+      my ($readers, $writers) = IO::Select->select($select, $select, undef);
+      for my $sock (@$readers){
         if($status{$sock} == 0){
           _read_from_socket $sock;
           $status{$sock} = 1;
@@ -809,7 +810,7 @@ sub _authenticate{
         }
       }
 
-      for my $sock ($select->can_write(0.01)){
+      for my $sock (@$writers){
         if($status{$sock} == 1){
           die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo user ",$user,$CRLF) != 0);
           $status{$sock} = 2;
