@@ -198,11 +198,10 @@ my $post;
 sub _parse_command_line{
 
   my ($server, $port, $username,$userpasswd,
-      $threads, $from, $headerCheck,
-      $headerCheckSleep, $headerCheckServer,
-      $headerCheckPort, $headerCheckUserName,
-      $headerCheckPassword, $headerCheckRetries,
-      $headerCheckConnections, $nzbName);
+      $threads, $headerCheckConnections,
+      $headerCheckServer,$headerCheckPort,
+      $headerCheckUserName, $headerCheckPassword,
+      $from, $nzbName);
 
   #Parameters with default values
   my $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';
@@ -216,6 +215,12 @@ sub _parse_command_line{
   my @comments=();
 
   my $extraHeaders=$CRLF; #Variable that will contain the extra headers as a string
+
+  #Default Header check values
+  my $headerCheck = 0;
+  my $headerCheckRetries = 3; #Number of retries to be done in case the user decides to go for a headerCheck
+  my $headerCheckSleep = 20;
+
 
   GetOptions('help'=>=>sub{help();},
 	     'server=s'=>\$server,
@@ -240,6 +245,24 @@ sub _parse_command_line{
 	     'uploadsize=i'=>\$NNTP_MAX_UPLOAD_SIZE,
 	     'configuration=s'=>\$configurationFile
 	    );
+
+  if(!$headerCheck){
+    undef $headerCheckRetries;
+    undef $headerCheckSleep;
+    undef $headerCheckConnections;
+    undef $headerCheckServer;
+    undef $headerCheckPort;
+    undef $headerCheckUserName;
+    undef $headerCheckPassword;
+  }else{
+
+    $headerCheckConnections = $threads if(!defined $headerCheckConnections);
+    $headerCheckServer = $server if(!defined $headerCheckServer);
+    $headerCheckPort = $port if(!defined $headerCheckPort);
+    $headerCheckUserName =  $username if(!defined $headerCheckUserName);
+    $headerCheckPassword = $userpasswd if(!defined $headerCheckPassword);
+
+  }
 
   if (-e $configurationFile) {
     my $config = Config::Tiny->read( $configurationFile );
@@ -266,6 +289,7 @@ sub _parse_command_line{
     }
     if ($threads < 1) {
       say "Please specify a correct number of connections!";
+      exit 0;
     }
 
     if (!defined $headerCheck) {
@@ -316,6 +340,7 @@ sub _parse_command_line{
           $headerCheckRetries=3;
         }
       }
+
       if (!defined $headerCheckConnections) {
         if (exists $config->{headerCheck}{connections}){
           $headerCheckConnections = $config->{headerCheck}{connections};
@@ -457,61 +482,43 @@ sub _start_header_check{
     sleep($headerCheckSleep);
     say "Warping up header check engines with $headerCheckConnections connections!";
     my $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
-    my $statSelect = IO::Select->new(@$connectionList);
-    my $readSelect = IO::Select->new();
+    my $select = IO::Select->new(@$connectionList);
 
     my %candidates=();
     my $countProgress = 0;
-    while (@missingSegments > 0) {
+    my $missingReads = @missingSegments;
+    while ($missingReads>0) {
+      my ($readers, $writers) = IO::Select->select($select, $select, undef);
 
-    while ($statSelect->count()>0) {
-      for my $socket ($statSelect->can_write(1/1000)) {
+      for my $socket (@$writers){
         my $part = shift @missingSegments;
-        $statSelect->remove($socket);
-        if (defined $part) {
-          _print_args_to_socket($socket, "stat <",$part->{id},'>',$CRLF);
-          $readSelect->add($socket);
-          $candidates{$part->{id}}=$part;
-        }
+        last if !defined $part;
+        _print_args_to_socket($socket, "stat <",$part->{id},'>',$CRLF);
+        $candidates{$part->{id}}=$part;
       }
-    }
 
-    while ($readSelect->count()>0) {
-      for my $socket ($readSelect->can_read(1/1000)) {
-    	  my $output = _read_from_socket($socket);
-    	  print int((++$countProgress / $totalMissingSegments)*100),"%\r";
-    	  $readSelect->remove($socket);
-    	  if ($output =~ /^223 \d <(.+)>/) {
-    	    delete $candidates{$1};
-    	    $statSelect->add($socket);
-	      }elsif ($output =~ /^400 /) {
-	         shutdown ($socket, 2);
-	          undef $socket;
-	           my $conList = _get_connections(1, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
-	            $statSelect->add($conList->[0]);
-	      }else {
-    	    #On the header checking, we dont care about other status
-    	    $statSelect->add($socket);
-	      }
-	     }
+      for my $socket (@$readers){
+        my $output = _read_from_socket($socket);
+        $missingReads--;
+        print int((++$countProgress / $totalMissingSegments)*100),"%\r";
+        if ($output =~ /^223 \d <(.+)>/) {
+          delete $candidates{$1};
+        }elsif ($output =~ /^400 /) {
+          shutdown ($socket, 2);
+          undef $socket;
+          my $conList = _get_connections(1, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
+        }
       }
     }
 
     @missingSegments = values %candidates;
     undef %candidates;
-
-    for my $socket ($statSelect->handles()){
-      _print_args_to_socket($socket, "QUIT", $CRLF) ;
-      shutdown $socket, 2;
-    }
-    for my $socket ($readSelect->handles()){
+    for my $socket (@$connectionList){
       _print_args_to_socket($socket, "QUIT", $CRLF) ;
       shutdown $socket, 2;
     }
 
-    undef $statSelect;
-    undef $readSelect;
-
+    undef $select;
 
     say "There are ", scalar @missingSegments, " segments missing";
 
@@ -735,7 +742,6 @@ sub _print_args_to_socket{
 
   #Note: using syswrite or print is the same (im assuming if we don't disable nagle's algorithm):
   # Network Programming with Perl. Page: 311.
-  #So I'm going to use the simplest code.
 
   # Using syswrite
 
@@ -801,11 +807,21 @@ sub _authenticate{
           $status{$sock} = 1;
         }elsif($status{$sock} == 2){
           my $output= _read_from_socket $sock;
-          die "Error: $output" if ( $output !~ /^381/);
+
+          if ( $output !~ /^381/){
+            shutdown($_, 2) for (@connectionList);
+            die "Error when authenticating: $output";
+          }
+
           $status{$sock} = 3;
         }elsif($status{$sock} == 4){
           my $output= _read_from_socket $sock;
-          die "Error: $output" if ( $output !~ /^281/);
+
+          if ( $output !~ /^281/){
+            shutdown($_, 2) for (@connectionList);
+            die "Error when authenticating: $output";
+          }
+
           $select->remove($sock);
         }
       }
