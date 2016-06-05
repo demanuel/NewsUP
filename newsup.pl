@@ -481,7 +481,15 @@ sub _start_header_check{
     print "Header Checking\r";
     sleep($headerCheckSleep);
     say "Warping up header check engines with $headerCheckConnections connections!";
-    my $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
+    my $connectionList;
+    eval{
+       $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
+    };
+    if ($@){
+      warn "Unable to connect properly to the header check server. Skipping header check. Please verify the headerchek settings";
+      last;
+    }
+
     my $select = IO::Select->new(@$connectionList);
 
     my %candidates=();
