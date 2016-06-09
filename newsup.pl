@@ -512,8 +512,9 @@ sub _start_header_check{
           delete $candidates{$1};
         }elsif ($output =~ /^400 /) {
           shutdown ($socket, 2);
+          $select->remove($socket);
           undef $socket;
-          my $conList = _get_connections(1, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
+          $select->add(_get_connections(1, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword)->[0]);
         }
       }
     }
