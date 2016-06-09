@@ -292,9 +292,8 @@ sub _parse_command_line{
       exit 0;
     }
 
-    if (!defined $headerCheck) {
-      $headerCheck = $config->{headerCheck}{enabled} if exists $config->{headerCheck}{enabled};
-    }
+    $headerCheck = $config->{headerCheck}{enabled} if exists $config->{headerCheck}{enabled};
+
     if ($headerCheck){
 
       if (!defined $headerCheckSleep) {
