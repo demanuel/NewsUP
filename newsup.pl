@@ -851,7 +851,7 @@ sub _authenticate{
 sub _get_connections{
   my ($connections, $server, $port, $user, $password) = @_;
 
-  my @connectionList = (0) x ($connections-1);
+  my @connectionList = (0) x $connections;
 
   for my $i (0..$connections-1) {
     $connectionList[$i]=_create_socket($server, $port);
