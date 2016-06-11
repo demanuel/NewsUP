@@ -32,6 +32,7 @@ use IO::Socket::INET;
 use IO::Socket::SSL;# qw(debug2);
 use IO::Select;
 use Config;
+use Socket qw/SO_RCVBUF/;
 
 use Inline C => Config => cc => exists $ENV{NEWSUP_CC}?$ENV{NEWSUP_CC}:$Config{cc};
 #In case of message "loaded library mismatch" (this happens typically in windows) we need to add the flag -DPERL_IMPLICIT_SYS
@@ -173,13 +174,13 @@ AV* _yenc_encode_c(unsigned char* data, size_t data_size)
 C_CODE
 
 $|=1;
-$/="\r\n";
 #YENC related variables
 my $YENC_NNTP_LINESIZE=128;
 my $NNTP_MAX_UPLOAD_SIZE=750*1024;
 # END of the yenc variables
-
+$/="\r\n";
 my $CRLF="\x0D\x0A";
+
 
 my %MESSAGE_IDS=();
 
@@ -217,7 +218,7 @@ sub _parse_command_line{
   my $extraHeaders=$CRLF; #Variable that will contain the extra headers as a string
 
   #Default Header check values
-  my $headerCheck = 0;
+  my $headerCheck = -1;
   my $headerCheckRetries = 3; #Number of retries to be done in case the user decides to go for a headerCheck
   my $headerCheckSleep = 20;
 
@@ -246,7 +247,7 @@ sub _parse_command_line{
 	     'configuration=s'=>\$configurationFile
 	    );
 
-  if(!$headerCheck){
+  if(!$headerCheck || $headerCheck==-1){
     undef $headerCheckRetries;
     undef $headerCheckSleep;
     undef $headerCheckConnections;
@@ -292,7 +293,9 @@ sub _parse_command_line{
       exit 0;
     }
 
-    $headerCheck = $config->{headerCheck}{enabled} if exists $config->{headerCheck}{enabled};
+    if($headerCheck == -1){
+      $headerCheck = $config->{headerCheck}{enabled} if exists $config->{headerCheck}{enabled};
+    }
 
     if ($headerCheck){
 
@@ -479,10 +482,11 @@ sub _start_header_check{
   for (0..$headerCheckRetries-1) {
     print "Header Checking\r";
     sleep($headerCheckSleep);
-    say "Warping up header check engines with $headerCheckConnections connections!";
+    $headerCheckConnections = scalar @missingSegments if($headerCheckConnections > scalar @missingSegments);
+    say "Warping up header check engines to [$headerCheckServer:$headerCheckPort] with $headerCheckConnections connections!";
     my $connectionList;
     eval{
-       $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
+      $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
     };
     if ($@){
       warn "Unable to connect properly to the header check server. Skipping header check. Please verify the headerchek settings";
@@ -528,7 +532,7 @@ sub _start_header_check{
 
     undef $select;
 
-    say "There are ", scalar @missingSegments, " segments missing";
+    say "There are ", scalar @missingSegments, " segments missing [Total: ".scalar(@$missingSegmentsRef)."]";
 
     if (@missingSegments > 0) {
 
@@ -536,7 +540,7 @@ sub _start_header_check{
 
       my @tempSegments = @missingSegments;
       _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, \@tempSegments);
-      say "\tUpload of the missing segments done!";
+      say "Upload of the missing segments done!";
       undef @tempSegments;
     }else {
       last;
@@ -544,7 +548,6 @@ sub _start_header_check{
   }
   undef @missingSegments;
 }
-
 
 
 sub _start_upload{
@@ -578,6 +581,7 @@ sub _start_upload{
           undef $part;
           $status{$socket}=3;
           print $percentages[$currentPart++];
+          # print '.';
         }
       }
     }
@@ -746,7 +750,7 @@ sub _print_args_to_socket{
   local $,;
   local $\;
 
-  return 1 if !$socket->connected;
+  # return 1 if !$socket->connected;
 
   #Note: using syswrite or print is the same (im assuming if we don't disable nagle's algorithm):
   # Network Programming with Perl. Page: 311.
@@ -772,7 +776,7 @@ sub _print_args_to_socket{
 
   #Using print
   # return 0 if (print $socket @args);
-  #return 1;
+  # return 1;
 
 }
 
@@ -782,15 +786,14 @@ sub _read_from_socket{
 
   my $output='';
 
-  return "400 Socket closed\r\n" if (! $socket->connected);
+  #return "400 Socket closed\r\n" if (! $socket->connected);
 
   # return <$socket>;
-
   while (1) {
-    my $status = sysread($socket, my $buffer,1024);
+    my $status = sysread($socket, my $buffer,1);
     $output.= $buffer;
     undef $buffer;
-    if ($output =~ /\r\n\z/){
+    if ($output =~ /\r\n$/){
       last;
     }elsif (!defined $status) {
       die "Error: $!";
@@ -815,7 +818,6 @@ sub _authenticate{
           $status{$sock} = 1;
         }elsif($status{$sock} == 2){
           my $output= _read_from_socket $sock;
-
           if ( $output !~ /^381/){
             shutdown($_, 2) for (@connectionList);
             die "Error when authenticating: $output";
@@ -824,7 +826,6 @@ sub _authenticate{
           $status{$sock} = 3;
         }elsif($status{$sock} == 4){
           my $output= _read_from_socket $sock;
-
           if ( $output !~ /^281/){
             shutdown($_, 2) for (@connectionList);
             die "Error when authenticating: $output";
@@ -961,7 +962,6 @@ sub _create_socket{
 
   }
   $socket->autoflush(1);
-
   return $socket;
 }
 
