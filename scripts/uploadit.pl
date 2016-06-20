@@ -188,12 +188,12 @@ sub create_nfo{
 
   find(sub{
    if (-f $_) {
-     $_ =~ /\.([^.]*)/;
+     $_ =~ /(\.[^.]*)$/;
      my $ext = $1;
      for my $e (@VIDEO_EXTENSIONS){
        if($ext =~ /$e/){
           my $name = $File::Find::name;
-          `SimpleMovieNFOCreator $name`
+          `simpleMovieNFOCreator $name`
        }
      }
    }

@@ -40,7 +40,7 @@ for my $file (@ARGV){
     exit 0;
   }
 
-  my ($fileName, $dirs, $suffix) = fileparse($file, qr/\.[^.]*/);
+  my ($fileName, $dirs, $suffix) = fileparse($file, qr/\.[^.]*$/);
   my $title;
   my $year;
 
