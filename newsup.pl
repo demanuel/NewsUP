@@ -549,7 +549,6 @@ sub _start_header_check{
   undef @missingSegments;
 }
 
-
 sub _start_upload{
   my ($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, $parts) = @_;
 
@@ -581,7 +580,6 @@ sub _start_upload{
           undef $part;
           $status{$socket}=3;
           print $percentages[$currentPart++];
-          # print '.';
         }
       }
     }

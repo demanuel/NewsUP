@@ -3,7 +3,7 @@
 ###############################################################################
 #     Uploadit - create backups of your files to the usenet.
 #     Copyright (C) David Santiago
-#  
+#
 #     This program is free software: you can redistribute it and/or modify
 #     it under the terms of the GNU General Public License as published by
 #     the Free Software Foundation, either version 3 of the License, or
@@ -32,22 +32,26 @@ use File::Copy qw/mv cp/;
 use Time::HiRes qw /time/;
 use Compress::Zlib;
 
+my @VIDEO_EXTENSIONS = qw/.avi .mkv .mp4/;
+
 sub main{
   my $DIRECTORY='';
   my $NAME='';
   my @GROUPS=();
   my $DEBUG=0;
+  my $CREATE_NFO=0;
   my $UP_ARGS='';
   my $DELETE=1;
   my $FORCE_RENAME=0;
   my $SFV=0;
   my $NFO;
-  
+
   GetOptions('help'=>sub{help();},
 	     'directory=s'=>\$DIRECTORY,
 	     'debug!'=>\$DEBUG,
 	     'args=s'=>\$UP_ARGS,
 	     'delete!'=>\$DELETE,
+       'createNFO!'=>\$CREATE_NFO,
 	     'group=s'=>\@GROUPS,
 	     'sfv!'=>\$SFV,
 	     'nfo=s'=>\$NFO,
@@ -55,85 +59,82 @@ sub main{
 
   $UP_ARGS .=' ' if $UP_ARGS ne '';
   $UP_ARGS .="-group ".join(' -group ', @GROUPS) if @GROUPS;
-  
+
   if ($DIRECTORY eq '' || !-e $DIRECTORY ) {
-    
+
     say "You need to configure the switch -directory";
     exit 0;
-    
+
   }
 
   if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
-      my $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
-      my %other_configs = %{$config->{other}};
-    
-      if (! -e $other_configs{PATH_TO_RAR} && $other_configs{ENABLE_RAR_COMPRESSION} == 1) {
-	  say "You need to define a valid path to the rar program. Please change the variable RAR_PATH on the newsup.conf file.";
-	  exit 0;
-      }
-      if (exists $other_configs{ENABLE_PAR_CREATION} && $other_configs{ENABLE_PAR_CREATION} && !-e $other_configs{PATH_TO_PAR2}) {
-	  say "You need to define a valid path to par2repair program. Please change the variable PATH_TO_PAR2 on the newsup.conf file.";
-	  exit 0;
-	}
+    my $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
+    my %other_configs = %{$config->{other}};
 
-      if (!$SFV) {
-
-	$SFV=1 if (exists $other_configs{ENABLE_SFV_GENERATION} && $other_configs{ENABLE_SFV_GENERATION});
-	
-      }
-      
-      
-      # say "Splitting files!";
-      my $preProcessedFiles = pre_process_folder ($DIRECTORY, \%other_configs, $DEBUG);
-      say Dumper($preProcessedFiles) if $DEBUG;
-      
-      push @$preProcessedFiles, create_sfv_file(basename($DIRECTORY), $preProcessedFiles, \%other_configs, $DEBUG) if ($other_configs{ENABLE_SFV_GENERATION});
-      say Dumper($preProcessedFiles) if $DEBUG;
-
-
-      if (defined $NFO && -e $NFO) {
-	push @$preProcessedFiles, $NFO;
-	
-      }elsif (!defined $NFO && defined $other_configs{NFO_FILE} && $other_configs{NFO_FILE}) {
-	my($filename, $dirs, $suffix) = fileparse($other_configs{NFO_FILE}, '.nfo');
-	
-	cp($other_configs{NFO_FILE}, $other_configs{TEMP_DIR});
-	push @$preProcessedFiles, $other_configs{TEMP_DIR}."/$filename.nfo";
-      }else {
-	$FORCE_RENAME=0;
-      }
-
-      
-      push @$preProcessedFiles, create_parity_archives($DIRECTORY, $preProcessedFiles, \%other_configs,$FORCE_RENAME, $DEBUG) if ($other_configs{ENABLE_PAR_CREATION});
-      say Dumper($preProcessedFiles) if $DEBUG;
-      upload_files($preProcessedFiles, \%other_configs, $UP_ARGS, $DEBUG);
-
-      my $remove_regexp = $other_configs{TEMP_DIR};
-
-
-	for my $file (@$preProcessedFiles) {
-	  
-	  my (undef, $path, undef) = fileparse($file);
-	  if ($DELETE) {
-	    if ($file =~ /$remove_regexp/ && index($path, $DIRECTORY)!=0) {
-	      unlink $file;
-	      say "Removing $file" if $DEBUG;
-	    }
-	  }else {
-	    say "Uploaded files: $file";
+    if (! -e $other_configs{PATH_TO_RAR} && $other_configs{ENABLE_RAR_COMPRESSION} == 1) {
+	     say "You need to define a valid path to the rar program. Please change the variable RAR_PATH on the newsup.conf file.";
+	      exit 0;
+    }
+    if (exists $other_configs{ENABLE_PAR_CREATION} && $other_configs{ENABLE_PAR_CREATION} && !-e $other_configs{PATH_TO_PAR2}) {
+      say "You need to define a valid path to par2repair program. Please change the variable PATH_TO_PAR2 on the newsup.conf file.";
+	    exit 0;
 	  }
-      }
-      # say "Creating parity files";  
+
+    if (!$SFV) {
+      $SFV=1 if (exists $other_configs{ENABLE_SFV_GENERATION} && $other_configs{ENABLE_SFV_GENERATION});
+    }
+
+
+    # say "Splitting files!";
+    my $preProcessedFiles = pre_process_folder ($DIRECTORY, \%other_configs, $DEBUG, $CREATE_NFO);
+    say Dumper($preProcessedFiles) if $DEBUG;
+
+    push @$preProcessedFiles, create_sfv_file(basename($DIRECTORY), $preProcessedFiles, \%other_configs, $DEBUG) if ($other_configs{ENABLE_SFV_GENERATION});
+    say Dumper($preProcessedFiles) if $DEBUG;
+
+
+    if (defined $NFO && -e $NFO) {
+	     push @$preProcessedFiles, $NFO;
+
+    }elsif (!defined $NFO && defined $other_configs{NFO_FILE} && $other_configs{NFO_FILE}) {
+	    my($filename, $dirs, $suffix) = fileparse($other_configs{NFO_FILE}, '.nfo');
+
+    	cp($other_configs{NFO_FILE}, $other_configs{TEMP_DIR});
+    	push @$preProcessedFiles, $other_configs{TEMP_DIR}."/$filename.nfo";
+    }else {
+	     $FORCE_RENAME=0;
+    }
+
+    push @$preProcessedFiles, create_parity_archives($DIRECTORY, $preProcessedFiles, \%other_configs,$FORCE_RENAME, $DEBUG) if ($other_configs{ENABLE_PAR_CREATION});
+    say Dumper($preProcessedFiles) if $DEBUG;
+    upload_files($preProcessedFiles, \%other_configs, $UP_ARGS, $DEBUG);
+
+    my $remove_regexp = $other_configs{TEMP_DIR};
+
+
+    for my $file (@$preProcessedFiles) {
+
+  	  my (undef, $path, undef) = fileparse($file);
+  	  if ($DELETE) {
+  	    if ($file =~ /$remove_regexp/ && index($path, $DIRECTORY)!=0) {
+  	      unlink $file;
+  	      say "Removing $file" if $DEBUG;
+  	    }
+  	  }else {
+  	    say "Uploaded files: $file";
+  	  }
+    }
+      # say "Creating parity files";
       # my $filesToUpload = create_parity_archives($checkSumFiles, \%script_vars);
-      
+
       # randomize_archives($checkSumFiles, \%script_vars);
-      
+
       # say "Starting upload";
       # upload_files($filesToUpload,\%script_vars);
       # if ($script_vars{RAR_COMPRESSION} !=-1) {
       # 	  unlink @$filesToUpload;
       # }
-      
+
   }else {
       say "Unable to find newsup.conf file. Please check if the environment variable HOME is installed!";
   }
@@ -147,7 +148,12 @@ sub pre_process_folder{
   my $configs=shift;
   my $DEBUG = shift;
   my @files = ();
-  
+  my $CREATE_NFO = shift;
+
+  if($CREATE_NFO){
+    create_nfo($folder);
+  }
+
   if ($configs->{ENABLE_RAR_COMPRESSION} > 0) {
 
     my $args = $configs->{EXTRA_ARGS_TO_RAR}.' "'.$configs->{TEMP_DIR}.'/'.basename($folder).".rar\" \"$folder\"";
@@ -158,7 +164,7 @@ sub pre_process_folder{
     while ($output =~ /Creating archive (.*\.rar|.*\.[r-z]\d+)/g) {
       my $archive = $1;
       if ($archive =~ /part0{0,4}2\.rar/) {
-	(my $missingArchive = $archive) =~ s/2\.rar/1\.rar/; 
+	(my $missingArchive = $archive) =~ s/2\.rar/1\.rar/;
 	push @files, $missingArchive if (-e $missingArchive);
       }
       push @files, $archive if (-e $archive);
@@ -175,6 +181,25 @@ sub pre_process_folder{
   }
 
   return \@files;
+}
+
+sub create_nfo{
+  my $folder = shift;
+
+  find(sub{
+   if (-f $_) {
+     $_ =~ /\.([^.]*)/;
+     my $ext = $1;
+     for my $e (@VIDEO_EXTENSIONS){
+       if($ext =~ /$e/){
+          my $name = $File::Find::name;
+          `SimpleMovieNFOCreator $name`
+       }
+     }
+   }
+ }, ($folder))
+
+
 }
 
 sub create_sfv_file{
@@ -220,9 +245,9 @@ sub create_parity_archives{
   my @escapedFiles=();
   push @escapedFiles, "\"$_\"" for @$preProcessedFiles;
 
-  
+
   my $args = $configs->{EXTRA_ARGS_TO_PAR2}.' "'.$configs->{TEMP_DIR}.'/'.basename($folder).'.par2" '.join(' ',@escapedFiles).'';
-  
+
   my $invoke = '"'.$configs->{PATH_TO_PAR2}.'" '.$args;
   $invoke =~ s/\/\//\//g;
   say "Invoking: $invoke" if $DEBUG;
@@ -238,9 +263,9 @@ sub create_parity_archives{
   if ($forceRename) {
     unlink (pop @$preProcessedFiles);
   }
-  
+
   return @parity_files;
-  
+
 }
 
 
@@ -266,7 +291,7 @@ sub upload_files{
 sub randomize_archives{
   say "Randomize archives";
   my ($compressedFiles,$scriptVarsRef) = @_;
-  
+
   return $compressedFiles if ($scriptVarsRef->{RANDOMIZE_NAMES}==0 || @$compressedFiles > 1);
 
   my @notParityFiles = ();
@@ -295,14 +320,14 @@ This program is part of NewsUP.
 
 The goal of this program is to make your uploading more easy.
 
-This is an auxiliary script that will compress and/or split the files to be uploaded, 
+This is an auxiliary script that will compress and/or split the files to be uploaded,
 create the parity files, create sfv files and finally invoke the newsup to upload the
 files.
 
 Options available:
 \t-directory <folder> = the directory to upload
 
-\t-debug = to show debug messages. Usefull when you're configuring the switches on the several 
+\t-debug = to show debug messages. Usefull when you're configuring the switches on the several
 \t\tprograms that this invokes.
 
 \t-args <extra args> = extra args to be passed to newsup. Usually they need to be between double quotes ('"')
@@ -314,17 +339,17 @@ Options available:
 
 \t-sfv = if you want a sfv to be generated.
 
-\t-nfo <.NFO> = if you have a NFO to be uploaded. Usually the .nfo files aren't inside of the rars, so 
+\t-nfo <.NFO> = if you have a NFO to be uploaded. Usually the .nfo files aren't inside of the rars, so
 \t\tthey live somewhere else in the filesystem.
 
-\t-force_rename = option that is used in the IRC bot. 
+\t-force_rename = option that is used in the IRC bot.
 
 \t-rename = the same as `force_rename`
 
 END
 
 exit 0;
-  
+
 }
 
 

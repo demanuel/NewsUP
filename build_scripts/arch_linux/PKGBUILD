@@ -2,7 +2,7 @@
 pkgname=newsup-git
 _pkgname=newsup
 pkgrel=1
-pkgver=r241.7c3e942
+pkgver=r270.a075b35
 provides=(_pkgname)
 pkgdesc="NewsUP - A usenet binary uploader"
 arch=('any')
@@ -18,6 +18,7 @@ package() {
 	  install -D $pkgname/newsup.pl $pkgdir/usr/bin/vendor_perl/$_pkgname
 	  install -D $pkgname/scripts/uploadit.pl $pkgdir/usr/bin/vendor_perl/uploadit
 	  install -D $pkgname/scripts/completion_checker.pl $pkgdir/usr/bin/vendor_perl/completion_checker
+		install -D $pkgname/scripts/SimpleMovieNFOCreator.pl $pkgdir/usr/bin/vendor_perl/completion_checker
 	  install -D -m644 $pkgname/newsup.conf $pkgdir/etc/$_pkgname/newsup.conf
 }
 
