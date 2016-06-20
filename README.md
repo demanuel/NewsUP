@@ -50,7 +50,7 @@ But it may exist a script with these functionalities on the scripts folder.
 
 * Create compressed archive files to upload (rar, zip, 7zip, etc...)
 * Create parity files
-
+* Create .NFO files
 
 ## Scripts
 The folder scripts is a folder where NewsUP functionalities can be extended (please check the configuration section).
@@ -69,6 +69,11 @@ perl uploadit.pl -directory my_folder -a "-com \"extra arguments for newsup.pl\"
 ```
 The same as the example above but this time it will create SFV file, and it will upload a nfo file.
 
+```
+perl uploadit.pl -directory my_folder -a "-com \"extra arguments for newsup.pl\"" -debug -sfv -nfo <path to nfo file> -createNFO
+```
+The same as the example above but this time it will search for video files and create a NFO with some metadata.
+
 
 * completion_checker.pl - this script will check the completion of all files in a NZB:
 ```
@@ -76,6 +81,14 @@ perl completion_checker.pl -nzb my_nzb_file.nzb -server my_server.com -port 444 
 ```
 This will check all the segments of the nzb, to see if they are available. Only the -nzb switch is required, all the others
 are optional, as they will be extracted from the newsup.conf
+
+
+* simpleMovieNFOCreator.pl - this script determine the title from a file and create a nzb with filename, md5 hash and the IMDB info.
+This can be used with uploadit
+```
+perl simpleMovieNFOCreator.pl /path/to/my/movie.avi
+```
+This will create a nfo file: /path/to/my/movie.nfo.
 
 ## IRC bot
 A IRC bot is distributed with NewsUP.
