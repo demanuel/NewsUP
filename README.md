@@ -70,9 +70,13 @@ perl uploadit.pl -directory my_folder -a "-com \"extra arguments for newsup.pl\"
 The same as the example above but this time it will create SFV file, and it will upload a nfo file.
 
 ```
-perl uploadit.pl -directory my_folder -a "-com \"extra arguments for newsup.pl\"" -debug -sfv -nfo <path to nfo file> -createNFO
+perl uploadit.pl -directory my_folder -name hash1 -name hash2
 ```
-The same as the example above but this time it will search for video files and create a NFO with some metadata.
+This will upload the folder my_folder twice. The one upload will be named hash1 the other one will be named hash2.
+Please note that only the nzb file from the first upload will be uploaded (if the upload nzb option is set to true). But both are
+stored in the save_nzb_path.
+This means that all the uploads with the exception of the first are considered backups.
+
 
 
 * completion_checker.pl - this script will check the completion of all files in a NZB:
@@ -182,42 +186,54 @@ X-extra-header= value3 #extra header. Non valid because there's already one
 extra-header2= value2 #second extra header
 from= test #non valid. Non valid headers are: from, newsgroups, message-id and subject.
 
-[script_vars]
-############################
-#
-# This section is variables only used by the scripts on the script folder
-# The newsup.pl script doesn't use any of the variables here
-############################
-# Path to newsup script. Please make sure that the script is executable. Check it's permissions
-PATH_TO_UPLOADER=../newsup.pl
-# Path to RAR executable
-PATH_TO_RAR=/usr/bin/rar
-# RAR volume size in megabytes
-RAR_VOLUME_SIZE=50
-# RAR compression level
-RAR_COMPRESSION=0
-# RAR Password
-RAR_PASSWORD=newsup
-# Path to PAR2 executable
-PATH_TO_PAR2=/usr/bin/par2
-# Folder to where the scripts files should be written
-# It's obigatory to terminate on the separator folder char.
-# Don't point this to the folder you have the original files - They will be removed. You are warned!
-TEMP_DIR=/tmp/
-# Randomize Names
-# The names are toggled. Imagine 3 files: a, b and c. The file a will keep the name. The file b  will exchange name with file c. This is done randomly.
 
-# Regular expression to find files reverse the name. Used only on the IRC bot
-REGEXP_FIND_NAMES=.*(\.mkv|\.avi|\.mp4|\.ogv|\.flv) #Regular expression that will be used to find files where the names will be reversed if the option REVERSE_NAMES_FOUND
-# The names are inverted. Used only on the IRC bot
-REVERSE_NAMES_FOUND=1 #If you want to reverse the names (to obfuscate) of the files discovered by the regexp defined on the option REGEXP_FIND_NAMES
-# Path to uploadit script. Used only on the IRC bot
-PATH_TO_UPLOADIT=/path/to/uploadit/script -debug #Path to the uploadit script
-# Path to upload root folder. Used only on the IRC bot
-PATH_TO_UPLOAD_ROOT=/path/to/upload/root1,/path/to/upload/root2 #path to the upload root. You can have several separated by a comma (no spaces)
-# Path to the upload ad folder. Used only on the IRC bot
-PATH_TO_ADS=/path/to/ad_folder #Path to the ad folder to be put on the rar that will be compressed and uploaded
-# Path to save nzbs. Used only on the IRC bot
+[uploadit]
+# Path to upload root folder
+upload_root=/home/demanuel/Downloads/Linux
+#Reverse name
+reverse=0
+#reverse filter
+files_filter=.*(\.mkv|\.avi|\.mp4|\.ogv|\.flv)
+#rename par
+rename_par=0
+#rename par arguments
+rename_par_arguments=par2 c -r0
+#Archive the data to upload
+archive=1
+#Archive arguments
+archive_arguments=/usr/bin/rar a -m0 -v50M -ep -ed -r
+#for 7z: 7z a -r -mx=0 -v50m
+#Archive filter
+archive_filter=rar$
+#for 7z: \.\d{3}$
+#Create SFV
+create_sfv=1
+#force repair
+force_repair=1
+#create parity archives
+par=1
+#Parity archive arguments
+par_arguments=par2 c -r15
+#Par filter
+par_filter=par2$
+#save nzb
+save_nzb=1
+#save nzb
+save_nzb_path=/home/demanuel/Uploads
+#upload nzb
+upload_nzb=1
+#force repair - You need to identify a NFO in the command line
+force_repair=0
+#temp dir
+temp_dir=/data/tmp
+#uploader
+uploader=newsup
+#args for newsup
+args="-comment 'Uploaded with NewsUP'"
+
+
+
+[other]
 PATH_TO_SAVE_NZBS=/path/to/save/nzbs #Path to save the NZB of the files that were uploaded.
 # IRC server - NO SSL
 IRC_SERVER=irc.server.com #IRC server where the bot is going to connect. SSL not supported
