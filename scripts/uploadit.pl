@@ -73,7 +73,6 @@ sub main{
 		$OPTIONS{nfo}='' if(!defined $OPTIONS{nfo});
 		
 		%OPTIONS= %{_load_options(\%OPTIONS)};
-	
 		
 		#Algorithm Steps:
 		#1- copy the folder to the tmp_dir
@@ -278,25 +277,24 @@ sub create_sfv{
 			unlink $old_sfv_filename;
 			last;
 		}
-		
 	}
 	closedir $dh;
 	
 	open my $ofh, '>', catfile($OPTIONS->{temp_dir},"$sfv_file.sfv") or die 'Unable to create sfv file!';
  
 	for (@$files) {
-	  my $file = $_;
-	  my $fileName=(fileparse($file))[0];
-	  open my $ifh, '<', $file or die "Couldn't open file $file : $!";
-	  binmode $ifh;
-	  my $crc32 = 0;
-	  while (read ($ifh, my $input, 512*1024)!=0) {
-		$crc32 = crc32($input,$crc32);
-	  }
-  
-	  say sprintf('%s %08x',$fileName, $crc32) if $OPTIONS->{debug};
-	  print $ofh sprintf('%s %08x\r\n',$fileName, $crc32);
-	  close $ifh;
+		my $file = $_;
+		my $fileName=(fileparse($file))[0];
+		open my $ifh, '<', $file or die "Couldn't open file $file : $!";
+		binmode $ifh;
+		my $crc32 = 0;
+		while (read ($ifh, my $input, 512*1024)!=0) {
+			$crc32 = crc32($input,$crc32);
+		}
+
+		say sprintf('%s %08x',$fileName, $crc32) if $OPTIONS->{debug};
+		print $ofh sprintf('%s %08x\r\n',$fileName, $crc32);
+		close $ifh;
 	}
   
 	close $ofh;
@@ -422,12 +420,14 @@ sub _load_options{
 		}
 
 		my %other_configs = %{$config->{uploadit}};
-		
+
 		for my $key (keys(%other_configs)){
 			if(!exists $OPTIONS{$key}){
 				$OPTIONS{$key} = $other_configs{$key};
 			}elsif(!defined $OPTIONS{$key} && $other_configs{$key} ne ''){
 				$OPTIONS{$key}=$other_configs{$key} == 1?1:0;	
+			}elsif($OPTIONS{$key} eq ''){
+				$OPTIONS{$key} = $other_configs{$key};
 			}
 		}
 	}
