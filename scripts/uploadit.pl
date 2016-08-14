@@ -459,26 +459,6 @@ sub _load_options{
 
 sub help{
 	
-			'help'=>sub{help();},
-		#Options in the config file
-		'create_sfv!'=>\$OPTIONS{create_sfv},
-		'group=s@'=>\$OPTIONS{group},
-		'archive!'=>\$OPTIONS{archive},
-		'par!'=>\$OPTIONS{par},
-		'save_nzb!'=>\$OPTIONS{save_nzb},
-		'rename_par!'=>\$OPTIONS{rename_par},
-		'reverse!'=>\$OPTIONS{reverse},
-		'force_repair!'=>\$OPTIONS{force_repair},
-		'upload_nzb!'=>\$OPTIONS{upload_nzb},
-		#'force_rename|rename!'=>\$FORCE_RENAME
-		#OptionsAtRuntime
-		'directory=s'=>\$OPTIONS{directory},
-		'debug!'=>\$OPTIONS{debug},
-		'args=s'=>\$OPTIONS{args},
-		'delete!'=>\$OPTIONS{delete},
-		'nfo=s'=>\$OPTIONS{nfo},
-		'name=s@'=>\$OPTIONS{name},
-	
   say << "END";
 This program is part of NewsUP.
 
