@@ -458,6 +458,27 @@ sub _load_options{
 }
 
 sub help{
+	
+			'help'=>sub{help();},
+		#Options in the config file
+		'create_sfv!'=>\$OPTIONS{create_sfv},
+		'group=s@'=>\$OPTIONS{group},
+		'archive!'=>\$OPTIONS{archive},
+		'par!'=>\$OPTIONS{par},
+		'save_nzb!'=>\$OPTIONS{save_nzb},
+		'rename_par!'=>\$OPTIONS{rename_par},
+		'reverse!'=>\$OPTIONS{reverse},
+		'force_repair!'=>\$OPTIONS{force_repair},
+		'upload_nzb!'=>\$OPTIONS{upload_nzb},
+		#'force_rename|rename!'=>\$FORCE_RENAME
+		#OptionsAtRuntime
+		'directory=s'=>\$OPTIONS{directory},
+		'debug!'=>\$OPTIONS{debug},
+		'args=s'=>\$OPTIONS{args},
+		'delete!'=>\$OPTIONS{delete},
+		'nfo=s'=>\$OPTIONS{nfo},
+		'name=s@'=>\$OPTIONS{name},
+	
   say << "END";
 This program is part of NewsUP.
 
@@ -468,26 +489,45 @@ create the parity files, create sfv files and finally invoke the newsup to uploa
 files.
 
 Options available:
-\t-directory <folder> = the directory to upload
 
-\t-debug = to show debug messages. Usefull when you're configuring the switches on the several
-\t\tprograms that this invokes.
+\t-help = shows this message
 
-\t-args <extra args> = extra args to be passed to newsup. Usually they need to be between double quotes ('"')
-
-\t-delete = if you want the temporary folder (the folder where the compressed/split and pars are
-\t\tgoing to be created) deleted.
+\t-create_sfv = if you want a sfv to be generated.
 
 \t-group <group> = group to where you want to upload. You can have multiple `group` switches.
 
-\t-sfv = if you want a sfv to be generated.
+\t-archive = If you want to archive (rar or 7z or other)
+
+\t-par = If you want par2 files to be created automatically
+
+\t-save_nzb = if you want to save the nzb in the location defined in the option save_nzb_path on the conf file.
+
+\t-rename_par = If you want a par Rename.with.this.par2 to be created. This par can be used to rename the files
+\tmatched by the files_filter in the configuration file. This only makes sense to use if the -name option is used
+
+\t-reverse = If you want the files matched by the files_filter in the conf file to have the name reversed.
+
+\t-force_repair = To force the client to repair the files. This is only done if a NFO is passed, since it will
+\tdelete it to force a repair.
+
+\t-upload-nzb = If the nzb of the upload is to be uploaded as well.
+
+\t-directory <folder|file> = the folder or file to be uploaded.
+
+\t-debug = to show debug messages. Usefull when you're configuring the switches. You'll know what commands are being invoked
+
+\t-args <extra args> = extra args to be passed to newsup. Usually they need to be between double quotes ('"'). An alternative to
+\tthis is to use the option uploader in the configuration file.
+
+\t-delete = if you want the temporary folder's content (the folder where the compressed/split and pars are
+\t\tgoing to be created) deleted after upload. This is enabled by default.
 
 \t-nfo <.NFO> = if you have a NFO to be uploaded. Usually the .nfo files aren't inside of the rars, so
 \t\tthey live somewhere else in the filesystem.
 
-\t-force_rename = option that is used in the IRC bot.
-
-\t-rename = the same as `force_rename`
+\t-name = If you want the files that match the files_filter in the conf file to have another name. Also if the archive is
+\tset, the archive's name will be with this new name. You can have several -name. It will upload the files with the different
+\tnames. If you have set the option -upload_nzb, this option is only used for the first name.
 
 END
 
