@@ -68,7 +68,7 @@ sub main{
 		}
 		$OPTIONS{debug}=0 if(!defined $OPTIONS{debug});
 		$OPTIONS{args}='' if(!defined $OPTIONS{args});
-		$OPTIONS{delete}=0 if(!defined $OPTIONS{delete});
+		$OPTIONS{delete}=1 if(!defined $OPTIONS{delete});
 		$OPTIONS{name}=[] if(!defined $OPTIONS{name});
 		$OPTIONS{nfo}='' if(!defined $OPTIONS{nfo});
 		
