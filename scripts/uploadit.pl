@@ -175,10 +175,17 @@ sub upload_file_list{
 	$CMD .= '-nzb '.quotemeta($name).' ';
 	
 	say $CMD if $OPTIONS->{debug};
-	my @CMD_output = `$CMD`;
-	for(@CMD_output){
-		print $_ if /speed|headercheck|nzb|error|exception/i;
+	
+	open my $ofh, '-|', $CMD;
+	while(<$ofh>){
+		print $_ if /speed|headercheck|error|exception/i;
 	}
+	close $ofh;
+	
+	#my @CMD_output = `$CMD`;
+	#for(@CMD_output){
+	#	print $_ if /speed|headercheck|nzb|error|exception/i;
+	#}
 	
 	return $name;
 }
@@ -216,7 +223,6 @@ sub rename_par_files{
 			rename($old_filename, $new_filename);
 			push @par_files, $new_filename;
 		}
-		#push @archived_files, catfile($OPTIONS->{temp_dir}, $file) 
 	}
 	closedir $dh;
 	
@@ -243,8 +249,11 @@ sub par_files{
 	
 	say $CMD if $OPTIONS->{debug};
 	
-	my $CMD_output = `$CMD`;
-	say $CMD_output if $OPTIONS->{debug};
+	open my $ofh, '-|', $CMD or die "Unable to launch process: $!";
+	while(<$ofh>){
+		print if $OPTIONS->{debug};
+	}
+	close $ofh;
 	
 	opendir my $dh, $OPTIONS->{temp_dir} or die 'Couldn\'t open \''.$OPTIONS->{temp_dir}."' for reading: $!";
 	my $regexp = qr/$OPTIONS->{par_filter}/;
@@ -339,8 +348,15 @@ sub archive_files{
 	my $CMD=$OPTIONS->{archive_arguments}.' '.quotemeta(catfile( $OPTIONS->{temp_dir}, $name)).' '.quotemeta($dir);
 	$CMD.=" ".quotemeta($OPTIONS->{nfo}) if(defined $OPTIONS->{nfo} && $OPTIONS->{nfo} ne '' && -e $OPTIONS->{nfo});
 	say $CMD if $OPTIONS->{debug};
-	my $CMD_output = `$CMD`;
-	say $CMD_output if $OPTIONS->{debug};
+	
+	open my $ofh, '-|', $CMD;
+	
+	while(<$ofh>){
+		print if $OPTIONS->{debug};
+	}
+	close $ofh;
+	#my $CMD_output = `$CMD`;
+	#say $CMD_output if $OPTIONS->{debug};
 	
 	my @archived_files = ();
 	my $regexp = qr/$OPTIONS->{archive_filter}/;
@@ -387,8 +403,13 @@ sub rename_files{
 	my $CMD = $OPTIONS->{rename_par_arguments}.' '.quotemeta("$dir/Rename.with.this.par2 ").join(' ', @matched_files);
 	say $CMD if $OPTIONS->{debug};
 	
-	my $CMD_output = `$CMD`;
-	say $CMD_output if $OPTIONS->{debug};
+	open my $ofh , '-|', $CMD;
+	while(<$ofh>){
+		print if $OPTIONS->{debug};
+	}
+	close $ofh;
+	#my $CMD_output = `$CMD`;
+	#say $CMD_output if $OPTIONS->{debug};
 	
 	my $i=0;
 	for my $file (@matched_files){
