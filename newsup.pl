@@ -32,7 +32,7 @@ use IO::Socket::INET;
 use IO::Socket::SSL;# qw(debug2);
 use IO::Select;
 use Config;
-use Socket qw/SO_RCVBUF/;
+
 
 use Inline C => Config => cc => exists $ENV{NEWSUP_CC}?$ENV{NEWSUP_CC}:$Config{cc};
 #In case of message "loaded library mismatch" (this happens typically in windows) we need to add the flag -DPERL_IMPLICIT_SYS
@@ -186,12 +186,6 @@ my %MESSAGE_IDS=();
 
 
 $SIG{PIPE}='IGNORE';
-
-my $CURRENT_OPEN_FILE;
-my $CURRENT_OPEN_FILE_FH;
-my $CURRENT_OPEN_FILE_SIZE=0;
-
-my $post;
 
 
 #Returns a bunch of options that it will be used on the upload. Options passed through command line have precedence over
