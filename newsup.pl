@@ -200,7 +200,8 @@ sub _parse_command_line{
 
   #Parameters with default values
   my $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';
-
+  my $no_tls=0;
+  
   #default value
   my @filesToUpload=();
   my @newsGroups = ();
@@ -218,29 +219,31 @@ sub _parse_command_line{
 
 
   GetOptions('help'=>=>sub{help();},
-	     'server=s'=>\$server,
-	     'port=i'=>\$port,
-	     'username=s'=>\$username,
-	     'password=s'=>\$userpasswd,
-	     'file=s'=>\@filesToUpload,
-	     'comment=s'=>\@comments,
-	     'uploader=s'=>\$from,
-	     'newsgroup|group=s'=>\@newsGroups,
-	     'connections=i'=>\$threads,
-	     'metadata=s'=>\%cmdMetadata,
-	     'nzb=s'=>\$nzbName,
-	     'headerCheck=i'=>\$headerCheck,
-	     'headerCheckSleep=i'=>\$headerCheckSleep,
-	     'headerCheckServer=s'=>\$headerCheckServer,
-	     'headerCheckPort=i'=>\$headerCheckPort,
-	     'headerCheckUserName=s'=>\$headerCheckUserName,
-	     'headerCheckPassword=s'=>\$headerCheckPassword,
-	     'headerCheckRetries|retries=i'=>\$headerCheckRetries,
-	     'headerCheckConnections=i'=>\$headerCheckConnections,
-	     'uploadsize=i'=>\$NNTP_MAX_UPLOAD_SIZE,
-	     'configuration=s'=>\$configurationFile
-	    );
+             'server=s'=>\$server,
+             'port=i'=>\$port,
+             'username=s'=>\$username,
+             'password=s'=>\$userpasswd,
+             'file=s'=>\@filesToUpload,
+             'comment=s'=>\@comments,
+             'uploader=s'=>\$from,
+             'newsgroup|group=s'=>\@newsGroups,
+             'connections=i'=>\$threads,
+             'metadata=s'=>\%cmdMetadata,
+             'nzb=s'=>\$nzbName,
+             'headerCheck=i'=>\$headerCheck,
+             'headerCheckSleep=i'=>\$headerCheckSleep,
+             'headerCheckServer=s'=>\$headerCheckServer,
+             'headerCheckPort=i'=>\$headerCheckPort,
+             'headerCheckUserName=s'=>\$headerCheckUserName,
+             'headerCheckPassword=s'=>\$headerCheckPassword,
+             'headerCheckRetries|retries=i'=>\$headerCheckRetries,
+             'headerCheckConnections=i'=>\$headerCheckConnections,
+             'uploadsize=i'=>\$NNTP_MAX_UPLOAD_SIZE,
+             'configuration=s'=>\$configurationFile,
+             'noTLS!'=>\$no_tls
+            );
 
+      
   if(!$headerCheck || $headerCheck==-1){
     undef $headerCheckRetries;
     undef $headerCheckSleep;
@@ -388,7 +391,7 @@ sub _parse_command_line{
     exit 0;
   }
 
-  return ($server, $port, $username, $userpasswd,
+  return ($server, $port, $no_tls, $username, $userpasswd,
 	  \@filesToUpload, $threads, \@newsGroups,
 	  \@comments, $from, \%metadata, $headerCheck, $headerCheckSleep,
 	  $headerCheckServer, $headerCheckPort, $headerCheckUserName,
@@ -420,7 +423,7 @@ sub _get_files_to_upload{
 
 sub main{
 
-  my ($server, $port, $username, $userpasswd,
+  my ($server, $port, $no_tls, $username, $userpasswd,
       $filesToUploadRef, $connections, $newsGroupsRef,
       $commentsRef, $from, $meta, $headerCheck, $headerCheckSleep,
       $headerCheckServer, $headerCheckPort,
@@ -438,7 +441,7 @@ sub main{
   my @nzbParts = @{$uploadParts};
 
   my $init = time;
-  _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, $uploadParts);
+  _start_upload($connections, $server, $port, $no_tls, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, $uploadParts);
   undef $uploadParts;
 
   my $time = time()-$init;
@@ -449,7 +452,7 @@ sub main{
 
     $init = time();
     _start_header_check($headerCheckConnections, $headerCheckServer, $headerCheckPort,
-			$headerCheckUsername, $headerCheckPassword, $headerCheckRetries,
+			$no_tls, $headerCheckUsername, $headerCheckPassword, $headerCheckRetries,
 			$headerCheckSleep, $newsGroupsRef, $connections, $server, $port, $username,
 			$userpasswd, $from, $commentsRef, $extraHeaders, \@missingSegments);
 
@@ -465,7 +468,7 @@ sub main{
 
 sub _start_header_check{
 
-  my ($headerCheckConnections, $headerCheckServer, $headerCheckPort,
+  my ($headerCheckConnections, $headerCheckServer, $headerCheckPort, $no_tls,
       $headerCheckUsername, $headerCheckPassword, $headerCheckRetries,
       $headerCheckSleep, $newsGroupsRef, $connections, $server, $port, $username,
       $userpasswd, $from, $commentsRef, $extraHeaders, $missingSegmentsRef) = @_;
@@ -480,7 +483,7 @@ sub _start_header_check{
     say "Warping up header check engines to [$headerCheckServer:$headerCheckPort] with $headerCheckConnections connections!";
     my $connectionList;
     eval{
-      $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword);
+      $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $no_tls, $headerCheckUsername, $headerCheckPassword);
     };
     if ($@){
       warn "Unable to connect properly to the header check server. Skipping header check. Please verify the headerchek settings";
@@ -512,7 +515,7 @@ sub _start_header_check{
           shutdown ($socket, 2);
           $select->remove($socket);
           undef $socket;
-          $select->add(_get_connections(1, $headerCheckServer, $headerCheckPort, $headerCheckUsername, $headerCheckPassword)->[0]);
+          $select->add(_get_connections(1, $headerCheckServer, $headerCheckPort, $no_tls, $headerCheckUsername, $headerCheckPassword)->[0]);
         }
       }
     }
@@ -544,9 +547,9 @@ sub _start_header_check{
 }
 
 sub _start_upload{
-  my ($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, $parts) = @_;
+  my ($connections, $server, $port, $no_tls, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, $parts) = @_;
 
-  my $connectionList = _get_connections($connections, $server, $port, $username, $userpasswd);
+  my $connectionList = _get_connections($connections, $server, $port, $no_tls, $username, $userpasswd);
   my $newsgroups = join(',',@$newsGroupsRef);
 
   my $totalParts = scalar @$parts;
@@ -584,7 +587,7 @@ sub _start_upload{
 	      #If we get a 400 we return to the begining
 	      if ($output =~ /^400 /) {
           shutdown ($socket, 2);
-          my $conList = _get_connections(1, $server, $port, $username, $userpasswd);
+          my $conList = _get_connections(1, $server, $port, $no_tls, $username, $userpasswd);
           $select->remove($socket);
           $select->add($conList->[0]);
           $status{$conList->[0]} = 0;
@@ -601,7 +604,7 @@ sub _start_upload{
           #A post was done and we need to confirm the post was done OK
         if ($output =~ /^400 /) {
           shutdown ($socket, 2);
-          my $conList = _get_connections(1, $server, $port, $username, $userpasswd);
+          my $conList = _get_connections(1, $server, $port, $no_tls, $username, $userpasswd);
           $socket = $conList->[0];
 
         }elsif ($output !~ /^240 /) {
@@ -842,12 +845,12 @@ sub _authenticate{
 
 
 sub _get_connections{
-  my ($connections, $server, $port, $user, $password) = @_;
+  my ($connections, $server, $port, $no_tls, $user, $password) = @_;
 
   my @connectionList = (0) x $connections;
 
   for my $i (0..$connections-1) {
-    $connectionList[$i]=_create_socket($server, $port);
+    $connectionList[$i]=_create_socket($server, $port, $no_tls);
     #my $socket = _create_socket($server, $port);
     #push @connectionList, $socket;
   }
@@ -917,7 +920,7 @@ sub _encode_base36 {
 
 sub _create_socket{
 
-  my ($server, $port) = @_;
+  my ($server, $port, $no_tls) = @_;
   my $socket;
   while (1) {
     eval{
