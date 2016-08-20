@@ -23,7 +23,6 @@ For a working solution in windows (with minimal testing on the windows platform)
 * newspost (https://github.com/joehillen/newspost)
 * pan (http://pan.rebelbase.com/)
 * sanguinews (https://github.com/tdobrovolskij/sanguinews)
-* nyuu (https://github.com/animetosho/Nyuu)
 
 
 # What does this program do
@@ -50,7 +49,6 @@ But it may exist a script with these functionalities on the scripts folder.
 
 * Create compressed archive files to upload (rar, zip, 7zip, etc...)
 * Create parity files
-* Create .NFO files
 
 ## Scripts
 The folder scripts is a folder where NewsUP functionalities can be extended (please check the configuration section).
@@ -85,14 +83,6 @@ perl completion_checker.pl -nzb my_nzb_file.nzb -server my_server.com -port 444 
 ```
 This will check all the segments of the nzb, to see if they are available. Only the -nzb switch is required, all the others
 are optional, as they will be extracted from the newsup.conf
-
-
-* simpleMovieNFOCreator.pl - this script determine the title from a file and create a nzb with filename, md5 hash and the IMDB info.
-This can be used with uploadit
-```
-perl simpleMovieNFOCreator.pl /path/to/my/movie.avi
-```
-This will create a nfo file: /path/to/my/movie.nfo.
 
 ## IRC bot
 A IRC bot is distributed with NewsUP.
@@ -301,6 +291,8 @@ The NZB file It will have on the ```<head>``` tag the childs:
 -headerCheckConnections <number of connections>: the number of connections it will use to connect to the headercheck server
 
 -uploadsize <size>: size in bytes, of the segment to be uploaded. **This option is not available on the configuration file**
+
+-no_tls: If you want to use a different port from the default 119 without SSL. This will affect both uploading server and headercheck server. **This option is not available on the configuration file**
 
 # Advanced
 NewsUP uses C code to do the yenc enconding. The code needs to be compiled.
