@@ -1,7 +1,7 @@
 #!/usr/local/bin/perl -w
 ##########################################################################
 #     Copyright (C) David Santiago
-#  
+#
 #     This program is free software: you can redistribute it and/or modify
 #     it under the terms of the GNU General Public License as published by
 #     the Free Software Foundation, either version 3 of the License, or
@@ -15,7 +15,6 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ##############################################################################
-# A simple IRC robot. Influenced by http://archive.oreilly.com/pub/h/1964
 # Usage: perl bot.pl -folder <folder> -uploadit <uploadit> script
 #############################################################################
 
@@ -30,6 +29,7 @@ use Config::Tiny;
 # We will use a raw socket to connect to the IRC server.
 use IO::Socket;
 use IO::Socket::SSL;
+use POSIX ":sys_wait_h";
 use File::Copy::Recursive qw/dircopy/;
 $File::Copy::Recursive::CPRFComp = 1;
 use File::Copy qw/mv/;
@@ -38,12 +38,52 @@ use File::Find;
 use File::Basename;
 use Time::HiRes qw/usleep/;
 $|=1;
+$\="\015\012";
+
+my $KID=0;
+my $CONFIG = get_options();
+my $JUMP=60; #1 minute
+my @CMD_QUEUE=();
+my %SCRIPTS=(
+  "^!completion (.*)" => sub{say "Params:"; say Dumper(@_);},
+  "^!queue" => sub{my @list=(); push @list, $KID? "Command queue [1]": 'Command queue [0]';push @list, @CMD_QUEUE; push @list, "End of Command Queue"; return \@list},
+  "^!upload (.*)"=>'./scripts/botupload.pl',
+);
+
+
+ my %COLOR_OPTIONS=(
+  bold => "\x02",
+  color => "\x03",
+  italic => "\x1D",
+  underlined => "\x1F",
+  reverse => "\x16",
+  reset => "\x0F",
+ );
+
+my %COLORS=(
+  white => '00',
+  black => '01',
+  navy => '02',
+  green => '03',
+  red => '04',
+  maroon => '05',
+  purple => '06',
+  orange => '07',
+  yellow => '08',
+  lime => '09',
+  teal => '10',
+  cyan => '11',
+  royal => '12',
+  fuchsia => '13',
+  grey => '14',
+  silver => '15'
+  );
 
 sub main{
-  my $config = get_options();
-  my $socket = get_IRC_socket($config);
-  
-  start($socket, $config);
+
+  my $socket = get_IRC_socket($CONFIG);
+
+  start($socket, $CONFIG);
 }
 
 
@@ -51,38 +91,27 @@ sub get_options{
 
   my $config;
   if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
-    
+
     $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
-    if (exists $config->{other}{PATH_TO_UPLOAD_ROOT}){
-      my @upload_folders = split(',', $config->{other}{PATH_TO_UPLOAD_ROOT});
-      if (!@upload_folders) {
-	say "Please configure PATH_TO_UPLOAD_ROOT folders";
-	exit 0;
-      }
-      for (@upload_folders) {
-	$_ =~ s/^\s+|\s+$//g ;     # remove both leading and trailing whitespace
-	
-	if (!-d $_) {
-	  say "Folder $_ does not exist!\r\nPlease configure correctly the option PATH_TO_UPLOAD_ROOT Exiting.";
-	  exit;
-	}
-      }
-    
-    }else {
-      say "Option PATH_TO_UPLOAD_ROOT is missing!";
-    }
-    if (exists $config->{other}{PATH_TO_SAVE_NZBS}){
-      my $NZB_folder = $config->{other}{PATH_TO_SAVE_NZBS};
-      if (!-d $NZB_folder) {
-	say "Please configure PATH_TO_SAVE_NZBS folders";
-	exit 0;
-      }
-      
-    }else {
-      say "Option PATH_TO_SAVE_NZBS is missing!";
-    }
-    
-    
+    #if (exists $config->{irc}{upload_root}){
+    #  my @upload_folders = split(',', $config->{irc}{upload_root});
+    #  if (!@upload_folders) {
+    #    say "Please configure <upload_root> folders";
+    #    exit 0;
+    #  }
+    #
+    #  for (@upload_folders) {
+    #    $_ =~ s/^\s+|\s+$//g ;     # remove both leading and trailing whitespace
+    #
+    #    if (!-d $_) {
+    #      say "Folder $_ does not exist!\r\nPlease configure correctly the option <upload_root> Exiting.";
+    #      exit;
+    #    }
+    #  }
+    #
+    #}else {
+    #  say "Option <upload_root> is missing!";
+    #}
   }else {
     say "Please configure your newsup.conf file";
     exit 0;
@@ -90,45 +119,47 @@ sub get_options{
 
   return $config;
 }
-  
+
 
 sub get_IRC_socket{
   my $config = shift;
   my $sock;
-  
-  if ($config->{other}{IRC_PORT} == 6667) {
+
+  if ($config->{irc}{port} == 6667) {
     $sock = new IO::Socket::INET(
-                                  PeerAddr => $config->{other}{IRC_SERVER},
-                                  PeerPort => $config->{other}{IRC_PORT},
+                                  PeerAddr => $config->{irc}{server},
+                                  PeerPort => $config->{irc}{port},
                                   Timeout=> 5,
-                                  Blocking=> 0,
+                                  Blocking=> 1,
                                   Proto => 'tcp') or die "Can't connect\n";
   }else{
     $sock = new IO::Socket::SSL->new(
-                                PeerAddr => $config->{other}{IRC_SERVER},
-                                PeerPort => $config->{other}{IRC_PORT},
+                                PeerAddr => $config->{irc}{server},
+                                PeerPort => $config->{irc}{port},
                                 SSL_verify_mode=>SSL_VERIFY_NONE,
                                 Timeout=> 5,
-                                Blocking=> 0,
+                                Blocking=> 1,
                                 Proto => 'tcp') or die "Can't connect\n";
-    
+
   }
-  
 
   $sock->autoflush(1);
-  
-  
-  my $nick = $config->{other}{IRC_NICK};
-  
+  _authenticate($sock, $config->{irc}{nick}, $config->{irc}{password});
+  _join_channel($sock, $config->{irc}{channel}, $config->{irc}{channel_password});
+  return $sock;
+}
+
+sub _authenticate{
+  my ($sock, $nick, $password) = @_;
+
   # Log on to the server.
-  print $sock "NICK $nick\r\n";
+  print $sock "NICK $nick\n";
   #print $sock "USER $login 8 * :NewsUp TEST \r\n";
-  print $sock "USER $nick * * :NewsUp\r\n";
-  
-  if ($config->{other}{IRC_NICK_PASSWORD}) {
-    print $sock "MSG NickServ identify ".$config->{other}{IRC_NICK_PASSWORD}."\r\n";
-  }
-  
+  print $sock "USER $nick * * :NewsUP\n";
+
+  print $sock "MSG NickServ identify $password\n" if (defined $password && $password ne '');
+
+
   # Read lines from the server until it tells us we have connected.
   while (my $input = <$sock>) {
     say "input: $input";
@@ -141,27 +172,164 @@ sub get_IRC_socket{
       die "Nickname is already in use.";
     }
   }
-  
-  # Join the channel.
-  my $channel = $config->{other}{IRC_CHANNEL};
-
-  my $joinIRCCommand = "JOIN #$channel";
-  if ($config->{other}{IRC_CHANNEL_PASSWD}) {
-    $joinIRCCommand.=" ".$config->{other}{IRC_CHANNEL_PASSWD};
-  }
-  print $sock "$joinIRCCommand\r\n";
-
-  return $sock;
-  
 }
+
+sub _join_channel{
+  my ($sock, $channel, $channelPassword) = @_;
+  # Join the channel.
+  #my $channel = $config->{other}{IRC_CHANNEL};
+
+  print $sock "JOIN #$channel";
+  print $sock " $channelPassword" if(defined $channelPassword && $channelPassword ne '');
+  print $sock "\n";#This works because i defined the $/ as \r\n in octal
+}
+
+sub start{
+  my $socket = shift;
+  my $config = shift;
+  my $nick = $config->{irc}{nick};
+  my $select = IO::Select->new($socket);
+
+  my $nextRun = time()+$JUMP;
+  my $nextJump = $JUMP;
+
+  while(1){
+
+    start_next_command($KID, \@CMD_QUEUE, $config, $socket);
+    my ($readers) = IO::Select->select($select, undef, undef, $nextJump);
+
+    my $currentTime = time();
+    if(defined($readers) && @$readers > 0){
+
+      my $input = _read_from_socket($socket);
+      chomp $input;
+      say $input;
+      # print localtime().": ";
+      if ($input =~ /^PING(.*)$/i) {
+        # say $input;
+        print $socket "PONG $1\n";
+
+      }elsif($input =~ /^:(.*)!.*PRIVMSG (#.*) :(.*)$/){
+        #say "BOT: mensagem publica -> $1";
+        # say $input;
+        my ($channel, $message) = ($2,$3);
+        for my $regexp (keys %SCRIPTS){
+          say $regexp;
+          if($message =~ /$regexp/){
+            my $params = $1;
+            if(-e $SCRIPTS{$regexp}){
+              push @CMD_QUEUE, $SCRIPTS{$regexp}.' '.$params;
+            }else{
+              eval{
+                my $output = $SCRIPTS{$regexp}->($params);
+                _print_lines_to_channel($socket, $channel, $output, 5);
+              };
+              print $socket "PRIVMSG $channel :$@\n" if $@;
+            }
+            last;
+          }
+        }
+
+      }elsif($input =~ /^:(.*)!.*PRIVMSG .* :(.*)$/){
+        # say $input;
+        print $socket "PRIVMSG $1 :I'm a bot. I only process public messages!\n";
+        print $socket "PRIVMSG $1 :These are the commands that i accept: \n";
+        print $socket "PRIVMSG $1 :$_\n" for keys(%SCRIPTS);
+        print $socket "PRIVMSG $1 :Please use the channel! Thank you!\n";
+        #say "BOT: mensagem privada -> $1";
+      }
+    }
+    if($nextRun < $currentTime || $nextRun==$currentTime){
+      #the full time has passed!
+      $nextJump=$JUMP - ($currentTime-$nextRun);
+      $nextRun+=$JUMP;
+
+    }elsif($nextRun - $currentTime < $JUMP){
+      #the full time hasn't passed yet
+      $nextJump = $nextRun-$currentTime;
+      say "Next jump 2: $nextJump";
+    }
+  }
+}
+
+sub _print_lines_to_channel{
+  my ($socket, $channel, $lines, $maxLines) = @_;
+  my $totalLines = $maxLines;
+
+  if($maxLines < scalar(@$lines)){
+    print $socket "PRIVMSG $channel :First $totalLines lines (total ".scalar(@$lines)." lines):\n";
+  }
+
+  for my $output_exec (@$lines){
+    print $socket "PRIVMSG $channel :$output_exec\n";
+
+    if(--$maxLines == 0){
+      last;
+    }
+  }
+
+
+}
+
+sub start_next_command{
+  my ($kid, $commands, $config, $socket) = @_;
+
+  if($kid){
+    my $pid = waitpid($kid, WNOHANG);
+    say "pid returned: $pid [$KID]";
+    ($KID, $kid) = (0,0) if $pid == $KID;
+
+  }
+  #Skips the execution of a new process if there's already one in the backgroun
+  if(!$kid){
+    say "Tamanho commandos: ".scalar(@$commands);
+    if(@$commands){
+      unless (defined($KID = fork())) {
+        say "Unable to fork! Exiting the bot";
+        exit 0;
+      }
+      elsif (!$KID) { 
+        my $command = shift @$commands;
+        print $socket "PRIVMSG #".$config->{irc}{channel}." :Executing: $command\n";
+        open( my $ifh, '-|', $command);
+        while(<$ifh>){
+          my $print = 0;
+          my $line = $_;
+          if($line =~ /([[:^cntrl:]]+)$/){
+            my $match = $1;
+            if($match =~ /speed/i){
+              $line = $COLOR_OPTIONS{color}.$COLORS{lime}.$match.$COLOR_OPTIONS{color};
+              $print++;
+            }elsif($line =~ /exception|error|warning|die|fail/i){
+              $line = $COLOR_OPTIONS{color}.$COLORS{red}.$match.$COLOR_OPTIONS{color};
+              $print++;
+          }
+            
+          }
+          if($print){
+            _print_lines_to_channel($socket,'#'.$config->{irc}{channel}, [$line],1);
+          }
+        }
+        close $ifh;
+        _print_lines_to_channel($socket,'#'.$config->{irc}{channel}, ["Command executed"],1);
+        #my  @output = `$command`;
+        #print $socket "PRIVMSG #".$config->{irc}{channel}." :Execution Terminated! Output: \n";
+        #_print_lines_to_channel($socket,'#'.$config->{irc}{channel} , \@output, 5);
+        exit 0;
+      }else{
+        #I'm the parent. We need to discard the command the kid is going to execute
+        shift @$commands;
+      }
+    }
+  }
+}
+
 
 sub _read_from_socket{
   my ($socket) = @_;
 
-  my ($output, $buffer) = ('', '');
-  while(1){
-    $socket->sysread($buffer, 1);
-
+  my $output='';
+  while(my $buffer = <$socket>){
     $output .= $buffer;
     last if $output =~ /\r\n$|^\z/;
   }
@@ -169,311 +337,5 @@ sub _read_from_socket{
   return $output;
 }
 
-
-sub start{
-  my $socket = shift;
-  my $config = shift;
-  my $nick = $config->{other}{IRC_NICK};
-  my $channel = '#'.$config->{other}{IRC_CHANNEL};
-
-
-  # Keep reading lines from the server.
-  READ: while (1) {
-    my $input = _read_from_socket($socket);
-    if ($input =~ /^\z/) {
-      sleep(5);
-      next READ;
-    }
-    $input=~s/\R$//;
-
-    if ($input =~ /^PING(.*)$/i) {
-      # We must respond to PINGs to avoid being disconnected.
-      print $socket "PONG $1\r\n";
-    }else {
-      my @tokens = split(' ', $input);
-
-      if (@tokens) {
-        if ($tokens[1] eq 'PRIVMSG') {
-          $tokens[0]=~ /^:(.*)\!.*$/;
-    
-          my @inputParams= ($1 , substr join(' ',@tokens[3..$#tokens]), 1);
-          if ($tokens[2] eq $nick) {#private message
-            say "Got a private message: '".$inputParams[1]."'";
-            
-          }elsif (substr($tokens[2],0,1) eq '#') {#public message -> check if it's the channel
-            say "Public message: '".$inputParams[1]."'";
-            if ($inputParams[1] =~ /^\!(\w+) (.*)$/) {# All the public commands must start with a !
-              if ($1 eq 'upload') {
-            my @args = split(' ', $2);
-            start_upload (\@args, $socket, $config);
-              }elsif ($1 eq 'check') {
-            my @args = split(' ', $2);
-            check_nzb(\@args, $socket, $config);
-              }elsif($1 eq 'process'){
-            
-            for(`tasklist /FI "IMAGENAME eq $2"`){
-              print_message_to_channel($socket, $channel, $_); 
-            }
-              
-              }
-              
-            }
-            else {
-              say "Didn't match!";
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-sub check_nzb{
-  my @args = @{shift @_};
-  my $socket = shift;
-  my $config = shift;
-  
-  my $channel = "#".$config->{other}{IRC_CHANNEL};
-  my $uploadit = $config->{other}{PATH_TO_UPLOADIT};
-  my $newsup = $config->{other}{PATH_TO_UPLOADER};
-  
-  unless (defined(my $pid = fork())) {
-    say "Unable to fork! Exiting the bot";
-    exit 0;
-  }
-  elsif ($pid) {
-    #The main process
-    return;
-  }
-  
-  #Im the child
-  for my $nzb (@args) {
-    if (!-e $config->{other}{PATH_TO_SAVE_NZBS}."/$nzb.nzb") {
-      say "Not found: ".$config->{other}{PATH_TO_SAVE_NZBS}."/$nzb.nzb";
-      print_message_to_channel ($socket, $channel, "$nzb not found!");
-    }else {
-      print_message_to_channel ($socket, $channel, "Starting the completion checker");
-      my $cmd = $config->{other}{PATH_TO_COMPLETION_CHECKER}." -nzb ".$config->{other}{PATH_TO_SAVE_NZBS}."/$nzb.nzb";
-      say "Executing: $cmd";
-      my $output = qx/$cmd/;
-      my $sum=0;
-      my $failed=0;
-      my @lines = split($/,$output);
-      if (scalar @lines) {
-
-	for (@lines) {
-	  $_ =~ /(\d+\.\d+)%/;
-	  $failed+=1 if ($1 < 100);
-	  $sum += $1;
-	  
-	}
-	print_message_to_channel ($socket, $channel, sprintf("\x0307 [Checked]\x03 %s [\x0304%2d%%\x03, \x0304%d\x03\x0303 problematic files\x03 ]",$nzb, $sum/scalar @lines, $failed));
-      }else {
-	print_message_to_channel ($socket, $channel, "No files!");
-      }
-    }
-  }
-  exit 0;
-}
-
-
-sub start_upload{
-  my @args = @{shift @_};
-  my $socket = shift;
-  my $config = shift;
-  
-  my $channel = "#".$config->{other}{IRC_CHANNEL};
-  my $uploadit = $config->{other}{PATH_TO_UPLOADIT};
-  my $newsup = $config->{other}{PATH_TO_UPLOADER};
-  
-  unless (defined(my $pid = fork())) {
-    say "Unable to fork! Exiting the bot";
-    exit 0;
-  }
-  elsif ($pid) {
-    #The main process
-    return;
-  }
-  
-  #Im the child
-  my $ads = 0;
-  if ($args[-1] eq '-ads') {
-    $ads = 1;
-    pop @args;
-  }
-  
-  
-  if (@args >= 2) {
-    my $folder = shift @args;
-
-    my $rootFolder = '';
-    for my $val (split(',',$config->{other}{PATH_TO_UPLOAD_ROOT})) {
-      $val =~ s/^\s+|\s+$//g; #Remove both leading and trainline whitespace
-      if (-d "$val/$folder") {
-	$rootFolder="$val/$folder";
-	last;
-      }
-    }
-
-    if (!$rootFolder) {
-      print_message_to_channel($socket, $channel, "$folder not found!");
-      exit 0;
-    }
-    
-    say "Copying the files: $rootFolder -> ".$args[0];
-    print_message_to_channel($socket, $channel, "\x0307[Copying and starting files for processing]\x03 : ".$args[0]);
-
-    my $currentFolder = $config->{other}{TEMP_DIR}.'/'.$args[0];
-
-    remove_tree($currentFolder) if -e $currentFolder;
-    dircopy($rootFolder, $currentFolder) or die $!;
-    {
-      local $File::Copy::Recursive::CPRFComp = 0;
-      dircopy($config->{other}{PATH_TO_ADS}, $currentFolder);
-    }
-    if ($config->{other}{REVERSE_NAMES_FOUND}) {
-      say "Inverting file name";
-      my $findingRegexp = qr/$config->{other}{REGEXP_FIND_NAMES}/;
-      find(sub{
-	     if (-e $File::Find::name &&
-		 $File::Find::name =~ /$findingRegexp/){
-	       
-	       my @fileData = fileparse($File::Find::name, $1);
-	       my $extension = $1;
-	       say "Extension = $extension";
-	       my $newName = scalar reverse $fileData[0];
-	       # reverse the case
-	       # $newName =~ s/ (\p{CWU}) | (\p{CWL}) /defined $1 ? uc $1 : lc $2/gex;
-	       say "New Name: ".$newName.$extension;
-	       mv($File::Find::name, $fileData[1].$newName.$extension) || print "Error renaming file: $!";
-	     }
-	       
-	   }, $currentFolder);
-      
-    }
-
-
-    #print_message_to_channel($socket, $channel,"Starting the processing for ".$args[0]);
-
-    my @files = upload_folder($newsup, $uploadit, $currentFolder,
-			      $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$args[0],
-			      $config->{other}{PATH_TO_SAVE_NZBS},
-			      $socket, $channel);
-    say "Changing NZB name from \"".$config->{other}{PATH_TO_SAVE_NZBS}.'/'.$args[0]."\" to \"".$config->{other}{PATH_TO_SAVE_NZBS}.'/'.$folder."\"";
-    mv($config->{other}{PATH_TO_SAVE_NZBS}.'/'.$args[0].".nzb",
-       $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$folder.".nzb") || print "Error renaming file: $!";
-    
-    say "Uploaded Files: $_" for @files;
-
-    for (my $i =1; $i < @args; $i++) {
-      print_message_to_channel($socket, $channel,"\x0307[ Starting the processing for ]\x03 : ".$args[1]);
-      my $toReplace = $args[$i-1];
-      my $replacement = $args[$i];
-      my @newFiles = ();
-
-      for my $oldName (@files) {
-        (my $newName = $oldName) =~ s/$toReplace/$replacement/;
-        push @newFiles, $newName;
-
-        if ($oldName =~ /\.sfv/) {
-          open my $ih, '<', $oldName;
-          open my $oh, '>', $newName;
-          while (<$ih>) {
-            s/$toReplace/$replacement/;
-            print $oh "$_";
-          }
-          close $ih;
-          close $oh;
-          unlink ($oldName) or print_message_to_channel($socket, $channel,"[ \x0304Error deleting files!\x03 ]: $! ");
-          
-        }else {
-          rename ($oldName, $newName) or print_message_to_channel($socket, $channel,"[ \x0304Error renaming file!\x03 ]: $oldName to $newName ");
-        }
-      }
-
-      upload_files($newsup, \@newFiles, $config->{other}{PATH_TO_SAVE_NZBS}.'/'.$folder."_backup_$i", $socket, $channel);
-
-      @files = @newFiles;
-
-    }
-    remove_tree($currentFolder);
-    say "Removing files: $_" for @files;
-    unlink (@files) or print_message_to_channel($socket, $channel,"[ \x0304Error deleting files!\x03 ]: $! ");
-    
-  }
-
-  exit 0;
-}
-
-sub print_message_to_channel{
-  my ($socket, $channel, $message) = @_;
-  
-  usleep(100);
-  syswrite $socket, "PRIVMSG $channel : $message \r\n";
-  
-}
-
-sub upload_folder{
-  my ($newsup, $uploadit, $folder, $nzb, $nzbFolder ,$socket, $channel) =@_;
-
-  my $cmd = "$uploadit -nodelete -directory $folder -a \"-nzb $nzb\" -debug";
-
-  my @files = ();
-  
-  say "Executing: $cmd";
-  my $output = qx($cmd);
-  my $transferSpeed = "";
-  my $segmentsFailed = 0;
-  for (split($/,$output)){
-    # if ($_ =~/NZB file (.*) created/){
-    #   mv $nzb, $nzbFolder;
-    # }els
-    
-    if ($_ =~ /^Transfered/) {
-      print_message_to_channel($socket, $channel,"[ \x0303Uploaded and \x0303ready\x03 ]: $_ ");
-    }elsif ($_ =~ /Uploaded files: (.*)/) {
-      push @files, $1;
-    }elsif ($_ =~ /not found/) {
-      print_message_to_channel($socket, $channel,"[ \x0304Errors uploading!\x03 ]: $_ ");
-    }elsif ($_ =~ /error/i) {
-      print_message_to_channel($socket, $channel,"[ \x0304Errors uploading!\x03 ]: $_ ");
-    }
-  }
-
-
-
-  my $invoke = "$newsup -f $nzb.nzb -nzb \"./nzb\" -connections 1";
-  print_message_to_channel($socket, $channel,"\x0308Uploading NZB\x03 ");
-  sleep(5);
-  $output = qx/$invoke/; #upload the nzb
-  say "$output";
-  for (split($/, $output)) {
-    if ($_ =~ /error/i) {
-        print_message_to_channel($socket, $channel,"[ \x030Error uploading NZB\x03 ]: $_ ");
-    }
-  }
-  
-  unlink ("./nzb.nzb") or print_message_to_channel($socket, $channel,"[ \x0304Error deleting files!\x03 ]: $! ");
-  return @files;
-}
-
-
-sub upload_files{
-  my ($newsup, $files,$nzb, $socket, $channel) = @_;
-  my $cmd = "$newsup";
-  $cmd .= " -f \"$_\"" for @$files;
-  $cmd .= " -nzb \"$nzb\"";
-  say "Executing: $cmd";
-  my $output = qx($cmd);
-  for (split($/,$output)){
-    if ($_ =~ /transfer/i) {
-      print_message_to_channel($socket, $channel ,"[ \x0303Uploaded and \x0303ready\x03 ]: $_");
-    }
-
-    elsif ($_ =~ /error/i) {
-      print_message_to_channel($socket, $channel,"[ \x0304Errors uploading!\x03 ]: $_ ");
-    }
-  }
-}
 
 main;
