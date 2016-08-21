@@ -221,24 +221,19 @@ uploader=newsup
 #args for newsup
 args="-comment 'Uploaded with NewsUP'"
 
-
-
-[other]
-PATH_TO_SAVE_NZBS=/path/to/save/nzbs #Path to save the NZB of the files that were uploaded.
-# IRC server - NO SSL
-IRC_SERVER=irc.server.com #IRC server where the bot is going to connect. SSL not supported
-# IRC port - NO SSL
-IRC_PORT=6667 #IRC server port where the bot is going to connect
+[irc]
+# IRC server
+server=irc.server.com
+# IRC port
+port=6667
 # IRC Channel (no #)
-IRC_CHANNEL=bot_testing #Channel where the bot is going to connect and will be listening to commands
+channel=MyOwnChannel
 # IRC Nick
-IRC_NICK=NewsUP #bot name
+nick=NewsUP
 # IRC Nick Password
-IRC_NICK_PASSWD= #Nick password
+password=
 # IRC Nick Password
-IRC_CHANNEL_PASSWD= #Nick channel password (if the bot will listen on a protected channel)
-# Path to completion checker script. Used only on the IRC bot
-PATH_TO_COMPLETION_CHECKER=/path/to/completion_checker.pl
+channel_password=
 
 ```
 
