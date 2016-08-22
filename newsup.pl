@@ -29,7 +29,7 @@ use File::Basename;
 use Time::HiRes qw/gettimeofday/;
 use POSIX qw/ceil/;
 use IO::Socket::INET;
-use IO::Socket::SSL;# qw(debug2);
+use IO::Socket::SSL; #qw(debug3);
 use IO::Select;
 use Config;
 
@@ -536,7 +536,7 @@ sub _start_header_check{
       $connections = scalar @missingSegments if ($connections > scalar @missingSegments);
 
       my @tempSegments = @missingSegments;
-      _start_upload($connections, $server, $port, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, \@tempSegments);
+      _start_upload($connections, $server, $port, $no_tls ,$username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, \@tempSegments);
       say "Upload of the missing segments done!";
       undef @tempSegments;
     }else {
@@ -593,7 +593,7 @@ sub _start_upload{
           $status{$conList->[0]} = 0;
           undef $output;
           delete $status{$socket};
-	      }elsif($output =~ /340 /) {
+	      }elsif($output =~ /^340 /) {
           $status{$socket}=2;
 	      }else {
           chomp $output;
@@ -601,7 +601,7 @@ sub _start_upload{
           $status{$socket}=0;
 	      }
       }else{
-          #A post was done and we need to confirm the post was done OK
+        #A post was done and we need to confirm the post was done OK
         if ($output =~ /^400 /) {
           shutdown ($socket, 2);
           my $conList = _get_connections(1, $server, $port, $no_tls, $username, $userpasswd);
@@ -752,26 +752,26 @@ sub _print_args_to_socket{
 
   # Using syswrite
 
-  for my $arg (@args){
-    my $len = length $arg;
-    my $offset = 0;
-
-    while ($len) {
-      my $written = syswrite($socket, $arg, $len, $offset);
-
-      #my $written = $socket->syswrite();
-      return 1 unless($written);
-      $len -= $written;
-      $offset += $written;
-      undef $written;
-    }
-  }
-  undef @args;
-  return 0;
+  #for my $arg (@args){
+  #  my $len = length $arg;
+  #  my $offset = 0;
+  #
+  #  while ($len) {
+  #    my $written = syswrite($socket, $arg, $len, $offset);
+  #
+  #    #my $written = $socket->syswrite();
+  #    return 1 unless($written);
+  #    $len -= $written;
+  #    $offset += $written;
+  #    undef $written;
+  #  }
+  #}
+  #undef @args;
+  #return 0;
 
   #Using print
-  # return 0 if (print $socket @args);
-  # return 1;
+  return 0 if (print $socket @args);
+  return 1;
 
 }
 
@@ -783,19 +783,19 @@ sub _read_from_socket{
 
   #return "400 Socket closed\r\n" if (! $socket->connected);
 
-  # return <$socket>;
-  while (1) {
-    my $status = sysread($socket, my $buffer,1);
-    $output.= $buffer;
-    undef $buffer;
-    if ($output =~ /\r\n$/){
-      last;
-    }elsif (!defined $status) {
-      die "Error: $!";
-    }
-  }
-
-  return $output;
+  return <$socket>;
+  #while (1) {
+  #  my $status = sysread($socket, my $buffer,1);
+  #  $output.= $buffer;
+  #  undef $buffer;
+  #  if ($output =~ /\r\n$/){
+  #    last;
+  #  }elsif (!defined $status) {
+  #    die "Error: $!";
+  #  }
+  #}
+  #
+  #return $output;
 }
 
 sub _authenticate{
@@ -920,7 +920,7 @@ sub _encode_base36 {
 
 sub _create_socket{
 
-  my ($server, $port, $no_tls) = @_;
+  my ($server, $port) = @_;
   my $socket;
   while (1) {
     eval{
@@ -947,14 +947,13 @@ sub _create_socket{
                                         ) or die "Error: Failed to connect : $!\n";
       }
     };
-
+    
     if ( $@) {
       warn $@;
       sleep 3;
     }else {
       last;
     }
-
   }
   $socket->autoflush(1);
   return $socket;
