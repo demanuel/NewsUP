@@ -162,12 +162,23 @@ AV* _yenc_encode_c(unsigned char* data, size_t data_size)
 	*pointer = 0;
 	encoded_size++;
 	crc32 = crc32 ^ 0xFFFFFFFF;
-        encbuffer = (char*) realloc(encbuffer, encoded_size);
-        SV* yenc_string = newSVpv(encbuffer, 0);
+  encbuffer = (char*) realloc(encbuffer, encoded_size);
+  SV* yenc_string = newSVpv(encbuffer, 0);
 	SV* ret = sv_2mortal(newAV());
 	av_push(ret, yenc_string);
-	av_push(ret, newSVuv(crc32));
-        free(encbuffer);
+  //av_push(ret, newSVuv(crc32));
+  free(encbuffer);
+  
+  char *hex_number = (char*)malloc(sizeof(char)*8);
+  int hex_size = sprintf(hex_number, "%x", crc32);
+  //printf("say size: %d\n", hex_size);
+  //hex_number = (char*) realloc(hex_number,hex_size);
+  SV* hex_string = newSVpv(hex_number, 0);
+  av_push(ret, hex_string);
+  free(hex_number);
+  
+	
+        
         return ret;
 }
 
@@ -708,7 +719,7 @@ sub _post_part{
   my ($binString, $readSize, $endPosition, $fileSize) = _get_file_data($part->{fileName}, $startPosition-1);
   my $yenc = _yenc_encode_c($binString, $readSize);
   my ($yenc_data, $crc32_data) = @{$yenc};
-
+  
   my $subject = '['.$part->{fileNumber}.'/'.$part->{totalFiles}.'] - "'.$baseName.'" ('.$part->{segmentNumber}.'/'.$part->{totalSegments}.')';
   if(defined $commentsRef && scalar(@$commentsRef)>0 && defined $commentsRef->[0] && $commentsRef->[0] ne ''){
     $subject = $commentsRef->[0]." $subject" ;
@@ -723,7 +734,7 @@ sub _post_part{
 			"=ybegin part=", $part->{segmentNumber}, " total=",$part->{totalSegments}," line=", $YENC_NNTP_LINESIZE, " size=", $fileSize, " name=",$baseName, $CRLF,
 			"=ypart begin=",$startPosition," end=", $endPosition, $CRLF,
 			$yenc_data, $CRLF,
-			"=yend size=",$readSize, " pcrc32=",sprintf("%x",$crc32_data),$CRLF,'.',$CRLF
+			"=yend size=",$readSize, " pcrc32=",$crc32_data,$CRLF,'.',$CRLF
 		       );
 
 }
