@@ -302,7 +302,7 @@ sub create_sfv{
 		}
 
 		say sprintf('%s %08x',$fileName, $crc32) if $OPTIONS->{debug};
-		print $ofh sprintf('%s %08x\r\n',$fileName, $crc32);
+		print $ofh sprintf("%s %08x\r\n",$fileName, $crc32);
 		close $ifh;
 	}
   
