@@ -761,7 +761,7 @@ sub _print_args_to_socket{
   #Note: using syswrite or print is the same (im assuming if we don't disable nagle's algorithm):
   # Network Programming with Perl. Page: 311.
 
-  # Using syswrite
+  # Using syswrite - This code have problems with newsxs and SSL. With newsxs and no SSL there's no problems
 
   #for my $arg (@args){
   #  my $len = length $arg;
@@ -791,10 +791,15 @@ sub _read_from_socket{
   my ($socket) = @_;
 
   my $output='';
-
+  
+  if(!defined($output = readline $socket)){
+    warn "Readline failed for: $!";
+    $output = '';
+  }
+  
   #return "400 Socket closed\r\n" if (! $socket->connected);
-
-  return <$socket>;
+  
+  return $output;
   #while (1) {
   #  my $status = sysread($socket, my $buffer,1);
   #  $output.= $buffer;
