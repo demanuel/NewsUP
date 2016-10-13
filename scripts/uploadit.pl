@@ -29,7 +29,7 @@ use File::Spec::Functions qw/splitdir catfile/;
 use File::Find;
 use File::Copy::Recursive qw/rcopy/;
 $File::Copy::Recursive::CPRFComp=1;
-use File::Copy qw/cp/;
+use File::Copy qw/cp mv/;
 use File::Path qw/remove_tree/;
 use File::Basename;
 
@@ -88,6 +88,13 @@ sub main{
 		#11- upload rars and pars
 		#12- upload nzb
 		
+		# Invalid options:
+		# Uploading only 1 file with renaming_par option set
+		if(-f $OPTIONS{directory} && $OPTIONS{rename_par}){
+			say "Invalid Option! Not possible to have only 1 file and use -rename_par. Please upload a folder instead";
+			exit 0;
+		}
+		
 		#step 1
 		rcopy($OPTIONS{directory}, $OPTIONS{temp_dir}) or die "Unable to copy files to the temp dir: $!";
 	
@@ -102,9 +109,9 @@ sub main{
 		my $previous_name = '';
 		for my $name (@{$OPTIONS{name}}){
 			$dir = rename_files($name, $dir,\%OPTIONS);
-		
+			
 			#step 5
-			reverse_filenames($dir, \%OPTIONS);
+			$dir = reverse_filenames($dir, \%OPTIONS);
 			
 			#step 6
 			if($previous_name eq ''){
@@ -128,7 +135,7 @@ sub main{
 				$file_list = par_files($name, $file_list, \%OPTIONS);
 			}else{
 				# step 9
-				$file_list = rename_par_files($previous_name, $name, $file_list, \%OPTIONS);	
+				$file_list = rename_par_files($previous_name, $name, $file_list, \%OPTIONS);
 			}
 			
 			#step 10
@@ -336,7 +343,7 @@ sub rename_archived_files{
 sub archive_files{
 	my ($name, $dir, $OPTIONS) = @_;
 	return [$dir] if(!$OPTIONS->{archive});
-	
+
 	if($name eq ''){
 		my @folders = splitdir( $OPTIONS->{directory} );
 		pop @folders if($folders[-1] eq '');
@@ -371,7 +378,7 @@ sub archive_files{
 
 sub reverse_filenames{
 	my ($dir, $OPTIONS) = @_;
-	return if(!$OPTIONS->{reverse});
+	return $dir if(!$OPTIONS->{reverse});
 
 	my $regexp = qr/$OPTIONS->{files_filter}/;
 	my @matched_files = ();
@@ -381,10 +388,13 @@ sub reverse_filenames{
 		}
 		}, ($dir));
 	
+	my($filename, $dirs, $suffix);
 	for my $file (@matched_files){
-		my($filename, $dirs, $suffix) = fileparse($file, qr/\.[^.]*$/);
-		rename $file, $dirs.scalar (reverse ($filename)).$suffix;
+		($filename, $dirs, $suffix) = fileparse($file, qr/\.[^.]*$/);
+		mv $file, $dirs.scalar (reverse ($filename)).$suffix;
 	}
+	
+	return -d $dir ? $dir : $dirs.scalar (reverse ($filename)).$suffix;
 }
 
 sub rename_files{
@@ -396,11 +406,11 @@ sub rename_files{
 	my @matched_files = ();
 	find(sub{
 		if($File::Find::name =~ /$regexp/){
-			push @matched_files, quotemeta($File::Find::name);
+			push @matched_files, $File::Find::name;
 		}
-		}, ($dir));
+	}, ($dir));
 	
-	my $CMD = $OPTIONS->{rename_par_arguments}.' '.quotemeta("$dir/Rename.with.this.par2 ").join(' ', @matched_files);
+	my $CMD = $OPTIONS->{rename_par_arguments}.' '.quotemeta("$dir/Rename.with.this.par2").' '.join(' ', map {quotemeta $_} @matched_files);
 	say $CMD if $OPTIONS->{debug};
 	
 	open my $ofh , '-|', $CMD;
@@ -420,12 +430,10 @@ sub rename_files{
 		}
 		$newName.=$i if($i++>0);
 		$newName.=$suffix;
-		rename $dirs.$filename.$suffix, $dirs.$newName;
+		mv $file, $dirs.$newName;
 	}
-	
-	my $new_dirname = (fileparse($dir))[1].$OPTIONS->{name} if($name ne '');
-	rename $dir, $new_dirname;
-	return $new_dirname;
+
+	return $dir;
 }
 
 sub _load_options{

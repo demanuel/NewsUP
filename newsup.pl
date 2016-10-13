@@ -33,7 +33,6 @@ use IO::Socket::SSL; #qw(debug3);
 use IO::Select;
 use Config;
 
-
 use Inline C => Config => cc => exists $ENV{NEWSUP_CC}?$ENV{NEWSUP_CC}:$Config{cc};
 #In case of message "loaded library mismatch" (this happens typically in windows) we need to add the flag -DPERL_IMPLICIT_SYS
 use Inline C => Config => ccflags => exists $ENV{NEWSUP_CCFLAGS}?$ENV{NEWSUP_CCFLAGS}:$Config{ccflags};
@@ -620,7 +619,7 @@ sub _start_upload{
 
         }elsif ($output !~ /^240 /) {
           chomp $output;
-          warn "Read after posting article: $output ";
+          say "Warning: Read after posting article: $output ";
         }
         $status{$socket}=0;
         undef $output;
@@ -793,7 +792,6 @@ sub _read_from_socket{
   my $output='';
   
   if(!defined($output = readline $socket)){
-    warn "Readline failed for: $!";
     $output = '';
   }
   
