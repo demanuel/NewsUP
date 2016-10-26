@@ -188,8 +188,9 @@ $|=1;
 my $YENC_NNTP_LINESIZE=128;
 my $NNTP_MAX_UPLOAD_SIZE=750*1024;
 # END of the yenc variables
-$/="\r\n";
 my $CRLF="\x0D\x0A";
+$/=$CRLF;
+$\=$CRLF;
 
 
 my %MESSAGE_IDS=();
@@ -487,7 +488,10 @@ sub _start_header_check{
   my $totalMissingSegments = scalar @missingSegments;
 
   for (0..$headerCheckRetries-1) {
-    print "Header Checking\r";
+    {
+      local $\;
+      print "Header Checking\r";
+    }
     sleep($headerCheckSleep);
     $headerCheckConnections = scalar @missingSegments if($headerCheckConnections > scalar @missingSegments);
     say "Warping up header check engines to [$headerCheckServer:$headerCheckPort] with $headerCheckConnections connections!";
@@ -511,14 +515,18 @@ sub _start_header_check{
       for my $socket (@$writers){
         my $part = shift @missingSegments;
         last if !defined $part;
-        _print_args_to_socket($socket, "stat <",$part->{id},'>',$CRLF);
+        _print_args_to_socket($socket, "stat <",$part->{id},'>');
         $candidates{$part->{id}}=$part;
       }
 
       for my $socket (@$readers){
         my $output = _read_from_socket($socket);
         $missingReads--;
-        print int((++$countProgress / $totalMissingSegments)*100),"%\r";
+        {
+          local $\;
+          print int((++$countProgress / $totalMissingSegments)*100),"%\r";
+        }
+        
         if ($output =~ /^223 \d <(.+)>/) {
           delete $candidates{$1};
         }elsif ($output =~ /^400 /) {
@@ -533,7 +541,7 @@ sub _start_header_check{
     @missingSegments = values %candidates;
     undef %candidates;
     for my $socket (@$connectionList){
-      _print_args_to_socket($socket, "QUIT", $CRLF) ;
+      _print_args_to_socket($socket, "QUIT") ;
       shutdown $socket, 2;
     }
 
@@ -578,7 +586,7 @@ sub _start_upload{
 
     for my $socket (@$writers){
       if($status{$socket} == 0){
-        _print_args_to_socket($socket, "POST", $CRLF);
+        _print_args_to_socket($socket, "POST");
 	      $status{$socket}=1;
       }elsif($status{$socket} == 2){
         if (scalar @$parts != 0){
@@ -586,7 +594,11 @@ sub _start_upload{
           _post_part ($socket, $from, $newsgroups, $commentsRef, $extraHeaders, $part);
           undef $part;
           $status{$socket}=3;
-          print $percentages[$currentPart++];
+          {
+            local $\;
+            print $percentages[$currentPart++];
+          }
+          
         }
       }
     }
@@ -733,7 +745,7 @@ sub _post_part{
 			"=ybegin part=", $part->{segmentNumber}, " total=",$part->{totalSegments}," line=", $YENC_NNTP_LINESIZE, " size=", $fileSize, " name=",$baseName, $CRLF,
 			"=ypart begin=",$startPosition," end=", $endPosition, $CRLF,
 			$yenc_data, $CRLF,
-			"=yend size=",$readSize, " pcrc32=",$crc32_data,$CRLF,'.',$CRLF
+			"=yend size=",$readSize, " pcrc32=",$crc32_data,$CRLF,'.'
 		       );
 
 }
@@ -753,7 +765,6 @@ sub _print_args_to_socket{
 
   my ($socket, @args) = @_;
   local $,;
-  local $\;
 
   # return 1 if !$socket->connected;
 
@@ -846,10 +857,10 @@ sub _authenticate{
 
       for my $sock (@$writers){
         if($status{$sock} == 1){
-          die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo user ",$user,$CRLF) != 0);
+          die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo user ",$user) != 0);
           $status{$sock} = 2;
         }elsif($status{$sock} == 3){
-          die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo pass ",$password,$CRLF) != 0);
+          die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo pass ",$password) != 0);
           $status{$sock} = 4;
         }
       }
@@ -869,7 +880,7 @@ sub _get_connections{
     #push @connectionList, $socket;
   }
   _authenticate(\@connectionList, $user, $password);
-
+  
   return \@connectionList;
 }
 
