@@ -15,5 +15,11 @@ my @hashes = @ARGV;
 my @ARGS = ('-dir', $folder);
 push @ARGS, split(' ', '-name '.join(' -name ',@hashes));
 
-exec $NEWSUP,@ARGS or warn "Unable to start the uploadit process"; 
+
+{
+  local @ARGV = @ARGS;
+  do $NEWSUP;
+}
+
+#exec $NEWSUP,@ARGS or warn "Unable to start the uploadit process"; 
 
