@@ -38,27 +38,21 @@ use File::Find;
 use File::Basename;
 use Time::HiRes qw/usleep/;
 $|=1;
-$\="\015\012";
+my $CRLF="\x0D\x0A";
+$\=$CRLF;
+$/=$CRLF;
+
 
 my $KID=0;
 my $CONFIG = get_options();
 my $JUMP=60; #1 minute
 my @CMD_QUEUE=();
 my %SCRIPTS=(
-  "^!completion (.*)" => sub{say "Params:"; say Dumper(@_);},
+  "^!completion (.*)" => sub{["Not implemented"];},
   "^!queue" => sub{my @list=(); push @list, $KID? "Command queue [1]": 'Command queue [0]';push @list, @CMD_QUEUE; push @list, "End of Command Queue"; return \@list},
-  "^!upload (.*)"=>'./scripts/botupload.pl',
+  "^!upload (.*)"=>'perl ./scripts/botupload.pl',
 );
 
-
- my %COLOR_OPTIONS=(
-  bold => "\x02",
-  color => "\x03",
-  italic => "\x1D",
-  underlined => "\x1F",
-  reverse => "\x16",
-  reset => "\x0F",
- );
 
 my %COLORS=(
   white => '00',
@@ -77,7 +71,16 @@ my %COLORS=(
   fuchsia => '13',
   grey => '14',
   silver => '15'
-  );
+);
+
+ my %COLOR_OPTIONS=(
+  bold => "\x02",
+  color => "\x03",
+  italic => "\x1D",
+  underlined => "\x1F",
+  reverse => "\x16",
+  reset => "\x0F",
+);
 
 sub main{
 
@@ -131,7 +134,7 @@ sub get_IRC_socket{
                                   PeerPort => $config->{irc}{port},
                                   Timeout=> 5,
                                   Blocking=> 1,
-                                  Proto => 'tcp') or die "Can't connect\n";
+                                  Proto => 'tcp') or die "Can't connect";
   }else{
     $sock = new IO::Socket::SSL->new(
                                 PeerAddr => $config->{irc}{server},
@@ -139,7 +142,7 @@ sub get_IRC_socket{
                                 SSL_verify_mode=>SSL_VERIFY_NONE,
                                 Timeout=> 5,
                                 Blocking=> 1,
-                                Proto => 'tcp') or die "Can't connect\n";
+                                Proto => 'tcp') or die "Can't connect";
 
   }
 
@@ -153,15 +156,14 @@ sub _authenticate{
   my ($sock, $nick, $password) = @_;
 
   # Log on to the server.
-  print $sock "NICK $nick\n";
+  print $sock "NICK $nick";
   #print $sock "USER $login 8 * :NewsUp TEST \r\n";
-  print $sock "USER $nick * * :NewsUP\n";
-
-  print $sock "MSG NickServ identify $password\n" if (defined $password && $password ne '');
-
+  print $sock "USER $nick * * :NewsUP News_UP";
+  print $sock "MSG NickServ identify $password" if (defined $password && $password ne '');
 
   # Read lines from the server until it tells us we have connected.
   while (my $input = <$sock>) {
+    chomp $input;
     say "input: $input";
     # Check the numerical responses from the server.
     if ($input =~ /004/) {
@@ -179,9 +181,14 @@ sub _join_channel{
   # Join the channel.
   #my $channel = $config->{other}{IRC_CHANNEL};
 
-  print $sock "JOIN #$channel";
-  print $sock " $channelPassword" if(defined $channelPassword && $channelPassword ne '');
-  print $sock "\n";#This works because i defined the $/ as \r\n in octal
+  my $joinChannelString = "JOIN #$channel";
+
+  if(defined $channelPassword && $channelPassword ne ''){
+    $joinChannelString.=" $channelPassword";
+  }
+
+  print $sock $joinChannelString;
+ 
 }
 
 sub start{
@@ -207,24 +214,23 @@ sub start{
       # print localtime().": ";
       if ($input =~ /^PING(.*)$/i) {
         # say $input;
-        print $socket "PONG $1\n";
+        print $socket "PONG $1";
 
       }elsif($input =~ /^:(.*)!.*PRIVMSG (#.*) :(.*)$/){
         #say "BOT: mensagem publica -> $1";
         # say $input;
         my ($channel, $message) = ($2,$3);
         for my $regexp (keys %SCRIPTS){
-          say $regexp;
           if($message =~ /$regexp/){
             my $params = $1;
-            if(-e $SCRIPTS{$regexp}){
+            if(-e $SCRIPTS{$regexp} || lc substr($SCRIPTS{$regexp},-3) eq '.pl'){
               push @CMD_QUEUE, $SCRIPTS{$regexp}.' '.$params;
             }else{
               eval{
                 my $output = $SCRIPTS{$regexp}->($params);
                 _print_lines_to_channel($socket, $channel, $output, 5);
               };
-              print $socket "PRIVMSG $channel :$@\n" if $@;
+              print $socket "PRIVMSG $channel :$@" if $@;
             }
             last;
           }
@@ -232,10 +238,10 @@ sub start{
 
       }elsif($input =~ /^:(.*)!.*PRIVMSG .* :(.*)$/){
         # say $input;
-        print $socket "PRIVMSG $1 :I'm a bot. I only process public messages!\n";
-        print $socket "PRIVMSG $1 :These are the commands that i accept: \n";
-        print $socket "PRIVMSG $1 :$_\n" for keys(%SCRIPTS);
-        print $socket "PRIVMSG $1 :Please use the channel! Thank you!\n";
+        print $socket "PRIVMSG $1 :I'm a bot. I only process public messages!";
+        print $socket "PRIVMSG $1 :These are the commands that i accept: ";
+        print $socket "PRIVMSG $1 :$_" for keys(%SCRIPTS);
+        print $socket "PRIVMSG $1 :Please use the channel! Thank you!";
         #say "BOT: mensagem privada -> $1";
       }
     }
@@ -257,11 +263,11 @@ sub _print_lines_to_channel{
   my $totalLines = $maxLines;
 
   if($maxLines < scalar(@$lines)){
-    print $socket "PRIVMSG $channel :First $totalLines lines (total ".scalar(@$lines)." lines):\n";
+    print $socket "PRIVMSG $channel :First $totalLines lines (total ".scalar(@$lines)." lines):";
   }
 
   for my $output_exec (@$lines){
-    print $socket "PRIVMSG $channel :$output_exec\n";
+    print $socket "PRIVMSG $channel :$output_exec";
 
     if(--$maxLines == 0){
       last;
@@ -280,7 +286,7 @@ sub start_next_command{
     ($KID, $kid) = (0,0) if $pid == $KID;
 
   }
-  #Skips the execution of a new process if there's already one in the backgroun
+  #Skips the execution of a new process if there's already one in the backgroud
   if(!$kid){
     say "Tamanho commandos: ".scalar(@$commands);
     if(@$commands){
@@ -290,31 +296,28 @@ sub start_next_command{
       }
       elsif (!$KID) { 
         my $command = shift @$commands;
-        print $socket "PRIVMSG #".$config->{irc}{channel}." :Executing: $command\n";
+        print $socket "PRIVMSG #".$config->{irc}{channel}." :Executing: $command";
         open( my $ifh, '-|', $command);
         while(<$ifh>){
-          my $print = 0;
           my $line = $_;
-          if($line =~ /([[:^cntrl:]]+)$/){
-            my $match = $1;
-            if($match =~ /speed/i){
-              $line = $COLOR_OPTIONS{color}.$COLORS{lime}.$match.$COLOR_OPTIONS{color};
-              $print++;
+          say "linha: $line";
+          my  @linesToPrint=();
+          for my $l (split("\r", $line)){
+            if($l =~ /speed/i){
+              $l = $COLOR_OPTIONS{color}.$COLORS{lime}.$l.$COLOR_OPTIONS{color};
+              push @linesToPrint, $l;
             }elsif($line =~ /exception|error|warning|die|fail/i){
-              $line = $COLOR_OPTIONS{color}.$COLORS{red}.$match.$COLOR_OPTIONS{color};
-              $print++;
+              $l = $COLOR_OPTIONS{color}.$COLORS{red}.$l.$COLOR_OPTIONS{color};
+              push @linesToPrint, $l;
+            }
           }
-            
-          }
-          if($print){
-            _print_lines_to_channel($socket,'#'.$config->{irc}{channel}, [$line],1);
+          if(@linesToPrint){
+            _print_lines_to_channel($socket,'#'.$config->{irc}{channel}, \@linesToPrint,1);
           }
         }
         close $ifh;
         _print_lines_to_channel($socket,'#'.$config->{irc}{channel}, ["Command executed"],1);
-        #my  @output = `$command`;
-        #print $socket "PRIVMSG #".$config->{irc}{channel}." :Execution Terminated! Output: \n";
-        #_print_lines_to_channel($socket,'#'.$config->{irc}{channel} , \@output, 5);
+
         exit 0;
       }else{
         #I'm the parent. We need to discard the command the kid is going to execute
@@ -329,12 +332,22 @@ sub _read_from_socket{
   my ($socket) = @_;
 
   my $output='';
-  while(my $buffer = <$socket>){
-    $output .= $buffer;
-    last if $output =~ /\r\n$|^\z/;
+  
+  if(!defined($output = readline $socket)){
+    $output = '';
   }
-
+  
+  #return "400 Socket closed\r\n" if (! $socket->connected);
+  
   return $output;
+  
+  
+  #while(my $buffer = <$socket>){
+  #  $output .= $buffer;
+  #  last if $output =~ /\r\n$|^\z/;
+  #}
+  #
+  #return $output;
 }
 
 
