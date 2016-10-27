@@ -164,7 +164,6 @@ sub _authenticate{
   # Read lines from the server until it tells us we have connected.
   while (my $input = <$sock>) {
     chomp $input;
-    say "input: $input";
     # Check the numerical responses from the server.
     if ($input =~ /004/) {
       # We are now logged in.
@@ -207,18 +206,13 @@ sub start{
 
     my $currentTime = time();
     if(defined($readers) && @$readers > 0){
-
       my $input = _read_from_socket($socket);
       chomp $input;
       say $input;
-      # print localtime().": ";
       if ($input =~ /^PING(.*)$/i) {
-        # say $input;
         print $socket "PONG $1";
 
       }elsif($input =~ /^:(.*)!.*PRIVMSG (#.*) :(.*)$/){
-        #say "BOT: mensagem publica -> $1";
-        # say $input;
         my ($channel, $message) = ($2,$3);
         for my $regexp (keys %SCRIPTS){
           if($message =~ /$regexp/){
@@ -237,12 +231,10 @@ sub start{
         }
 
       }elsif($input =~ /^:(.*)!.*PRIVMSG .* :(.*)$/){
-        # say $input;
         print $socket "PRIVMSG $1 :I'm a bot. I only process public messages!";
         print $socket "PRIVMSG $1 :These are the commands that i accept: ";
         print $socket "PRIVMSG $1 :$_" for keys(%SCRIPTS);
         print $socket "PRIVMSG $1 :Please use the channel! Thank you!";
-        #say "BOT: mensagem privada -> $1";
       }
     }
     if($nextRun < $currentTime || $nextRun==$currentTime){
@@ -288,7 +280,6 @@ sub start_next_command{
   }
   #Skips the execution of a new process if there's already one in the backgroud
   if(!$kid){
-    say "Tamanho commandos: ".scalar(@$commands);
     if(@$commands){
       unless (defined($KID = fork())) {
         say "Unable to fork! Exiting the bot";
@@ -297,27 +288,11 @@ sub start_next_command{
       elsif (!$KID) { 
         my $command = shift @$commands;
         print $socket "PRIVMSG #".$config->{irc}{channel}." :Executing: $command";
-        open( my $ifh, '-|', $command);
-        while(<$ifh>){
-          my $line = $_;
-          say "linha: $line";
-          my  @linesToPrint=();
-          for my $l (split("\r", $line)){
-            if($l =~ /speed/i){
-              $l = $COLOR_OPTIONS{color}.$COLORS{lime}.$l.$COLOR_OPTIONS{color};
-              push @linesToPrint, $l;
-            }elsif($line =~ /exception|error|warning|die|fail/i){
-              $l = $COLOR_OPTIONS{color}.$COLORS{red}.$l.$COLOR_OPTIONS{color};
-              push @linesToPrint, $l;
-            }
-          }
-          if(@linesToPrint){
-            _print_lines_to_channel($socket,'#'.$config->{irc}{channel}, \@linesToPrint,1);
-          }
+        if($^O eq 'linux'){
+          _run_at_linux($command, $socket, $config);
+        }elsif($^O eq 'MSWin32'){
+          _run_at_windows($command, $socket, $config);
         }
-        close $ifh;
-        _print_lines_to_channel($socket,'#'.$config->{irc}{channel}, ["Command executed"],1);
-
         exit 0;
       }else{
         #I'm the parent. We need to discard the command the kid is going to execute
@@ -325,6 +300,52 @@ sub start_next_command{
       }
     }
   }
+}
+
+sub _run_at_windows{
+  my ($command, $socket, $config) = @_;
+  
+  my @output = qx/$command/;
+  my @linesToPrint=();
+  for my $l (@output){
+    if($l =~ /speed/i){
+      $l = $COLOR_OPTIONS{color}.$COLORS{lime}.$l.$COLOR_OPTIONS{color};
+      push @linesToPrint, $l;
+    }elsif($l =~ /exception|error|warning|die|fail/i){
+      $l = $COLOR_OPTIONS{color}.$COLORS{red}.$l.$COLOR_OPTIONS{color};
+      push @linesToPrint, $l;
+    }
+  }
+ 
+  _print_lines_to_channel($socket, '#'.$config->{irc}{channel}, \@linesToPrint,5);
+
+  
+}
+
+sub _run_at_linux{
+  my ($command, $socket, $config) = @_;
+  
+
+  open( my $ifh, '-|', $command);
+  while(<$ifh>){
+    my $line = $_;
+    say "linha: $line";
+    my  @linesToPrint=();
+    for my $l (split("\r", $line)){
+      if($l =~ /speed/i){
+        $l = $COLOR_OPTIONS{color}.$COLORS{lime}.$l.$COLOR_OPTIONS{color};
+        push @linesToPrint, $l;
+      }elsif($line =~ /exception|error|warning|die|fail/i){
+        $l = $COLOR_OPTIONS{color}.$COLORS{red}.$l.$COLOR_OPTIONS{color};
+        push @linesToPrint, $l;
+      }
+    }
+    if(@linesToPrint){
+      _print_lines_to_channel($socket,'#'.$config->{irc}{channel}, \@linesToPrint,5);
+    }
+  }
+  close $ifh;
+  _print_lines_to_channel($socket,'#'.$config->{irc}{channel}, ["Command executed"],1);  
 }
 
 
