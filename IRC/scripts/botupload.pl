@@ -4,7 +4,7 @@ use warnings;
 use strict;
 use utf8;
 
-my $NEWSUP = '../scripts/uploadit.pl';
+my $UPLOAD_IT = '../scripts/uploadit.pl';
 
 # Example of a typical invocation
 # !upload my.personal.file.that.i.want.to.backup hash1 hash2
@@ -18,8 +18,12 @@ push @ARGS, split(' ', '-name '.join(' -name ',@hashes));
 
 {
   local @ARGV = @ARGS;
-  do $NEWSUP;
+  unless (my $exitCode = do $UPLOAD_IT){
+    say "Error: Couldn't parse file $UPLOAD_IT: $@" if $@;
+    say "Warning: couldn't do $UPLOAD_IT: $!" unless defined $exitCode;
+    say "Warning: ouldn't run $UPLOAD_IT" unless $exitCode;
+  }
 }
 
-#exec $NEWSUP,@ARGS or warn "Unable to start the uploadit process"; 
+
 
