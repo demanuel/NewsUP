@@ -170,7 +170,7 @@ sub upload_file_list{
 	my $CMD = $OPTIONS->{uploader}.' ';
 	$CMD .= $OPTIONS->{args}.' ';
 	$CMD .= "-group $_ " for (@{$OPTIONS->{group}});
-	$CMD .= '-file '.quotemeta($_).' ' for (@$file_list);
+	$CMD .= '-file \''.$_.'\' ' for (@$file_list);
 	
 	if($name eq ''){
 		my @folders = splitdir( $OPTIONS->{directory} );
@@ -179,7 +179,7 @@ sub upload_file_list{
 	}
 	
 	$name .= '.nzb';
-	$CMD .= '-nzb '.quotemeta($name).' ';
+	$CMD .= '-nzb \''.$name.'\' ';
 	
 	say $CMD if $OPTIONS->{debug};
 	
@@ -247,11 +247,11 @@ sub par_files{
 		$name = $folders[-1];
 	}
 	
-	my $par_name = quotemeta(catfile($OPTIONS->{temp_dir}, $name));
+	my $par_name = '\''.catfile($OPTIONS->{temp_dir}, $name).'\'';
 	
 	my $CMD = $OPTIONS->{par_arguments}." $par_name " ;
 	for(@$file_list){
-		$CMD .= quotemeta($_).' ';
+		$CMD .= '\''.$_.'\' ';
 	}
 	
 	say $CMD if $OPTIONS->{debug};
@@ -352,8 +352,8 @@ sub archive_files{
 		$name = $folders[-1].'.rar';
 	}
 	
-	my $CMD=$OPTIONS->{archive_arguments}.' '.quotemeta(catfile( $OPTIONS->{temp_dir}, $name)).' '.quotemeta($dir);
-	$CMD.=" ".quotemeta($OPTIONS->{nfo}) if(defined $OPTIONS->{nfo} && $OPTIONS->{nfo} ne '' && -e $OPTIONS->{nfo});
+	my $CMD=$OPTIONS->{archive_arguments}.' \''.catfile( $OPTIONS->{temp_dir}, $name).'\' \''.$dir.'\'';
+	$CMD.=' \''.$OPTIONS->{nfo}.'\'' if(defined $OPTIONS->{nfo} && $OPTIONS->{nfo} ne '' && -e $OPTIONS->{nfo});
 	say $CMD if $OPTIONS->{debug};
 	
 	open my $ofh, '-|', $CMD;
@@ -410,7 +410,7 @@ sub rename_files{
 		}
 	}, ($dir));
 	
-	my $CMD = $OPTIONS->{rename_par_arguments}.' '.quotemeta("$dir/Rename.with.this.par2").' '.join(' ', map {quotemeta $_} @matched_files);
+	my $CMD = $OPTIONS->{rename_par_arguments}.' \''."$dir/Rename.with.this.par2".'\' '.join(' ', map {"'$_'"} @matched_files);
 	say $CMD if $OPTIONS->{debug};
 	
 	open my $ofh , '-|', $CMD;
