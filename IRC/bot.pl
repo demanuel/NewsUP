@@ -287,7 +287,9 @@ sub start_next_command{
       }
       elsif (!$KID) { 
         my $command = shift @$commands;
+        $socket->autoflush(1);
         print $socket "PRIVMSG #".$config->{irc}{channel}." :Executing: $command";
+
         if($^O eq 'linux'){
           _run_at_linux($command, $socket, $config);
         }elsif($^O eq 'MSWin32'){
