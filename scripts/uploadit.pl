@@ -183,11 +183,18 @@ sub upload_file_list{
 	
 	say $CMD if $OPTIONS->{debug};
 	
-	open my $ofh, '-|', $CMD;
-	while(<$ofh>){
-		print $_ if /speed|headercheck|error|exception/i;
+	if($^O eq 'linux'){
+		open my $ofh , '-|', $CMD or die "Unable to launch process: $!";
+		while(<$ofh>){
+			print if /speed|headercheck|error|exception/i;
+		}
+		close $ofh;
+	}elsif($^O eq 'MSWin32'){
+		my @commandOutput=qx/$CMD/;
+		for(@commandOutput){
+			print if /speed|headercheck|error|exception/i;
+		}
 	}
-	close $ofh;
 	
 	#my @CMD_output = `$CMD`;
 	#for(@CMD_output){
@@ -256,11 +263,7 @@ sub par_files{
 	
 	say $CMD if $OPTIONS->{debug};
 	
-	open my $ofh, '-|', $CMD or die "Unable to launch process: $!";
-	while(<$ofh>){
-		print if $OPTIONS->{debug};
-	}
-	close $ofh;
+	_run_command($CMD, $OPTIONS);
 	
 	opendir my $dh, $OPTIONS->{temp_dir} or die 'Couldn\'t open \''.$OPTIONS->{temp_dir}."' for reading: $!";
 	my $regexp = qr/$OPTIONS->{par_filter}/;
@@ -355,13 +358,9 @@ sub archive_files{
 	my $CMD=$OPTIONS->{archive_arguments}.' \''.catfile( $OPTIONS->{temp_dir}, $name).'\' \''.$dir.'\'';
 	$CMD.=' \''.$OPTIONS->{nfo}.'\'' if(defined $OPTIONS->{nfo} && $OPTIONS->{nfo} ne '' && -e $OPTIONS->{nfo});
 	say $CMD if $OPTIONS->{debug};
-	
-	open my $ofh, '-|', $CMD;
-	
-	while(<$ofh>){
-		print if $OPTIONS->{debug};
-	}
-	close $ofh;
+
+	_run_command($CMD,$OPTIONS);	
+
 	#my $CMD_output = `$CMD`;
 	#say $CMD_output if $OPTIONS->{debug};
 	
@@ -413,11 +412,8 @@ sub rename_files{
 	my $CMD = $OPTIONS->{rename_par_arguments}.' \''."$dir/Rename.with.this.par2".'\' '.join(' ', map {"'$_'"} @matched_files);
 	say $CMD if $OPTIONS->{debug};
 	
-	open my $ofh , '-|', $CMD;
-	while(<$ofh>){
-		print if $OPTIONS->{debug};
-	}
-	close $ofh;
+	_run_command($CMD, $OPTIONS);
+	
 	#my $CMD_output = `$CMD`;
 	#say $CMD_output if $OPTIONS->{debug};
 	
@@ -434,6 +430,22 @@ sub rename_files{
 	}
 
 	return $dir;
+}
+
+sub _run_command{
+	my ($CMD, $OPTIONS) = @_;
+	if($^O eq 'linux'){
+		open my $ofh , '-|', $CMD or die "Unable to launch process: $!";
+		while(<$ofh>){
+			print if $OPTIONS->{debug};
+		}
+		close $ofh;
+	}elsif($^O eq 'MSWin32'){
+		my @commandOutput=qx/$CMD/;
+		if ($OPTIONS->{debug}){
+			print $_ for(@commandOutput);
+		}
+	}
 }
 
 sub _load_options{
