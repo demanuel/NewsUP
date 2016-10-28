@@ -76,17 +76,18 @@ sub main{
 		
 		#Algorithm Steps:
 		#1- copy the folder to the tmp_dir
-		#2- search for files to rename.
-		#3- create a Rename.with.this.par2 for the files in 2.
-		#4- rename files in 2
-		#5- reverse names
-		#6- rar the files
-		#7- copy the nfo to the rar location
-		#8- create sfv
-		#9- par the rars and the nfo
-		#10- delete the nfo
-		#11- upload rars and pars
-		#12- upload nzb
+		#2- Copy the ads folder
+		#3- search for files to rename.
+		#4- create a Rename.with.this.par2 for the files in 2.
+		#5- rename files in 2
+		#6- reverse names
+		#7- rar the files
+		#8- copy the nfo to the rar location
+		#9- create sfv
+		#10- par the rars and the nfo
+		#11- delete the nfo
+		#12- upload rars and pars
+		#13- upload nzb
 		
 		# Invalid options:
 		# Uploading only 1 file with renaming_par option set
@@ -98,55 +99,67 @@ sub main{
 		#step 1
 		rcopy($OPTIONS{directory}, $OPTIONS{temp_dir}) or die "Unable to copy files to the temp dir: $!";
 	
-		#step 2,3 and 4
+		
 		my @folders = splitdir( $OPTIONS{directory} );
 		pop @folders if($folders[-1] eq '');
-		my $dir = $OPTIONS{temp_dir}.'/'.$folders[-1];
-		push @{$OPTIONS{name}}, '' if scalar @{$OPTIONS{name}} == 0;
 		
+		my $dir = catfile($OPTIONS{temp_dir},$folders[-1]);
+		
+		#step 2
+		if(exists $OPTIONS{ads_folder} && defined $OPTIONS{ads_folder} && $OPTIONS{ads_folder} ne ''){
+			opendir my $dh, $OPTIONS{ads_folder};
+			while(readdir $dh){
+				rcopy(catfile($OPTIONS{ads_folder},$_),$dir) if $_ ne '..' && $_ ne '.';
+			}
+			closedir $dh;
+		}
+		
+		
+		push @{$OPTIONS{name}}, '' if scalar @{$OPTIONS{name}} == 0;
 		my $file_list = [];
 		my $counter = 0;
 		my $previous_name = '';
 		for my $name (@{$OPTIONS{name}}){
+			#step 3,4 and 5
 			$dir = rename_files($name, $dir,\%OPTIONS);
 			
-			#step 5
+			#step 6
 			$dir = reverse_filenames($dir, \%OPTIONS);
 			
-			#step 6
+			#step 7
 			if($previous_name eq ''){
 				$file_list = archive_files($name, $dir, \%OPTIONS);
 			}else{
 				$file_list = rename_archived_files($previous_name, $name, $dir, \%OPTIONS);
 			}
 			
-			#step 7
+			#step 8
 			if(defined $OPTIONS{nfo} && $OPTIONS{nfo} ne ''){
 				my $filename = fileparse($OPTIONS{nfo});
 				cp($OPTIONS{nfo}, $OPTIONS{temp_dir}) or die "Error copying the NFO file: $!";
 				push @$file_list, catfile($OPTIONS{temp_dir},$filename);
 			}
 			
-			#step 8
+			#step 9
 			$file_list = create_sfv($name, $file_list, \%OPTIONS);
 			
 			if($previous_name eq ''){
-				#step 9
+				#step 10
 				$file_list = par_files($name, $file_list, \%OPTIONS);
 			}else{
-				# step 9
+				# step 10
 				$file_list = rename_par_files($previous_name, $name, $file_list, \%OPTIONS);
 			}
 			
-			#step 10
+			#step 11
 			$file_list = force_repair($file_list, \%OPTIONS);
 
-			#step 11
+			#step 12
 			my $nzb = upload_file_list($name, $file_list, \%OPTIONS);
 			cp($nzb, $OPTIONS{save_nzb_path}) or warn "Unable to copy the NZB file: $!" if($OPTIONS{save_nzb});
 			
 			if($previous_name eq ''){
-				#step 12
+				#step 13
 				unlink upload_file_list('', [$nzb], \%OPTIONS) if($OPTIONS{upload_nzb});
 			}
 			
@@ -161,7 +174,6 @@ sub main{
 		}
 		remove_tree($dir);
 		
-
 }
 
 sub upload_file_list{
