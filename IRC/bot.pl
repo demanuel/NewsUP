@@ -311,10 +311,12 @@ sub _run_at_windows{
   my @linesToPrint=();
   for my $l (@output){
     if($l =~ /speed/i){
-      $l = $COLOR_OPTIONS{color}.$COLORS{lime}.$l.$COLOR_OPTIONS{color};
+        $l =~ /([^:]*:)(.*)/;
+        $l = $COLOR_OPTIONS{color}.$COLORS{fuchsia}.$1.$COLOR_OPTIONS{color}.$COLOR_OPTIONS{color}.$COLORS{lime}.$2.$COLOR_OPTIONS{color};
       push @linesToPrint, $l;
     }elsif($l =~ /exception|error|warning|die|fail/i){
-      $l = $COLOR_OPTIONS{color}.$COLORS{red}.$l.$COLOR_OPTIONS{color};
+        $l =~ /([^:]*:)(.*)/;
+        $l = $COLOR_OPTIONS{color}.$COLORS{fuchsia}.$1.$COLOR_OPTIONS{color}.$COLOR_OPTIONS{color}.$COLORS{red}.$2.$COLOR_OPTIONS{color};
       push @linesToPrint, $l;
     }
   }
@@ -335,10 +337,14 @@ sub _run_at_linux{
     my  @linesToPrint=();
     for my $l (split("\r", $line)){
       if($l =~ /speed/i){
-        $l = $COLOR_OPTIONS{color}.$COLORS{lime}.$l.$COLOR_OPTIONS{color};
+        #TODO do the same in run_at_windows
+        $l =~ /([^:]*:)(.*)/;
+        $l = $COLOR_OPTIONS{color}.$COLORS{fuchsia}.$1.$COLOR_OPTIONS{color}.$COLOR_OPTIONS{color}.$COLORS{lime}.$2.$COLOR_OPTIONS{color};
         push @linesToPrint, $l;
       }elsif($line =~ /exception|error|warning|die|fail/i){
-        $l = $COLOR_OPTIONS{color}.$COLORS{red}.$l.$COLOR_OPTIONS{color};
+        $l =~ /([^:]*:)(.*)/;
+        $l = $COLOR_OPTIONS{color}.$COLORS{fuchsia}.$1.$COLOR_OPTIONS{color}.$COLOR_OPTIONS{color}.$COLORS{red}.$2.$COLOR_OPTIONS{color};
+
         push @linesToPrint, $l;
       }
     }
