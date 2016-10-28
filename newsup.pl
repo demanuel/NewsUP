@@ -973,6 +973,13 @@ sub _create_socket{
       }
     };
     
+    #Apparently windows doesn't perform TCP tunning correctly.
+    if($^O eq 'MSWin32'){
+      $socket->sockopt(SO_SNDBUF, 4*1024*1024);
+      $socket->sockopt(SO_RCVBUF, 4*1024*1024);
+    }
+    
+    
     if ( $@) {
       warn $@;
       sleep 3;
