@@ -371,14 +371,11 @@ sub archive_files{
 	}
 	
 	my $CMD=$OPTIONS->{archive_arguments}.' "'.catfile( $OPTIONS->{temp_dir}, $name).'" "'.$dir.'"';
-	$CMD.=' "'.$OPTIONS->{nfo}.'"' if(defined $OPTIONS->{nfo} && $OPTIONS->{nfo} ne '' && -e $OPTIONS->{nfo});
+	
 	warn $CMD if $OPTIONS->{debug};
 
 	_run_command($CMD,$OPTIONS);	
 
-	#my $CMD_output = `$CMD`;
-	#say $CMD_output if $OPTIONS->{debug};
-	
 	my @archived_files = ();
 	my $regexp = qr/$OPTIONS->{archive_filter}/;
 	opendir my $dh, $OPTIONS->{temp_dir} or die 'Couldn\'t open \''.$OPTIONS->{temp_dir}."' for reading: $!";
