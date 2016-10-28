@@ -194,7 +194,7 @@ sub upload_file_list{
 	$name .= '.nzb';
 	$CMD .= '-nzb "'.$name.'" ';
 	
-	say $CMD if $OPTIONS->{debug};
+	warn $CMD if $OPTIONS->{debug};
 	
 	if($^O eq 'linux'){
 		open my $ofh , '-|', $CMD or die "Unable to launch process: $!";
@@ -276,7 +276,7 @@ sub par_files{
 		$CMD .= '"'.$_.'" ';
 	}
 	
-	say $CMD if $OPTIONS->{debug};
+	warn $CMD if $OPTIONS->{debug};
 	
 	_run_command($CMD, $OPTIONS);
 	
@@ -326,7 +326,7 @@ sub create_sfv{
 			$crc32 = crc32($input,$crc32);
 		}
 
-		say sprintf('%s %08x',$fileName, $crc32) if $OPTIONS->{debug};
+		warn sprintf('%s %08x',$fileName, $crc32) if $OPTIONS->{debug};
 		print $ofh sprintf("%s %08x\r\n",$fileName, $crc32);
 		close $ifh;
 	}
@@ -372,7 +372,7 @@ sub archive_files{
 	
 	my $CMD=$OPTIONS->{archive_arguments}.' "'.catfile( $OPTIONS->{temp_dir}, $name).'" "'.$dir.'"';
 	$CMD.=' "'.$OPTIONS->{nfo}.'"' if(defined $OPTIONS->{nfo} && $OPTIONS->{nfo} ne '' && -e $OPTIONS->{nfo});
-	say $CMD if $OPTIONS->{debug};
+	warn $CMD if $OPTIONS->{debug};
 
 	_run_command($CMD,$OPTIONS);	
 
@@ -425,12 +425,9 @@ sub rename_files{
 	}, ($dir));
 	
 	my $CMD = $OPTIONS->{rename_par_arguments}.' "'."$dir/Rename.with.this.par2".'" '.join(' ', map {"\"$_\""} @matched_files);
-	say $CMD if $OPTIONS->{debug};
+	warn $CMD if $OPTIONS->{debug};
 	
 	_run_command($CMD, $OPTIONS);
-	
-	#my $CMD_output = `$CMD`;
-	#say $CMD_output if $OPTIONS->{debug};
 	
 	my $i=0;
 	for my $file (@matched_files){
@@ -452,13 +449,13 @@ sub _run_command{
 	if($^O eq 'linux'){
 		open my $ofh , '-|', $CMD or die "Unable to launch process: $!";
 		while(<$ofh>){
-			print if $OPTIONS->{debug};
+			warn if $OPTIONS->{debug};
 		}
 		close $ofh;
 	}elsif($^O eq 'MSWin32'){
 		my @commandOutput=qx/$CMD/;
 		if ($OPTIONS->{debug}){
-			print $_ for(@commandOutput);
+			warn $_ for(@commandOutput);
 		}
 	}
 }
