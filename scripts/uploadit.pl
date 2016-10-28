@@ -178,6 +178,7 @@ sub upload_file_list{
 		$name = $folders[-1];
 	}
 	
+	my $infoName = $name;
 	$name .= '.nzb';
 	$CMD .= '-nzb "'.$name.'" ';
 	
@@ -185,14 +186,16 @@ sub upload_file_list{
 	
 	if($^O eq 'linux'){
 		open my $ofh , '-|', $CMD or die "Unable to launch process: $!";
-		while(<$ofh>){
-			print if /speed|headercheck|error|exception/i;
+		while(my $line = <$ofh>){
+			$line =~ s/^.*\r//;
+			print "$infoName: $line\r\n" if $line =~ /speed|headercheck|error|exception/i;
 		}
 		close $ofh;
 	}elsif($^O eq 'MSWin32'){
 		my @commandOutput=qx/$CMD/;
-		for(@commandOutput){
-			print if /speed|headercheck|error|exception/i;
+		for my $line (@commandOutput){
+			$line =~ s/^.*\r//;
+			print "$infoName: $line\r\n" if $line =~ /speed|headercheck|error|exception/i;
 		}
 	}
 	
