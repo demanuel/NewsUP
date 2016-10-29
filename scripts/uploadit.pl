@@ -158,14 +158,13 @@ sub main{
 			#step 12
 			my $nzb = upload_file_list($name, $file_list, \%OPTIONS);
 			
+			#step 13
+			cp($nzb, catfile($OPTIONS{save_nzb_path}, $folders[-1]."_$name.nzb")) or warn "Unable to copy the NZB file: $!" if($OPTIONS{save_nzb});
+			
 			if($is_first_upload){
-				cp($nzb, catfile($OPTIONS{save_nzb_path}, $folders[-1].'.nzb')) or warn "Unable to copy the NZB file: $!" if($OPTIONS{save_nzb});
-				
 				#step 14
 				unlink upload_file_list('', [$nzb], \%OPTIONS) if($OPTIONS{upload_nzb});
 				$is_first_upload=0;
-			}else{
-				cp($nzb, catfile($OPTIONS{save_nzb_path}, $folders[-1]."_$name.nzb")) or warn "Unable to copy the NZB file: $!" if($OPTIONS{save_nzb});
 			}
 			
 			#newsup specific
