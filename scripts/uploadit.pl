@@ -118,8 +118,8 @@ sub main{
 		
 		push @{$OPTIONS{name}}, '' if scalar @{$OPTIONS{name}} == 0;
 		my $file_list = [];
-		my $counter = 0;
-		my $previous_name = '';
+		my $is_first_upload=1;
+		my $previous_name = '';#variable to indicate the name of the previous upload, so we can avoid recreating the archives and the pars
 		for my $name (@{$OPTIONS{name}}){
 			#step 3,4 and 5
 			$dir = rename_files($name, $dir,\%OPTIONS);
@@ -128,7 +128,7 @@ sub main{
 			$dir = reverse_filenames($dir, \%OPTIONS);
 			
 			#step 7
-			if($previous_name eq ''){
+			if($is_first_upload){
 				$file_list = archive_files($name, $dir, \%OPTIONS);
 			}else{
 				$file_list = rename_archived_files($previous_name, $name, $dir, \%OPTIONS);
@@ -144,7 +144,7 @@ sub main{
 			#step 9
 			$file_list = create_sfv($name, $file_list, \%OPTIONS);
 			
-			if($previous_name eq ''){
+			if($is_first_upload){
 				#step 10
 				$file_list = par_files($name, $file_list, \%OPTIONS);
 			}else{
@@ -158,11 +158,12 @@ sub main{
 			#step 12
 			my $nzb = upload_file_list($name, $file_list, \%OPTIONS);
 			
-			if($previous_name eq ''){
+			if($is_first_upload){
 				cp($nzb, catfile($OPTIONS{save_nzb_path}, $folders[-1].'.nzb')) or warn "Unable to copy the NZB file: $!" if($OPTIONS{save_nzb});
 				
 				#step 14
 				unlink upload_file_list('', [$nzb], \%OPTIONS) if($OPTIONS{upload_nzb});
+				$is_first_upload=0;
 			}else{
 				cp($nzb, catfile($OPTIONS{save_nzb_path}, $folders[-1]."_$name.nzb")) or warn "Unable to copy the NZB file: $!" if($OPTIONS{save_nzb});
 			}
