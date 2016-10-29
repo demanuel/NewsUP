@@ -87,7 +87,8 @@ sub main{
 		#10- par the rars and the nfo
 		#11- delete the nfo
 		#12- upload rars and pars
-		#13- upload nzb
+		#13- copy the nzb to the right place
+		#14- upload nzb
 		
 		# Invalid options:
 		# Uploading only 1 file with renaming_par option set
@@ -156,11 +157,14 @@ sub main{
 
 			#step 12
 			my $nzb = upload_file_list($name, $file_list, \%OPTIONS);
-			cp($nzb, $OPTIONS{save_nzb_path}) or warn "Unable to copy the NZB file: $!" if($OPTIONS{save_nzb});
 			
 			if($previous_name eq ''){
-				#step 13
+				cp($nzb, catfile($OPTIONS{save_nzb_path}, $folders[-1].'.nzb')) or warn "Unable to copy the NZB file: $!" if($OPTIONS{save_nzb});
+				
+				#step 14
 				unlink upload_file_list('', [$nzb], \%OPTIONS) if($OPTIONS{upload_nzb});
+			}else{
+				cp($nzb, catfile($OPTIONS{save_nzb_path}, $folders[-1]."_$name.nzb")) or warn "Unable to copy the NZB file: $!" if($OPTIONS{save_nzb});
 			}
 			
 			#newsup specific
@@ -168,7 +172,7 @@ sub main{
 			
 			$previous_name = $name;
 		}
-		#step 14
+		
 		if($OPTIONS{delete}){
 			unlink @$file_list;
 		}
