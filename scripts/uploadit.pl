@@ -370,7 +370,7 @@ sub archive_files{
 		$name = $folders[-1].'.rar';
 	}
 	
-	my $CMD=$OPTIONS->{archive_arguments}.' "'.catfile( $OPTIONS->{temp_dir}, $name).'" "'.$dir.'"';
+	my $CMD=$OPTIONS->{archive_arguments}.' "'.catfile( $OPTIONS->{temp_dir}, $name).'" "'.$dir.catfile('','').'"';
 	
 	warn $CMD if $OPTIONS->{debug};
 
