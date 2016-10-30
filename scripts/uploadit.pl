@@ -204,14 +204,14 @@ sub upload_file_list{
 		open my $ofh , '-|', $CMD or die "Unable to launch process: $!";
 		while(my $line = <$ofh>){
 			$line =~ s/^.*\r//;
-			print "$infoName: $line\r\n" if $line =~ /speed|headercheck|error|exception/i;
+			print "$infoName: $line" if $line =~ /speed|headercheck|error|exception/i;
 		}
 		close $ofh;
 	}elsif($^O eq 'MSWin32'){
 		my @commandOutput=qx/$CMD/;
 		for my $line (@commandOutput){
 			$line =~ s/^.*\r//;
-			print "$infoName: $line\r\n" if $line =~ /speed|headercheck|error|exception/i;
+			print "$infoName: $line" if $line =~ /speed|headercheck|error|exception/i;
 		}
 	}
 	
