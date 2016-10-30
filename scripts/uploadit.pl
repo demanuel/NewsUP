@@ -374,7 +374,10 @@ sub archive_files{
 		$name = $folders[-1].'.rar';
 	}
 	
-	my $CMD=$OPTIONS->{archive_arguments}.' "'.catfile( $OPTIONS->{temp_dir}, $name).'" "'.$dir.catfile('','').'"';
+	my $inputFile = $dir;
+	$inputFile.=catfile('','') if -d $inputFile; #put a file path separator to avoid the archive program to have a first level folder
+	
+	my $CMD=$OPTIONS->{archive_arguments}.' "'.catfile( $OPTIONS->{temp_dir}, $name)."\" \"$inputFile\"";
 	
 	warn $CMD if $OPTIONS->{debug};
 
