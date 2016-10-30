@@ -48,7 +48,7 @@ my $CONFIG = get_options();
 my $JUMP=60; #1 minute
 my @CMD_QUEUE=();
 my %SCRIPTS=(
-  "^!completion (.*)" => sub{["Not implemented"];},
+  "^!check (.*)" => sub{["Not implemented"];},
   "^!queue" => sub{my @list=(); push @list, $KID? "Command queue [1]": 'Command queue [0]';push @list, @CMD_QUEUE; push @list, "End of Command Queue"; return \@list},
   "^!upload (.*)"=>'perl ./scripts/botupload.pl',
 );
@@ -96,25 +96,7 @@ sub get_options{
   if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
 
     $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
-    #if (exists $config->{irc}{upload_root}){
-    #  my @upload_folders = split(',', $config->{irc}{upload_root});
-    #  if (!@upload_folders) {
-    #    say "Please configure <upload_root> folders";
-    #    exit 0;
-    #  }
-    #
-    #  for (@upload_folders) {
-    #    $_ =~ s/^\s+|\s+$//g ;     # remove both leading and trailing whitespace
-    #
-    #    if (!-d $_) {
-    #      say "Folder $_ does not exist!\r\nPlease configure correctly the option <upload_root> Exiting.";
-    #      exit;
-    #    }
-    #  }
-    #
-    #}else {
-    #  say "Option <upload_root> is missing!";
-    #}
+
   }else {
     say "Please configure your newsup.conf file";
     exit 0;
