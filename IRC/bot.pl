@@ -49,7 +49,13 @@ my $JUMP=60; #1 minute
 my @CMD_QUEUE=();
 my %SCRIPTS=(
   "^!check (.*)" => sub{["Not implemented"];},
-  "^!queue" => sub{my @list=(); push @list, $KID? "Command queue [1]": 'Command queue [0]';push @list, @CMD_QUEUE; push @list, "End of Command Queue"; return \@list},
+  "^!queue" => sub{
+        my @list=();
+        push @list, $KID? "Command queue [1]": 'Command queue [0]';
+        push @list, map{/.*upload\.pl (.*)$/; $1;} @CMD_QUEUE;
+        push @list, "End of Command Queue";
+        return \@list
+      },
   "^!upload (.*)"=>'perl ./scripts/botupload.pl',
 );
 
@@ -240,8 +246,8 @@ sub _print_lines_to_channel{
     print $socket "PRIVMSG $channel :First $totalLines lines (total ".scalar(@$lines)." lines):";
   }
 
-  for my $output_exec (@$lines){
-    print $socket "PRIVMSG $channel :$output_exec";
+  for my $outputExec (@$lines){
+    print $socket "PRIVMSG $channel :$outputExec";
 
     if(--$maxLines == 0){
       last;
