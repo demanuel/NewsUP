@@ -252,7 +252,7 @@ sub rename_par_files{
 	while(my $file = readdir $dh){
 		if($file =~ /$regexp/ && $file =~ /$previous_name/){
 			my $old_filename = catfile($OPTIONS->{temp_dir}, $file);
-			(my $new_filename = $old_filename) =~ s/$previous_name/$name/g;
+			(my $new_filename = $old_filename) =~ s/$previous_name/$name/;
 			rename($old_filename, $new_filename);
 			push @par_files, $new_filename;
 		}
@@ -352,7 +352,7 @@ sub rename_archived_files{
 	while(my $file = readdir $dh){
 		if($file =~ /$regexp/ && $file =~ /$previous_name/){
 			my $old_filename = catfile($OPTIONS->{temp_dir}, $file);
-			(my $new_filename = $old_filename) =~ s/$previous_name/$name/g;
+			(my $new_filename = $old_filename) =~ s/$previous_name/$name/;
 			rename($old_filename, $new_filename);
 			push @archived_files, $new_filename;
 		}
