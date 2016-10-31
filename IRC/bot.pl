@@ -243,7 +243,7 @@ sub _print_lines_to_channel{
   my $totalLines = $maxLines;
 
   if($maxLines < scalar(@$lines)){
-    print $socket "PRIVMSG $channel :First $totalLines lines (total ".scalar(@$lines)." lines):";
+    print $socket "PRIVMSG $channel :First $totalLines lines (total ".$COLOR_OPTIONS{color}.$COLORS{red}.scalar(@$lines).$COLOR_OPTIONS{color}." lines):";
   }
 
   for my $outputExec (@$lines){
