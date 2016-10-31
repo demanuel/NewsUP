@@ -212,7 +212,7 @@ sub start{
                 my $output = $SCRIPTS{$regexp}->($params);
                 _print_lines_to_channel($socket, $channel, $output, 5);
               };
-              print $socket "PRIVMSG $channel :$@" if $@;
+              _print_lines_to_channel($socket, $channel, [$@]) if $@;
             }
             last;
           }
@@ -276,8 +276,7 @@ sub start_next_command{
       elsif (!$KID) { 
         my $command = shift @$commands;
         $socket->autoflush(1);
-        print $socket "PRIVMSG #".$config->{irc}{channel}." :Executing: $command";
-
+        _print_lines_to_channel($socket, '#'.$config->{irc}{channel}, ["Executing: $command"],1);
         if($^O eq 'linux'){
           _run_at_linux($command, $socket, $config);
         }elsif($^O eq 'MSWin32'){
