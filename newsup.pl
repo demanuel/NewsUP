@@ -168,7 +168,7 @@ AV* _yenc_encode_c(unsigned char* data, size_t data_size)
   //av_push(ret, newSVuv(crc32));
   free(encbuffer);
   
-  char *hex_number = (char*)malloc(sizeof(char)*8);
+  char *hex_number = (char*)malloc(sizeof(char)*9);//8 chars + the termination char (null)
   int hex_size = sprintf(hex_number, "%x", crc32);
   //printf("say size: %d\n", hex_size);
   //hex_number = (char*) realloc(hex_number,hex_size);
