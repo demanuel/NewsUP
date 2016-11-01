@@ -758,7 +758,7 @@ sub _post_part{
 sub _get_file_data{
   my ($fileName, $position, $currentFile) = @_;
   if($fileName ne $currentFile->{filename}){
-    close $currentFile->{FILEHANDLER} if(defined $currentFile->{filehandler});
+    close $currentFile->{filehandler} if(defined $currentFile->{filehandler});
     open my $fh, '<:raw :bytes', $fileName;
     $currentFile->{size}=-s $fileName;
     $currentFile->{filehandler}=$fh;
