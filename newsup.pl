@@ -32,6 +32,7 @@ use IO::Socket::INET;
 use IO::Socket::SSL; #qw(debug3);
 use IO::Select;
 use Config;
+use Fcntl;
 
 use Inline C => Config => cc => exists $ENV{NEWSUP_CC}?$ENV{NEWSUP_CC}:$Config{cc};
 #In case of message "loaded library mismatch" (this happens typically in windows) we need to add the flag -DPERL_IMPLICIT_SYS
@@ -581,6 +582,8 @@ sub _start_upload{
 
   my $currentPart = 0;
 
+  my %currentFile = (size=>0, filename=>'', filehandler=>undef);
+  
   while(@$parts > 0){
     my ($readers, $writers) = IO::Select->select($select, $select, undef);
 
@@ -591,7 +594,7 @@ sub _start_upload{
       }elsif($status{$socket} == 2){
         if (scalar @$parts != 0){
           my $part = shift @$parts;
-          _post_part ($socket, $from, $newsgroups, $commentsRef, $extraHeaders, $part);
+          _post_part ($socket, $from, $newsgroups, $commentsRef, $extraHeaders, $part, \%currentFile);
           undef $part;
           $status{$socket}=3;
           {
@@ -640,6 +643,8 @@ sub _start_upload{
   }
 
   #No more articles.
+  #We need to close the final open filehandler
+  close $currentFile{filehandler};
   #Now we need to be sure that all sockets are ready for being written
   for my $sock ($select->handles){
     shutdown ($sock,2);
@@ -724,10 +729,10 @@ sub _create_nzb{
 
 
 sub _post_part{
-  my ($socket, $from, $newsgroups, $commentsRef, $extraHeaders, $part) = @_;
+  my ($socket, $from, $newsgroups, $commentsRef, $extraHeaders, $part, $currentFile) = @_;
   my $baseName = fileparse($part->{fileName});
   my $startPosition=1+$NNTP_MAX_UPLOAD_SIZE*($part->{segmentNumber}-1);
-  my ($binString, $readSize, $endPosition, $fileSize) = _get_file_data($part->{fileName}, $startPosition-1);
+  my ($binString, $readSize, $endPosition, $fileSize) = _get_file_data($part->{fileName}, $startPosition-1, $currentFile);
   my $yenc = _yenc_encode_c($binString, $readSize);
   my ($yenc_data, $crc32_data) = @{$yenc};
   
@@ -751,14 +756,22 @@ sub _post_part{
 }
 
 sub _get_file_data{
-  my ($fileName, $position) = @_;
-  open my $fh, '<:bytes', $fileName;
-  binmode $fh;
-  seek $fh, $position,0;
-  my $readSize = read($fh, my $byteString, $NNTP_MAX_UPLOAD_SIZE);
-  my $endPosition = tell $fh;
-  close $fh;
-  return ($byteString, $readSize, $endPosition, -s $fileName);
+  my ($fileName, $position, $currentFile) = @_;
+  if($fileName ne $currentFile->{filename}){
+    close $currentFile->{FILEHANDLER} if(defined $currentFile->{filehandler});
+    open my $fh, '<:raw :bytes', $fileName;
+    $currentFile->{size}=-s $fileName;
+    $currentFile->{filehandler}=$fh;
+    $currentFile->{filename} = $fileName;
+  }
+  #open my $fh, '<:raw :bytes', $fileName;
+  #binmode $fh;
+  seek $currentFile->{filehandler}, $position,0;
+  my $readSize = read($currentFile->{filehandler}, my $byteString, $NNTP_MAX_UPLOAD_SIZE);
+  my $endPosition = tell $currentFile->{filehandler};
+
+  return ($byteString, $readSize, $endPosition, $currentFile->{size});
+
 }
 
 sub _print_args_to_socket{
