@@ -759,7 +759,8 @@ sub _get_file_data{
   my ($fileName, $position, $currentFile) = @_;
   if($fileName ne $currentFile->{filename}){
     close $currentFile->{filehandler} if(defined $currentFile->{filehandler});
-    open my $fh, '<:raw :bytes', $fileName;
+    #open my $fh, '<:raw :bytes', $fileName;
+    sysopen(my $fh, $fileName, 00);
     $currentFile->{size}=-s $fileName;
     $currentFile->{filehandler}=$fh;
     $currentFile->{filename} = $fileName;
@@ -986,17 +987,16 @@ sub _create_socket{
       }
     };
     
-    #Apparently windows doesn't perform TCP tunning correctly.
-    if($^O eq 'MSWin32'){
-      $socket->sockopt(SO_SNDBUF, 4*1024*1024);
-      $socket->sockopt(SO_RCVBUF, 4*1024*1024);
-    }
-    
-    
     if ( $@) {
       warn $@;
       sleep 3;
     }else {
+      #Apparently windows doesn't perform TCP tunning correctly.
+      if($^O eq 'MSWin32'){
+        $socket->sockopt(SO_SNDBUF, 4*1024*1024);
+        $socket->sockopt(SO_RCVBUF, 4*1024*1024);
+      }
+      
       last;
     }
   }
