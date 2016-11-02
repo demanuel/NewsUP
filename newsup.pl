@@ -212,7 +212,7 @@ sub _parse_command_line{
 
   #Parameters with default values
   my $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';
-  my $no_tls=0;
+  my $noTLS=0;
   
   #default value
   my @filesToUpload=();
@@ -252,7 +252,7 @@ sub _parse_command_line{
              'headerCheckConnections=i'=>\$headerCheckConnections,
              'uploadsize=i'=>\$NNTP_MAX_UPLOAD_SIZE,
              'configuration=s'=>\$configurationFile,
-             'noTLS!'=>\$no_tls
+             'noTLS!'=>\$noTLS
             );
 
       
@@ -403,7 +403,7 @@ sub _parse_command_line{
     exit 0;
   }
 
-  return ($server, $port, $no_tls, $username, $userpasswd,
+  return ($server, $port, $noTLS, $username, $userpasswd,
 	  \@filesToUpload, $threads, \@newsGroups,
 	  \@comments, $from, \%metadata, $headerCheck, $headerCheckSleep,
 	  $headerCheckServer, $headerCheckPort, $headerCheckUserName,
@@ -435,7 +435,7 @@ sub _get_files_to_upload{
 
 sub main{
 
-  my ($server, $port, $no_tls, $username, $userpasswd,
+  my ($server, $port, $noTLS, $username, $userpasswd,
       $filesToUploadRef, $connections, $newsGroupsRef,
       $commentsRef, $from, $meta, $headerCheck, $headerCheckSleep,
       $headerCheckServer, $headerCheckPort,
@@ -453,7 +453,7 @@ sub main{
   my @nzbParts = @{$uploadParts};
 
   my $init = time;
-  _start_upload($connections, $server, $port, $no_tls, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, $uploadParts);
+  _start_upload($connections, $server, $port, $noTLS, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, $uploadParts);
   undef $uploadParts;
 
   my $time = time()-$init;
@@ -464,7 +464,7 @@ sub main{
 
     $init = time();
     _start_header_check($headerCheckConnections, $headerCheckServer, $headerCheckPort,
-			$no_tls, $headerCheckUsername, $headerCheckPassword, $headerCheckRetries,
+			$noTLS, $headerCheckUsername, $headerCheckPassword, $headerCheckRetries,
 			$headerCheckSleep, $newsGroupsRef, $connections, $server, $port, $username,
 			$userpasswd, $from, $commentsRef, $extraHeaders, \@missingSegments);
 
@@ -480,7 +480,7 @@ sub main{
 
 sub _start_header_check{
 
-  my ($headerCheckConnections, $headerCheckServer, $headerCheckPort, $no_tls,
+  my ($headerCheckConnections, $headerCheckServer, $headerCheckPort, $noTLS,
       $headerCheckUsername, $headerCheckPassword, $headerCheckRetries,
       $headerCheckSleep, $newsGroupsRef, $connections, $server, $port, $username,
       $userpasswd, $from, $commentsRef, $extraHeaders, $missingSegmentsRef) = @_;
@@ -498,7 +498,7 @@ sub _start_header_check{
     say "Warping up header check engines to [$headerCheckServer:$headerCheckPort] with $headerCheckConnections connections!";
     my $connectionList;
     eval{
-      $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $no_tls, $headerCheckUsername, $headerCheckPassword);
+      $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $noTLS, $headerCheckUsername, $headerCheckPassword);
     };
     if ($@){
       warn "Unable to connect properly to the header check server. Skipping header check. Please verify the headerchek settings";
@@ -534,7 +534,7 @@ sub _start_header_check{
           shutdown ($socket, 2);
           $select->remove($socket);
           undef $socket;
-          $select->add(_get_connections(1, $headerCheckServer, $headerCheckPort, $no_tls, $headerCheckUsername, $headerCheckPassword)->[0]);
+          $select->add(_get_connections(1, $headerCheckServer, $headerCheckPort, $noTLS, $headerCheckUsername, $headerCheckPassword)->[0]);
         }
       }
     }
@@ -555,7 +555,7 @@ sub _start_header_check{
       $connections = scalar @missingSegments if ($connections > scalar @missingSegments);
 
       my @tempSegments = @missingSegments;
-      _start_upload($connections, $server, $port, $no_tls ,$username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, \@tempSegments);
+      _start_upload($connections, $server, $port, $noTLS ,$username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, \@tempSegments);
       say "Upload of the missing segments done!";
       undef @tempSegments;
     }else {
@@ -566,9 +566,9 @@ sub _start_header_check{
 }
 
 sub _start_upload{
-  my ($connections, $server, $port, $no_tls, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, $parts) = @_;
+  my ($connections, $server, $port, $noTLS, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, $parts) = @_;
 
-  my $connectionList = _get_connections($connections, $server, $port, $no_tls, $username, $userpasswd);
+  my $connectionList = _get_connections($connections, $server, $port, $noTLS, $username, $userpasswd);
   my $newsgroups = join(',',@$newsGroupsRef);
 
   my $totalParts = scalar @$parts;
@@ -612,7 +612,7 @@ sub _start_upload{
 	      #If we get a 400 we return to the begining
 	      if ($output =~ /^400 /) {
           shutdown ($socket, 2);
-          my $conList = _get_connections(1, $server, $port, $no_tls, $username, $userpasswd);
+          my $conList = _get_connections(1, $server, $port, $noTLS, $username, $userpasswd);
           $select->remove($socket);
           $select->add($conList->[0]);
           $status{$conList->[0]} = 0;
@@ -629,7 +629,7 @@ sub _start_upload{
         #A post was done and we need to confirm the post was done OK
         if ($output =~ /^400 /) {
           shutdown ($socket, 2);
-          my $conList = _get_connections(1, $server, $port, $no_tls, $username, $userpasswd);
+          my $conList = _get_connections(1, $server, $port, $noTLS, $username, $userpasswd);
           $socket = $conList->[0];
 
         }elsif ($output !~ /^240 /) {
@@ -884,12 +884,12 @@ sub _authenticate{
 
 
 sub _get_connections{
-  my ($connections, $server, $port, $no_tls, $user, $password) = @_;
+  my ($connections, $server, $port, $noTLS, $user, $password) = @_;
 
   my @connectionList = (0) x $connections;
 
   for my $i (0..$connections-1) {
-    $connectionList[$i]=_create_socket($server, $port, $no_tls);
+    $connectionList[$i]=_create_socket($server, $port, $noTLS);
     #my $socket = _create_socket($server, $port);
     #push @connectionList, $socket;
   }
@@ -959,11 +959,11 @@ sub _encode_base36 {
 
 sub _create_socket{
 
-  my ($server, $port) = @_;
+  my ($server, $port, $noTLS) = @_;
   my $socket;
   while (1) {
     eval{
-      if ($port != 119) {
+      if ($port != 119 && !$noTLS) {
         $socket = IO::Socket::SSL->new(
                                         PeerHost=>$server,
                                         PeerPort=>$port,
