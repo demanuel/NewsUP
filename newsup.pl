@@ -32,7 +32,6 @@ use IO::Socket::INET;
 use IO::Socket::SSL; #qw(debug3);
 use IO::Select;
 use Config;
-use Fcntl;
 
 use Inline C => Config => cc => exists $ENV{NEWSUP_CC}?$ENV{NEWSUP_CC}:$Config{cc};
 #In case of message "loaded library mismatch" (this happens typically in windows) we need to add the flag -DPERL_IMPLICIT_SYS
@@ -759,8 +758,8 @@ sub _get_file_data{
   my ($fileName, $position, $currentFile) = @_;
   if($fileName ne $currentFile->{filename}){
     close $currentFile->{filehandler} if(defined $currentFile->{filehandler});
-    #open my $fh, '<:raw :bytes', $fileName;
-    sysopen(my $fh, $fileName, 00);
+    open my $fh, '<:raw :bytes', $fileName;
+    
     $currentFile->{size}=-s $fileName;
     $currentFile->{filehandler}=$fh;
     $currentFile->{filename} = $fileName;
@@ -989,7 +988,7 @@ sub _create_socket{
     
     if ( $@) {
       warn $@;
-      sleep 3;
+      sleep 15;
     }else {
       #Apparently windows doesn't perform TCP tunning correctly.
       if($^O eq 'MSWin32'){
