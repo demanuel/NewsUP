@@ -161,9 +161,10 @@ sub main{
 			# Sometimes newsup fails in the authentication phase because of:
 			# *- The USP takes time to reap "not being in use" sessions
 			# *- The reasons indicated in http://search.cpan.org/~sullr/IO-Socket-SSL-2.038/lib/IO/Socket/SSL.pod#Common_Problems_with_SSL
-			while(!-e $nzb || !defined $nzb){
+			while(1){
 				$nzb = upload_file_list($name, $fileList, \%OPTIONS);
-				sleep 10;
+				last if -e $nzb;
+				sleep 15;
 			}
 			
 			#step 13
