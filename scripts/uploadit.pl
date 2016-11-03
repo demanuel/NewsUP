@@ -117,9 +117,9 @@ sub main{
 		
 		
 		push @{$OPTIONS{name}}, '' if scalar @{$OPTIONS{name}} == 0;
-		my $file_list = [];
-		my $is_first_upload=1;
-		my $previous_name = '';#variable to indicate the name of the previous upload, so we can avoid recreating the archives and the pars
+		my $fileList = [];
+		my $isFirstUpload=1;
+		my $previousName = '';#variable to indicate the name of the previous upload, so we can avoid recreating the archives and the pars
 		for my $name (@{$OPTIONS{name}}){
 			#step 3,4 and 5
 			$dir = rename_files($name, $dir,\%OPTIONS);
@@ -128,65 +128,72 @@ sub main{
 			$dir = reverse_filenames($dir, \%OPTIONS);
 			
 			#step 7
-			if($is_first_upload){
-				$file_list = archive_files($name, $dir, \%OPTIONS);
+			if($isFirstUpload){
+				$fileList = archive_files($name, $dir, \%OPTIONS);
 			}else{
-				$file_list = rename_archived_files($previous_name, $name, $dir, \%OPTIONS);
+				$fileList = rename_archived_files($previousName, $name, $dir, \%OPTIONS);
 			}
 			
 			#step 8
 			if(defined $OPTIONS{nfo} && $OPTIONS{nfo} ne ''){
 				my $filename = fileparse($OPTIONS{nfo});
 				cp($OPTIONS{nfo}, $OPTIONS{temp_dir}) or die "Error copying the NFO file: $!";
-				push @$file_list, catfile($OPTIONS{temp_dir},$filename);
+				push @$fileList, catfile($OPTIONS{temp_dir},$filename);
 			}
 			
 			#step 9
-			$file_list = create_sfv($name, $file_list, \%OPTIONS);
+			$fileList = create_sfv($name, $fileList, \%OPTIONS);
 			
-			if($is_first_upload){
+			if($isFirstUpload){
 				#step 10
-				$file_list = par_files($name, $file_list, \%OPTIONS);
+				$fileList = par_files($name, $fileList, \%OPTIONS);
 			}else{
 				# step 10
-				$file_list = rename_par_files($previous_name, $name, $file_list, \%OPTIONS);
+				$fileList = rename_par_files($previousName, $name, $fileList, \%OPTIONS);
 			}
 			
 			#step 11
-			$file_list = force_repair($file_list, \%OPTIONS);
+			$fileList = force_repair($fileList, \%OPTIONS);
 
 			#step 12
-			my $nzb = upload_file_list($name, $file_list, \%OPTIONS);
+			my $nzb = undef;
+
+			# Sometimes newsup fails in the authentication phase because of:
+			# *- The USP takes time to reap "not being in use" sessions
+			# *- The reasons indicated in http://search.cpan.org/~sullr/IO-Socket-SSL-2.038/lib/IO/Socket/SSL.pod#Common_Problems_with_SSL
+			while(!-e $nzb || !defined $nzb){
+				$nzb = upload_file_list($name, $fileList, \%OPTIONS);
+			}
 			
 			#step 13
 			cp($nzb, catfile($OPTIONS{save_nzb_path}, $folders[-1]."_$name.nzb")) or warn "Unable to copy the NZB file: $!" if($OPTIONS{save_nzb});
 			
-			if($is_first_upload){
+			if($isFirstUpload){
 				#step 14
 				unlink upload_file_list('', [$nzb], \%OPTIONS) if($OPTIONS{upload_nzb});
-				$is_first_upload=0;
+				$isFirstUpload=0;
 			}
 			
 			#newsup specific
 			unlink $nzb;
 			
-			$previous_name = $name;
+			$previousName = $name;
 		}
 		
 		if($OPTIONS{delete}){
-			unlink @$file_list;
+			unlink @$fileList;
 		}
 		remove_tree($dir);
 		
 }
 
 sub upload_file_list{
-	my ($name, $file_list, $OPTIONS) = @_;
+	my ($name, $fileList, $OPTIONS) = @_;
 	
 	my $CMD = $OPTIONS->{uploader}.' ';
 	$CMD .= $OPTIONS->{args}.' ';
 	$CMD .= "-group $_ " for (@{$OPTIONS->{group}});
-	$CMD .= '-file "'.$_.'" ' for (@$file_list);
+	$CMD .= '-file "'.$_.'" ' for (@$fileList);
 	
 	if($name eq ''){
 		my @folders = splitdir( $OPTIONS->{directory} );
@@ -224,47 +231,47 @@ sub upload_file_list{
 }
 
 sub force_repair{
-	my ($file_list, $OPTIONS) = @_;
-	return $file_list if(!defined $OPTIONS->{force_repair} || !$OPTIONS->{force_repair});
+	my ($fileList, $OPTIONS) = @_;
+	return $fileList if(!defined $OPTIONS->{force_repair} || !$OPTIONS->{force_repair});
 	
-	my @new_file_list = ();
+	my @newFileList = ();
 	
-	for(@$file_list){
+	for(@$fileList){
 		if($_ =~ /.nfo$/i){
 			unlink $_;
 		}else{
-			push @new_file_list, $_;
+			push @newFileList, $_;
 		}
 	}
 	
-	return \@new_file_list;
+	return \@newFileList;
 }
 
 sub rename_par_files{
-	my ($previous_name, $name, $file_list, $OPTIONS) = @_;
-	return $file_list if(!defined $OPTIONS->{par} || !$OPTIONS->{par});
+	my ($previousName, $name, $fileList, $OPTIONS) = @_;
+	return $fileList if(!defined $OPTIONS->{par} || !$OPTIONS->{par});
 	
-	my @par_files = @$file_list;
+	my @parFiles = @$fileList;
 	my $regexp = qr/$OPTIONS->{par_filter}/;
-	my $previous_name_regexp = qr/$previous_name/;
+	my $previousNameRegexp = qr/$previousName/;
 	
 	opendir my $dh, $OPTIONS->{temp_dir} or die 'Couldn\'t open \''.$OPTIONS->{temp_dir}."' for reading: $!";
 	while(my $file = readdir $dh){
-		if($file =~ /$regexp/ && $file =~ /$previous_name/){
-			my $old_filename = catfile($OPTIONS->{temp_dir}, $file);
-			(my $new_filename = $old_filename) =~ s/$previous_name/$name/;
-			rename($old_filename, $new_filename);
-			push @par_files, $new_filename;
+		if($file =~ /$regexp/ && $file =~ /$previousName/){
+			my $oldFilename = catfile($OPTIONS->{temp_dir}, $file);
+			(my $newFilename = $oldFilename) =~ s/$previousName/$name/;
+			rename($oldFilename, $newFilename);
+			push @parFiles, $newFilename;
 		}
 	}
 	closedir $dh;
 	
-	return \@par_files;
+	return \@parFiles;
 }
 
 sub par_files{
-	my ($name, $file_list, $OPTIONS) = @_;
-	return $file_list if(!defined $OPTIONS->{par} || !$OPTIONS->{par});
+	my ($name, $fileList, $OPTIONS) = @_;
+	return $fileList if(!defined $OPTIONS->{par} || !$OPTIONS->{par});
 	
 	
 	if($name eq ''){
@@ -276,7 +283,7 @@ sub par_files{
 	my $par_name = '"'.catfile($OPTIONS->{temp_dir}, $name).'"';
 	
 	my $CMD = $OPTIONS->{par_arguments}." $par_name " ;
-	for(@$file_list){
+	for(@$fileList){
 		$CMD .= '"'.$_.'" ';
 	}
 	
@@ -287,23 +294,23 @@ sub par_files{
 	opendir my $dh, $OPTIONS->{temp_dir} or die 'Couldn\'t open \''.$OPTIONS->{temp_dir}."' for reading: $!";
 	my $regexp = qr/$OPTIONS->{par_filter}/;
 	while(my $file = readdir $dh){
-		push @$file_list, catfile($OPTIONS->{temp_dir}, $file) if($file =~ /$regexp/);
+		push @$fileList, catfile($OPTIONS->{temp_dir}, $file) if($file =~ /$regexp/);
 	}
 	closedir $dh;
 	
-	return $file_list;
+	return $fileList;
 }
 
 sub create_sfv{
 	my ($name, $files, $OPTIONS) = @_;
 	return $files if(!$OPTIONS->{create_sfv});
 	
-	my $sfv_file = $name;
+	my $sfvFile = $name;
 	
-	if($sfv_file eq '' || !defined $sfv_file){
+	if($sfvFile eq '' || !defined $sfvFile){
 		my @folders = splitdir( $OPTIONS->{directory} );
 		pop @folders if($folders[-1] eq '');
-		$sfv_file = $folders[-1];
+		$sfvFile = $folders[-1];
 	}
 	
 	# TODO
@@ -311,14 +318,14 @@ sub create_sfv{
 	opendir my $dh, $OPTIONS->{temp_dir} or die 'Couldn\'t open \''.$OPTIONS->{temp_dir}."' for reading: $!";
 	while(my $file = readdir $dh){
 		if($file =~ /sfv$/){
-			my $old_sfv_filename = catfile($OPTIONS->{temp_dir}, $file);
-			unlink $old_sfv_filename;
+			my $oldSFVFilename = catfile($OPTIONS->{temp_dir}, $file);
+			unlink $oldSFVFilename;
 			last;
 		}
 	}
 	closedir $dh;
 	
-	open my $ofh, '>', catfile($OPTIONS->{temp_dir},"$sfv_file.sfv") or die 'Unable to create sfv file!';
+	open my $ofh, '>', catfile($OPTIONS->{temp_dir},"$sfvFile.sfv") or die 'Unable to create sfv file!';
  
 	for (@$files) {
 		my $file = $_;
@@ -336,25 +343,25 @@ sub create_sfv{
 	}
   
 	close $ofh;
-	push @$files, catfile($OPTIONS->{temp_dir},"$sfv_file.sfv");
+	push @$files, catfile($OPTIONS->{temp_dir},"$sfvFile.sfv");
 	return $files;	
 }
 
 sub rename_archived_files{
-	my ($previous_name,$name, $dir, $OPTIONS) = @_;
+	my ($previousName,$name, $dir, $OPTIONS) = @_;
 	return [$dir] if(!$OPTIONS->{archive});
 	
 	my @archived_files = ();
 	my $regexp = qr/$OPTIONS->{archive_filter}/;
-	my $previous_name_regexp = qr/$previous_name/;
+	my $previousNameRegexp = qr/$previousName/;
 	
 	opendir my $dh, $OPTIONS->{temp_dir} or die 'Couldn\'t open \''.$OPTIONS->{temp_dir}."' for reading: $!";
 	while(my $file = readdir $dh){
-		if($file =~ /$regexp/ && $file =~ /$previous_name/){
-			my $old_filename = catfile($OPTIONS->{temp_dir}, $file);
-			(my $new_filename = $old_filename) =~ s/$previous_name/$name/;
-			rename($old_filename, $new_filename);
-			push @archived_files, $new_filename;
+		if($file =~ /$regexp/ && $file =~ /$previousName/){
+			my $oldFilename = catfile($OPTIONS->{temp_dir}, $file);
+			(my $newFilename = $oldFilename) =~ s/$previousName/$name/;
+			rename($oldFilename, $newFilename);
+			push @archived_files, $newFilename;
 		}
 	}
 	closedir $dh;
