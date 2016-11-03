@@ -163,6 +163,7 @@ sub main{
 			# *- The reasons indicated in http://search.cpan.org/~sullr/IO-Socket-SSL-2.038/lib/IO/Socket/SSL.pod#Common_Problems_with_SSL
 			while(!-e $nzb || !defined $nzb){
 				$nzb = upload_file_list($name, $fileList, \%OPTIONS);
+				sleep 10;
 			}
 			
 			#step 13
