@@ -988,7 +988,7 @@ sub _create_socket{
     
     if ( $@) {
       warn $@;
-      sleep 15;
+      sleep 3;
     }else {
       #Apparently windows doesn't perform TCP tunning correctly.
       if($^O eq 'MSWin32'){
