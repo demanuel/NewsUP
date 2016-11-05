@@ -694,34 +694,34 @@ sub _create_nzb{
   my $totalFiles = scalar(keys %files);
   open my $ofh, '>', $nzbName;
 
-  print $ofh "<?xml version=\"1.0\" encoding=\"iso-8859-1\" ?>\n";
-  print $ofh "<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">\n";
-  print $ofh "<head>\n";
+  print $ofh "<?xml version=\"1.0\" encoding=\"iso-8859-1\" ?>";
+  print $ofh "<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">";
+  print $ofh "<head>";
 #  print $ofh "<meta>";
   print $ofh "<meta type=\"$_\">".$meta->{$_}."</meta>\n" for (keys %$meta);
 #  print $ofh "</meta>\n";
-  print $ofh "</head>\n";
+  print $ofh "</head>";
   my $currentFileNumber = 0;
   for my $filename (sort keys %files) {
     my @segments = @{$files{$filename}};
     my $time=time();
-    print $ofh "<file poster=\"$from\" date=\"$time\" subject=\"".$commentsRef->[0]."[".++$currentFileNumber."/".$totalFiles."] - &quot;".$filename."&quot;".$commentsRef->[1]."yEnc (1/",scalar(@segments),")\">\n";
-    print $ofh "<groups>\n";
-    print $ofh "<group>$_</group>\n" for @$newsGroups;
-    print $ofh "</groups>\n";
-    print $ofh "<segments>\n";
-    print $ofh "$_\n" for (sort{
+    print $ofh "<file poster=\"$from\" date=\"$time\" subject=\"".$commentsRef->[0]."[".++$currentFileNumber."/".$totalFiles."] - &quot;".$filename."&quot;".$commentsRef->[1]."yEnc (1/",scalar(@segments),")\">";
+    print $ofh "<groups>";
+    print $ofh "<group>$_</group>" for @$newsGroups;
+    print $ofh "</groups>";
+    print $ofh "<segments>";
+    print $ofh "$_" for (sort{
       $a =~ /number="(\d+)"/;
       my $s1 = $1;
       $b =~ /number="(\d+)"/;
       my $s2 = $1;
       return $s1 <=> $s2;
     } @segments);
-    print $ofh "</segments>\n";
-    print $ofh "</file>\n";
+    print $ofh "</segments>";
+    print $ofh "</file>";
 
   }
-  print $ofh "</nzb>\n";
+  print $ofh "</nzb>";
 
 }
 
