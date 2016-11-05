@@ -170,9 +170,17 @@ sub main{
 			#step 13
 			cp($nzb, catfile($OPTIONS{save_nzb_path}, $folders[-1]."_$name.nzb")) or warn "Unable to copy the NZB file: $!" if($OPTIONS{save_nzb});
 			
-			if($isFirstUpload){
+			if($isFirstUpload && $OPTIONS{upload_nzb}){
 				#step 14
-				unlink upload_file_list('', [$nzb], \%OPTIONS) if($OPTIONS{upload_nzb});
+				# Sometimes newsup fails in the authentication phase.
+				# Please check comment above on the normal upload
+				my $tempNzb=undef;
+				while(1){
+					$tempNzb = upload_file_list('', [$nzb], \%OPTIONS);
+					last if -e $tempNzb;
+					sleep 15;
+				}
+				unlink $tempNzb ;
 				$isFirstUpload=0;
 			}
 			
