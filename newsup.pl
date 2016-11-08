@@ -692,7 +692,7 @@ sub _create_nzb{
   }
 
   my $totalFiles = scalar(keys %files);
-  open my $ofh, '>', $nzbName;
+  open my $ofh, '>:raw', $nzbName;
 
   print $ofh "<?xml version=\"1.0\" encoding=\"iso-8859-1\" ?>";
   print $ofh "<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">";
