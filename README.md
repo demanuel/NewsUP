@@ -104,18 +104,6 @@ with name "upload name 1" to "upload name N". This will also create a NZB file o
 (option on the newsup.conf file) and that NZB will also be uploaded to the same groups as the upload. The rest of the uploads will not
 have a nzb file.
 
-```
-!upload <folder_to_be_uploaded> <upload name 1> <upload name 2> .... <upload name N> -ads
-```
-This will perform the same actions as the above example, however before rar'ing it will copy an ads folder (specified with option
-PATH_TO_ADS on the newsup.conf file) to a folder named Usenet inside the <upload name ....> folder.
-
-```
-!check <file_nzb.nzb>
-```
-It will check and print on the channel the completion state for each file indicated included in the <file_nzb.nzb> file.
-The <file_nzb.nzb> should be inside the PATH_TO_SAVE_NZBS option defined on the newsup.conf file.
-
 
 # Requirements:
 * Perl (preferably 5.020 or higher)
@@ -139,6 +127,7 @@ Everytime the newsup runs, it will create a NZB file for later retrieval of the 
 # Options
 
 ## Config file
+**This config file needs to be in ~/.config/ folder**
 This file doesn't support all the options of the command line. Everytime an option from the command line conflicts with an option from the config file, the command line option takes precedence.
 
 Example ('#' denotes a comment. This example isn't a working conf. It's only for demonstration purposes):
