@@ -30,14 +30,22 @@ sub main{
   }else {
     for (@nzbs) {
       if (!-e $_) {
-	say "$_ not found! Please confirm!";
-	exit 2;
+        say "$_ not found! Please confirm!";
+        exit 2;
       }
     }
   }
-  if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
+  
+  my $configurationFile = '';
+  if($^O eq 'MSWin32'){
+    $configurationFile = $ENV{"USERPROFILE"}.'/.config/newsup.conf';  
+  }else{
+    $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';  
+  }
+  
+  if (-e $configurationFile) {
     
-    my $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
+    my $config = Config::Tiny->read( $configurationFile);
     my %metadata = %{$config->{metadata}};
     
     

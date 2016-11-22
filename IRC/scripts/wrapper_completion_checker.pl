@@ -37,9 +37,15 @@ sub main{
 sub get_options{
 
   my $config;
-  if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
+  my $configurationFile = '';
+  if($^O eq 'MSWin32'){
+    $configurationFile = $ENV{"USERPROFILE"}.'/.config/newsup.conf';  
+  }else{
+    $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';  
+  }
+  if (-e $configurationFile) {
 
-    $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
+    $config = Config::Tiny->read( $configurationFile);
 
     if (exists $config->{other}{PATH_TO_UPLOAD_ROOT}){
       my @upload_folders = split(',', $config->{other}{PATH_TO_UPLOAD_ROOT});

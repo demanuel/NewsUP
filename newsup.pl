@@ -210,7 +210,13 @@ sub _parse_command_line{
       $from, $nzbName);
 
   #Parameters with default values
-  my $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';
+  my $configurationFile = '';
+  if($^O eq 'MSWin32'){
+    $configurationFile = $ENV{"USERPROFILE"}.'/.config/newsup.conf';  
+  }else{
+    $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';  
+  }
+  
   my $noTLS=0;
   
   #default value

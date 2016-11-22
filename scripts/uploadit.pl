@@ -484,8 +484,15 @@ sub _run_command{
 sub _load_options{
 	my %OPTIONS =  %{shift @_};
 
-	if (defined $ENV{HOME} && -e $ENV{HOME}.'/.config/newsup.conf') {
-		my $config = Config::Tiny->read( $ENV{HOME}.'/.config/newsup.conf' );
+	my $configurationFile = '';
+  if($^O eq 'MSWin32'){
+    $configurationFile = $ENV{"USERPROFILE"}.'/.config/newsup.conf';  
+  }else{
+    $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';  
+  }
+	
+	if (-e $configurationFile) {
+		my $config = Config::Tiny->read($configurationFile);
 
 		if(!defined $config){
 			say 'Error while reading the config file:';
