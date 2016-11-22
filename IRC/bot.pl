@@ -48,7 +48,7 @@ my $CONFIG = get_options();
 my $JUMP=60; #1 minute
 my @CMD_QUEUE=();
 my %SCRIPTS=(
-  "^!check (.*)" => sub{["Not implemented"];},
+  "^!check (.*)" => 'perl ./scripts/botupload.pl',
   "^!queue" => sub{
         my @list=();
         push @list, $KID? "Command queue [1]": 'Command queue [0]';
@@ -99,9 +99,15 @@ sub main{
 sub get_options{
 
   my $config;
-  if (defined $ENV{"HOME"} && -e $ENV{"HOME"}.'/.config/newsup.conf') {
+  my $configurationFile = '';
+  if($^O eq 'MSWin32'){
+    $configurationFile = $ENV{"USERPROFILE"}.'/.config/newsup.conf';  
+  }else{
+    $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';  
+  }
+  if (-e $configurationFile) {
 
-    $config = Config::Tiny->read( $ENV{"HOME"}.'/.config/newsup.conf' );
+    $config = Config::Tiny->read( $configurationFile);
 
   }else {
     say "Please configure your newsup.conf file";
