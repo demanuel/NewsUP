@@ -23,7 +23,7 @@ For a working solution in windows (with minimal testing on the windows platform)
 * newspost (https://github.com/joehillen/newspost)
 * pan (http://pan.rebelbase.com/)
 * sanguinews (https://github.com/tdobrovolskij/sanguinews)
-
+* GoPostStuff (https://github.com/madcowfred/GoPostStuff/)
 
 # What does this program do
 
@@ -103,6 +103,15 @@ folders defined on the option PATH_TO_UPLOAD_ROOT on the conf file, and after th
 with name "upload name 1" to "upload name N". This will also create a NZB file on the PATH_TO_SAVE_NZBS
 (option on the newsup.conf file) and that NZB will also be uploaded to the same groups as the upload. The rest of the uploads will not
 have a nzb file.
+
+```
+!check <NZB>
+```
+This will check the status of the NZB.
+The NZB file must be on the location PATH_TO_SAVE_NZBS. This is usually used with the !upload command, when the user wants to check
+if the status of a NZB is OK.
+
+Note: The NZB in the command doesn't have the extension.
 
 
 # Requirements:
