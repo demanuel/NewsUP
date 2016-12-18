@@ -539,7 +539,8 @@ sub _start_header_check{
           shutdown ($socket, 2);
           $select->remove($socket);
           undef $socket;
-          $select->add(_get_connections(1, $headerCheckServer, $headerCheckPort, $noTLS, $headerCheckUsername, $headerCheckPassword)->[0]);
+          $select->add(_create_socket($headerCheckServer, $headerCheckPort, $noTLS, $headerCheckUsername, $headerCheckPassword));
+
         }
       }
     }
@@ -616,13 +617,16 @@ sub _start_upload{
       if($status{$socket} == 1){
 	      #If we get a 400 we return to the begining
 	      if ($output =~ /^400 /) {
-          shutdown ($socket, 2);
-          my $conList = _get_connections(1, $server, $port, $noTLS, $username, $userpasswd);
-          $select->remove($socket);
-          $select->add($conList->[0]);
-          $status{$conList->[0]} = 0;
           undef $output;
+          shutdown ($socket, 2);
           delete $status{$socket};
+          $select->remove($socket);
+
+          my $newSocket = _create_socket($server, $port, $noTLS, $username, $userpasswd);
+          $select->add($newSocket);
+          $status{$newSocket} = 0;
+
+
 	      }elsif($output =~ /^340 /) {
           $status{$socket}=2;
 	      }else {
@@ -633,9 +637,10 @@ sub _start_upload{
       }else{
         #A post was done and we need to confirm the post was done OK
         if ($output =~ /^400 /) {
+          #If we get a 400 then we need to start again.
           shutdown ($socket, 2);
-          my $conList = _get_connections(1, $server, $port, $noTLS, $username, $userpasswd);
-          $socket = $conList->[0];
+          delete $status{$socket};
+          $socket = _create_socket($server, $port, $noTLS, $username, $userpasswd);
 
         }elsif ($output !~ /^240 /) {
           chomp $output;
