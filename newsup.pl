@@ -167,7 +167,7 @@ AV* _yenc_encode_c(unsigned char* data, size_t data_size)
 	av_push(ret, yenc_string);
   //av_push(ret, newSVuv(crc32));
   free(encbuffer);
-  
+
   char *hex_number = (char*)malloc(sizeof(char)*9);//8 chars + the termination char (null)
   int hex_size = sprintf(hex_number, "%x", crc32);
   //printf("say size: %d\n", hex_size);
@@ -175,9 +175,9 @@ AV* _yenc_encode_c(unsigned char* data, size_t data_size)
   SV* hex_string = newSVpv(hex_number, 0);
   av_push(ret, hex_string);
   free(hex_number);
-  
-	
-        
+
+
+
         return ret;
 }
 
@@ -212,13 +212,13 @@ sub _parse_command_line{
   #Parameters with default values
   my $configurationFile = '';
   if($^O eq 'MSWin32'){
-    $configurationFile = $ENV{"USERPROFILE"}.'/.config/newsup.conf';  
+    $configurationFile = $ENV{"USERPROFILE"}.'/.config/newsup.conf';
   }else{
-    $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';  
+    $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';
   }
-  
+
   my $noTLS=0;
-  
+
   #default value
   my @filesToUpload=();
   my @newsGroups = ();
@@ -260,7 +260,7 @@ sub _parse_command_line{
              'noTLS!'=>\$noTLS
             );
 
-      
+
   if(!$headerCheck || $headerCheck==-1){
     undef $headerCheckRetries;
     undef $headerCheckSleep;
@@ -532,7 +532,7 @@ sub _start_header_check{
           local $\;
           print int((++$countProgress / $totalMissingSegments)*100),"%\r";
         }
-        
+
         if ($output =~ /^223 \d <(.+)>/) {
           delete $candidates{$1};
         }elsif ($output =~ /^400 /) {
@@ -588,7 +588,7 @@ sub _start_upload{
   my $currentPart = 0;
 
   my %currentFile = (size=>0, filename=>'', filehandler=>undef);
-  
+
   while(@$parts > 0){
     my ($readers, $writers) = IO::Select->select($select, $select, undef);
 
@@ -606,7 +606,7 @@ sub _start_upload{
             local $\;
             print $percentages[$currentPart++];
           }
-          
+
         }
       }
     }
@@ -740,7 +740,7 @@ sub _post_part{
   my ($binString, $readSize, $endPosition, $fileSize) = _get_file_data($part->{fileName}, $startPosition-1, $currentFile);
   my $yenc = _yenc_encode_c($binString, $readSize);
   my ($yenc_data, $crc32_data) = @{$yenc};
-  
+
   my $subject = '['.$part->{fileNumber}.'/'.$part->{totalFiles}.'] - "'.$baseName.'" ('.$part->{segmentNumber}.'/'.$part->{totalSegments}.')';
   if(defined $commentsRef && scalar(@$commentsRef)>0 && defined $commentsRef->[0] && $commentsRef->[0] ne ''){
     $subject = $commentsRef->[0]." $subject" ;
@@ -765,7 +765,7 @@ sub _get_file_data{
   if($fileName ne $currentFile->{filename}){
     close $currentFile->{filehandler} if(defined $currentFile->{filehandler});
     open my $fh, '<:raw :bytes', $fileName;
-    
+
     $currentFile->{size}=-s $fileName;
     $currentFile->{filehandler}=$fh;
     $currentFile->{filename} = $fileName;
@@ -790,28 +790,25 @@ sub _print_args_to_socket{
   #Note: using syswrite or print is the same (im assuming if we don't disable nagle's algorithm):
   # Network Programming with Perl. Page: 311.
 
-  # Using syswrite - This code have problems with newsxs and SSL. With newsxs and no SSL there's no problems
+  for my $arg ((@args, $CRLF)){
+   my $len = length $arg;
+   my $offset = 0;
 
-  #for my $arg (@args){
-  #  my $len = length $arg;
-  #  my $offset = 0;
-  #
-  #  while ($len) {
-  #    my $written = syswrite($socket, $arg, $len, $offset);
-  #
-  #    #my $written = $socket->syswrite();
-  #    return 1 unless($written);
-  #    $len -= $written;
-  #    $offset += $written;
-  #    undef $written;
-  #  }
-  #}
-  #undef @args;
-  #return 0;
+   while ($len) {
+     my $written = syswrite($socket, $arg, $len, $offset);
+
+     return 1 unless($written);
+     $len -= $written;
+     $offset += $written;
+     undef $written;
+   }
+  }
+  undef @args;
+  return 0;
 
   #Using print
-  return 0 if (print $socket @args);
-  return 1;
+  # return 0 if (print $socket @args);
+  # return 1;
 
 }
 
@@ -820,26 +817,19 @@ sub _read_from_socket{
   my ($socket) = @_;
 
   my $output='';
-  
-  if(!defined($output = readline $socket)){
-    $output = '';
+
+  while (1) {
+   my $status = sysread($socket, my $buffer,6);
+   $output.= $buffer;
+   undef $buffer;
+   if ($output =~ /\r\n$/ || $status == 0){
+     last;
+   }elsif (!defined $status) {
+     die "Error: $!";
+   }
   }
-  
-  #return "400 Socket closed\r\n" if (! $socket->connected);
-  
+
   return $output;
-  #while (1) {
-  #  my $status = sysread($socket, my $buffer,1);
-  #  $output.= $buffer;
-  #  undef $buffer;
-  #  if ($output =~ /\r\n$/){
-  #    last;
-  #  }elsif (!defined $status) {
-  #    die "Error: $!";
-  #  }
-  #}
-  #
-  #return $output;
 }
 
 sub _authenticate{
@@ -894,12 +884,11 @@ sub _get_connections{
   my @connectionList = (0) x $connections;
 
   for my $i (0..$connections-1) {
-    $connectionList[$i]=_create_socket($server, $port, $noTLS);
+    $connectionList[$i]=_create_socket($server, $port, $noTLS, $user, $password);
     #my $socket = _create_socket($server, $port);
     #push @connectionList, $socket;
   }
-  _authenticate(\@connectionList, $user, $password);
-  
+
   return \@connectionList;
 }
 
@@ -964,7 +953,7 @@ sub _encode_base36 {
 
 sub _create_socket{
 
-  my ($server, $port, $noTLS) = @_;
+  my ($server, $port, $noTLS, $username, $password) = @_;
   my $socket;
   while (1) {
     eval{
@@ -991,7 +980,7 @@ sub _create_socket{
                                         ) or die "Error: Failed to connect : $!\n";
       }
     };
-    
+
     if ( $@) {
       warn $@;
       sleep 3;
@@ -1001,11 +990,29 @@ sub _create_socket{
         $socket->sockopt(SO_SNDBUF, 4*1024*1024);
         $socket->sockopt(SO_RCVBUF, 4*1024*1024);
       }
-      
       last;
     }
   }
   $socket->autoflush(1);
+
+  return _authenticate_socket($socket, $username, $password);
+}
+
+sub _authenticate_socket{
+
+  my ($socket, $user, $password) = @_;
+
+  #200 - Welcome to XXXX
+  _read_from_socket($socket);
+
+  _print_args_to_socket($socket, ("authinfo user ",$user));
+  my $output = _read_from_socket($socket);
+  die "Authentication error while sending the username: $output" if($output !~ /^381 .*$/);
+
+  _print_args_to_socket($socket, ("authinfo pass ",$password));
+  $output = _read_from_socket($socket);
+  die "Unable to authenticate: $output" if($output !~ /^(281|250) .*$/);
+
   return $socket;
 }
 
