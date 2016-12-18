@@ -824,14 +824,17 @@ sub _read_from_socket{
   my $output='';
 
   while (1) {
-   my $status = sysread($socket, my $buffer,6);
-   $output.= $buffer;
-   undef $buffer;
-   if ($output =~ /\r\n$/ || $status == 0){
-     last;
-   }elsif (!defined $status) {
-     die "Error: $!";
-   }
+    # 31 - is an arbitrary value
+    # For performance it should be roughly as large as the largest chunk that can
+    # be emitted by the server - Network programming with perl
+    my $status = sysread($socket, my $buffer,31); 
+    $output.= $buffer;
+    undef $buffer;
+    if ($output =~ /\r\n$/ || $status == 0){
+      last;
+    }elsif (!defined $status) {
+      die "Error: $!";
+    }
   }
 
   return $output;
