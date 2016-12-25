@@ -101,9 +101,9 @@ sub get_options{
   my $config;
   my $configurationFile = '';
   if($^O eq 'MSWin32'){
-    $configurationFile = $ENV{"USERPROFILE"}.'/.config/newsup.conf';  
+    $configurationFile = $ENV{"USERPROFILE"}.'/.config/newsup.conf';
   }else{
-    $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';  
+    $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';
   }
   if (-e $configurationFile) {
 
@@ -181,7 +181,7 @@ sub _join_channel{
   }
 
   print $sock $joinChannelString;
- 
+
 }
 
 sub start{
@@ -279,7 +279,7 @@ sub start_next_command{
         say "Unable to fork! Exiting the bot";
         exit 0;
       }
-      elsif (!$KID) { 
+      elsif (!$KID) {
         my $command = shift @$commands;
         $socket->autoflush(1);
         _print_lines_to_channel($socket, '#'.$config->{irc}{channel}, ["Executing: $command"],1);
@@ -299,7 +299,7 @@ sub start_next_command{
 
 sub _run_at_windows{
   my ($command, $socket, $config) = @_;
-  
+
   my @output = qx/$command/;
   my @linesToPrint=();
   for my $l (@output){
@@ -313,15 +313,15 @@ sub _run_at_windows{
       push @linesToPrint, $l;
     }
   }
- 
+
   _print_lines_to_channel($socket, '#'.$config->{irc}{channel}, \@linesToPrint,5);
 
-  
+
 }
 
 sub _run_at_linux{
   my ($command, $socket, $config) = @_;
-  
+
 
   open( my $ifh, '-|', $command);
   while(<$ifh>){
@@ -346,7 +346,7 @@ sub _run_at_linux{
     }
   }
   close $ifh;
-  _print_lines_to_channel($socket,'#'.$config->{irc}{channel}, ["Command executed"],1);  
+  _print_lines_to_channel($socket,'#'.$config->{irc}{channel}, ["Command executed"],1);
 }
 
 
@@ -354,16 +354,30 @@ sub _read_from_socket{
   my ($socket) = @_;
 
   my $output='';
-  
-  if(!defined($output = readline $socket)){
-    $output = '';
+
+  while (1) {
+    # 512 - rfc2812 - section 2.3:
+    #  IRC messages are always lines of characters terminated with a CR-LF
+    #  (Carriage Return - Line Feed) pair, and these messages SHALL NOT
+    #  exceed 512 characters in length, counting all characters including
+    #  the trailing CR-LF. Thus, there are 510 characters maximum allowed
+    #  for the command and its parameters.  There is no provision for
+    #  continuation of message lines.
+
+    # For performance it should be roughly as large as the largest chunk that can
+    # be emitted by the server - Network programming with perl
+    my $status = sysread($socket, my $buffer,512);
+    $output.= $buffer;
+    undef $buffer;
+    if ($output =~ /\r\n$/ || $status == 0){
+      last;
+    }elsif (!defined $status) {
+      die "Error: $!";
+    }
   }
-  
-  #return "400 Socket closed\r\n" if (! $socket->connected);
-  
+
   return $output;
-  
-  
+
   #while(my $buffer = <$socket>){
   #  $output .= $buffer;
   #  last if $output =~ /\r\n$|^\z/;
