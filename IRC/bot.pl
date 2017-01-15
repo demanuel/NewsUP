@@ -37,6 +37,8 @@ use File::Path qw/remove_tree/;
 use File::Find;
 use File::Basename;
 use Time::HiRes qw/usleep/;
+use IO::Select;
+
 $|=1;
 my $CRLF="\x0D\x0A";
 $\=$CRLF;
@@ -149,6 +151,7 @@ sub get_IRC_socket{
 sub _authenticate{
   my ($sock, $nick, $password) = @_;
 
+  say "Initial read: "._read_from_socket($sock);
   # Log on to the server.
   print $sock "NICK $nick";
   #print $sock "USER $login 8 * :NewsUp TEST \r\n";
@@ -156,10 +159,11 @@ sub _authenticate{
   print $sock "MSG NickServ identify $password" if (defined $password && $password ne '');
 
   # Read lines from the server until it tells us we have connected.
-  while (my $input = <$sock>) {
+  while (my $input = _read_from_socket($sock)) {
     chomp $input;
-    # Check the numerical responses from the server.
-    if ($input =~ /004/) {
+    if ($input =~ /^PING(.*)$/i) { # If the server 
+      print $sock "PONG $1";
+    }elsif ($input =~ /004/) { # Check the numerical responses from the server.
       # We are now logged in.
       last;
     }
