@@ -1,38 +1,19 @@
-#!/usr/bin/perl -w
-
-###############################################################################
-#     NewsUP - create backups of your files to the usenet.
-#     Copyright (C) David Santiago
-#
-#     This program is free software: you can redistribute it and/or modify
-#     it under the terms of the GNU General Public License as published by
-#     the Free Software Foundation, either version 3 of the License, or
-#     (at your option) any later version.
-#
-#     This program is distributed in the hope that it will be useful,
-#     but WITHOUT ANY WARRANTY; without even the implied warranty of
-#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#     GNU General Public License for more details.
-#
-#     You should have received a copy of the GNU General Public License
-#     along with this program.  If not, see <http://www.gnu.org/licenses/>.
-##############################################################################
-
-use warnings;
-use strict;
-use utf8;
 use 5.018;
+use IO::Socket::SSL;
+use IO::Select;
+use Scalar::Util qw/refaddr/;
 use Getopt::Long;
 use Config::Tiny;
 use File::Find;
-use File::Basename;
-use Time::HiRes qw/gettimeofday/;
+use Time::HiRes qw/gettimeofday tv_interval/;
+use File::Basename qw/fileparse basename/;
+use Socket qw/SO_SNDBUF SO_RCVBUF/;
 use POSIX qw/ceil/;
-use IO::Socket::INET;
-use IO::Socket::SSL; #qw(debug3);
-use IO::Select;
+use XML::LibXML;
 use Config;
+use Data::Dumper;
 
+###### C CODE YENC ######
 use Inline C => Config => cc => exists $ENV{NEWSUP_CC}?$ENV{NEWSUP_CC}:$Config{cc};
 #In case of message "loaded library mismatch" (this happens typically in windows) we need to add the flag -DPERL_IMPLICIT_SYS
 use Inline C => Config => ccflags => exists $ENV{NEWSUP_CCFLAGS}?$ENV{NEWSUP_CCFLAGS}:$Config{ccflags};
@@ -182,726 +163,375 @@ AV* _yenc_encode_c(unsigned char* data, size_t data_size)
 }
 
 C_CODE
+##### END C CODE ######
+
 
 $|=1;
-#YENC related variables
-my $YENC_NNTP_LINESIZE=128;
-my $NNTP_MAX_UPLOAD_SIZE=750*1024;
-# END of the yenc variables
 my $CRLF="\x0D\x0A";
 $/=$CRLF;
 $\=$CRLF;
 
-
-my %MESSAGE_IDS=();
-
-
-$SIG{PIPE}='IGNORE';
-
-
-#Returns a bunch of options that it will be used on the upload. Options passed through command line have precedence over
-#options on the config file
-sub _parse_command_line{
-
-  my ($server, $port, $username,$userpasswd,
-      $threads, $headerCheckConnections,
-      $headerCheckServer,$headerCheckPort,
-      $headerCheckUserName, $headerCheckPassword,
-      $from, $nzbName);
-
-  #Parameters with default values
-  my $configurationFile = '';
-  if($^O eq 'MSWin32'){
-    $configurationFile = $ENV{"USERPROFILE"}.'/.config/newsup.conf';
-  }else{
-    $configurationFile = $ENV{"HOME"}.'/.config/newsup.conf';
-  }
-
-  my $noTLS=0;
-
-  #default value
-  my @filesToUpload=();
-  my @newsGroups = ();
-
-  my %cmdMetadata=(); #temp var to allocate what the user defines on the command line
-  my %metadata=(); #variable that will contain what the user defines in the conf file and what he will pass on the
-  my @comments=();
-
-  my $extraHeaders=$CRLF; #Variable that will contain the extra headers as a string
-
-  #Default Header check values
-  my $headerCheck = -1;
-  my $headerCheckRetries = 3; #Number of retries to be done in case the user decides to go for a headerCheck
-  my $headerCheckSleep = 20;
+# Default values
+my %OPTIONS=(server=>undef,
+            port=>undef,
+            username=>undef,
+            password=>undef,
+            TLS=>1,
+            ignoreCert=>1,
+            uploader=>undef,
+            connections=>2,
+            files=>[],
+            comments=>['',''],
+            newsgroups=>[],
+            extraHeaders=>[],
+            metadata=>{},
+            nzb=>'./newsup.nzb',
+            headerCheck=>undef,
+            headerCheckServer=>undef,
+            headerCheckPort=>undef,
+            headerCheckSleep=>undef,
+            headerCheckUsername=>undef,
+            headerCheckRetries=>undef,
+            headerCheckConnections=>undef,
+            uploadSize=>750*1024,
+            lineSize => 128,
+            configuration=>$^O eq 'MSWin32'? $ENV{"USERPROFILE"}.'/.config/newsup.conf': $ENV{"HOME"}.'/.config/newsup.conf');
 
 
+sub _parse_user_options{
   GetOptions('help'=>=>sub{help();},
-             'server=s'=>\$server,
-             'port=i'=>\$port,
-             'username=s'=>\$username,
-             'password=s'=>\$userpasswd,
-             'file=s'=>\@filesToUpload,
-             'comment=s'=>\@comments,
-             'uploader=s'=>\$from,
-             'newsgroup|group=s'=>\@newsGroups,
-             'connections=i'=>\$threads,
-             'metadata=s'=>\%cmdMetadata,
-             'nzb=s'=>\$nzbName,
-             'headerCheck=i'=>\$headerCheck,
-             'headerCheckSleep=i'=>\$headerCheckSleep,
-             'headerCheckServer=s'=>\$headerCheckServer,
-             'headerCheckPort=i'=>\$headerCheckPort,
-             'headerCheckUserName=s'=>\$headerCheckUserName,
-             'headerCheckPassword=s'=>\$headerCheckPassword,
-             'headerCheckRetries|retries=i'=>\$headerCheckRetries,
-             'headerCheckConnections=i'=>\$headerCheckConnections,
-             'uploadsize=i'=>\$NNTP_MAX_UPLOAD_SIZE,
-             'configuration=s'=>\$configurationFile,
-             'noTLS!'=>\$noTLS
+            'configuration=s'=>\$OPTIONS{configuration},
+            'server=s'=>\$OPTIONS{server},
+            'port=i'=>\$OPTIONS{port},
+            'connections=i'=>\$OPTIONS{connections},
+            'username=s'=>\$OPTIONS{username},
+            'password=s'=>\$OPTIONS{password},
+            'file=s'=>$OPTIONS{files},
+            'comment=s'=>$OPTIONS{comments},
+            'uploader=s'=>\$OPTIONS{uploader},
+            'newsgroup|group=s'=>$OPTIONS{newsgroups},
+            'metadata=s'=>$OPTIONS{metadata},
+            'nzb=s'=>\$OPTIONS{nzb},
+            'headerCheck=i'=>\$OPTIONS{headerCheck},
+            'headerCheckSleep=i'=>\$OPTIONS{headerCheckSleep},
+            'headerCheckServer=s'=>\$OPTIONS{headerCheckServer},
+            'headerCheckPort=i'=>\$OPTIONS{headerCheckPort},
+            'headerCheckUsername=s'=>\$OPTIONS{headerCheckUsername},
+            'headerCheckPassword=s'=>\$OPTIONS{headerCheckPassword},
+            'headerCheckRetries|retries=i'=>\$OPTIONS{headerCheckRetries},
+            'headerCheckConnections=i'=>\$OPTIONS{headerCheckConnections},
+            'uploadsize=i'=>\$OPTIONS{uploadSize},
+            'linesize=i'=>\$OPTIONS{lineSize},
+            'TLS!'=>\$OPTIONS{TLS},
+            'ignoreCert!'=>\$OPTIONS{ignoreCert}
             );
 
+  if(-e $OPTIONS{configuration}){
+    my $config = Config::Tiny->read( $OPTIONS{configuration} );
+    $OPTIONS{metadata}=$config->{metadata} if(!%{$OPTIONS{metadata}} && exists $config->{metadata});
+    # Usefull for creating the subject
+    $OPTIONS{comments}->[0] .=' ' if $OPTIONS{comments}->[0] ne '';
+    $OPTIONS{comments}->[1] =' '.$OPTIONS{comments}->[1] if $OPTIONS{comments}->[1] ne '';
 
-  if(!$headerCheck || $headerCheck==-1){
-    undef $headerCheckRetries;
-    undef $headerCheckSleep;
-    undef $headerCheckConnections;
-    undef $headerCheckServer;
-    undef $headerCheckPort;
-    undef $headerCheckUserName;
-    undef $headerCheckPassword;
-  }else{
+    $OPTIONS{server}=$config->{server}{server} if !defined $OPTIONS{server} && exists $config->{server}{server};
+    $OPTIONS{port}=$config->{server}{port} || 443 if !defined $OPTIONS{port};
+    $OPTIONS{connections}=$config->{server}{connections} || 2  if !defined $OPTIONS{connections};
 
-    $headerCheckConnections = $threads if(!defined $headerCheckConnections);
-    $headerCheckServer = $server if(!defined $headerCheckServer);
-    $headerCheckPort = $port if(!defined $headerCheckPort);
-    $headerCheckUserName =  $username if(!defined $headerCheckUserName);
-    $headerCheckPassword = $userpasswd if(!defined $headerCheckPassword);
+    $OPTIONS{username}=$config->{auth}{user} if !defined $OPTIONS{username} && exists $config->{auth}{user};
+    $OPTIONS{password}=$config->{auth}{password} if !defined $OPTIONS{password} && exists $config->{auth}{password};
 
-  }
+    $OPTIONS{uploader}=$config->{upload}{uploader} if !defined $OPTIONS{uploader} && exists $config->{upload}{uploader};
 
-  if (-e $configurationFile) {
-    my $config = Config::Tiny->read( $configurationFile );
-    %metadata = %{$config->{metadata}} if exists $config->{metadata};
-    $metadata{$_}=$cmdMetadata{$_} for (keys (%cmdMetadata)); #merge metadata from cmd line and from conf file
+    # remove duplicates and trim
+    if(@{$OPTIONS{newsgroups}}){
+        $OPTIONS{newsgroups}= [keys %{{map{$_ =~ s/^\s+|\s+$//;  $_=>1} @{$OPTIONS{newsgroups}}}}];
+    }elsif(exists $config->{upload}{newsgroups}){
+      $OPTIONS{newsgroups}= [keys %{{map{$_ =~ s/^\s+|\s+$//;  $_=>1} split(',',$config->{upload}{newsgroups})}}];
+    }
 
-    if (!defined $server) {
-      $server = $config->{server}{server} if exists $config->{server}{server};
+    $OPTIONS{headerCheck} = $config->{headerCheck}{enabled} || 0 if !defined $OPTIONS{headerCheck};
+    $OPTIONS{headerCheckSleep} = $config->{headerCheck}{sleep} || 30 if !defined $OPTIONS{headerCheckSleep};
+
+    $OPTIONS{headerCheckServer} = $config->{headerCheck}{server} if (!defined $OPTIONS{headerCheckServer} && exists $config->{headerCheck}{server});
+    $OPTIONS{headerCheckPort} = $config->{headerCheck}{port} if (!defined $OPTIONS{headerCheckPort} && exists $config->{headerCheck}{port});
+    $OPTIONS{headerCheckUsername} = $config->{headerCheck}{user} if (!defined $OPTIONS{headerCheckUsername} && exists $config->{headerCheck}{user});
+    $OPTIONS{headerCheckPassword} = $config->{headerCheck}{password} if (!defined $OPTIONS{headerCheckPassword} && exists $config->{headerCheck}{password});
+
+    $OPTIONS{headerCheckRetries} = $config->{headerCheck}{retries} || 1 if(!defined $OPTIONS{headerCheckRetries});
+
+    $OPTIONS{headerCheckConnections} = $config->{headerCheck}{connections} if (!defined $OPTIONS{headerCheckRetries} && exists $config->{headerCheck}{connections});
+    # uploadsize, linesize and TLS, only possible to set them through command line
+
+    for my $key (keys %{$config->{extraHeaders}}){
+      if ($key !~ /^X-/){
+        push @{$OPTIONS{extraHeaders}}, "X-$key: $config->{extraHeaders}{$key}";
+      }else{
+        push @{$OPTIONS{extraHeaders}}, "$key: $config->{extraHeaders}{$key}";
+      }
     }
-    if (!defined $port) {
-      $port = $config->{server}{port}  if exists $config->{server}{port};
-    }
-    if (!defined $username) {
-      $username = $config->{auth}{user}  if exists $config->{auth}{user};
-    }
-    if (!defined $userpasswd) {
-      $userpasswd = $config->{auth}{password} if exists $config->{auth}{password};
-    }
-    if (!defined $from) {
-      $from = $config->{upload}{uploader} if exists $config->{upload}{uploader};
-    }
-    if (!defined $threads) {
-      $threads = $config->{server}{connections} if exists $config->{server}{connections};
-    }
-    if ($threads < 1) {
-      say "Please specify a correct number of connections!";
+    push @{$OPTIONS{extraHeaders}}, $CRLF; #The extra headers are the last thing from the header. So they need two (2) CRLFs separating them
+
+    if (@{$OPTIONS{newsgroups}} == 0 || !$OPTIONS{server} || !$OPTIONS{port} || !$OPTIONS{username} || !$OPTIONS{password}){
+      say "Please configure all the required inputs server,port,username,password, newsgroups";
+      say "Server: $OPTIONS{server}";
+      say "Port: $OPTIONS{port}";
+      say "username: $OPTIONS{username}";
+      say 'password: '.('x'x length $OPTIONS{server});
+      say 'Newsgroups: '.join(',', @{$OPTIONS{newsgroups}});
       exit 0;
     }
 
-    if($headerCheck == -1){
-      $headerCheck = $config->{headerCheck}{enabled} if exists $config->{headerCheck}{enabled};
-    }
 
-    if ($headerCheck){
-
-      if (!defined $headerCheckSleep) {
-        if (exists $config->{headerCheck}{sleep}){
-          $headerCheckSleep = $config->{headerCheck}{sleep};
-        }else {
-          $headerCheckSleep=20;
-        }
-      }
-      if (!defined $headerCheckServer || $headerCheckServer eq '') {
-        if (exists $config->{headerCheck}{server} && $config->{headerCheck}{server} ne ''){
-          $headerCheckServer = $config->{headerCheck}{server};
-        }else {
-          $headerCheckServer=$server;
-        }
-      }
-      if (!defined $headerCheckPort || $headerCheckPort eq '') {
-        if (exists $config->{headerCheck}{port} &&  $config->{headerCheck}{port} ne ''){
-          $headerCheckPort = $config->{headerCheck}{port};
-        }else {
-          $headerCheckPort=$port;
-        }
-      }
-      if (!defined $headerCheckUserName || $headerCheckUserName eq '') {
-        if (exists $config->{headerCheck}{user} && $config->{headerCheck}{user} ne ''){
-          $headerCheckUserName = $config->{headerCheck}{user};
-        }else {
-          $headerCheckUserName=$username;
-        }
-      }
-      if (!defined $headerCheckPassword || $headerCheckPassword eq '') {
-        if (exists $config->{headerCheck}{password} && $config->{headerCheck}{password} ne ''){
-          $headerCheckPassword = $config->{headerCheck}{password};
-        }else {
-          $headerCheckPassword=$userpasswd;
-        }
-      }
-      if (!defined $headerCheckRetries) {
-        if (exists $config->{headerCheck}{retries}){
-          $headerCheckRetries = $config->{headerCheck}{retries};
-        }
-        else {
-          $headerCheckRetries=3;
-        }
-      }
-
-      if (!defined $headerCheckConnections) {
-        if (exists $config->{headerCheck}{connections}){
-          $headerCheckConnections = $config->{headerCheck}{connections};
-        }else {
-          $headerCheckConnections = 1;
-        }
-      }
-    }
-
-    if ($NNTP_MAX_UPLOAD_SIZE < 100*1024) {
-      $NNTP_MAX_UPLOAD_SIZE=750*1024;
-      say "Upload Size too small. Setting the upload size at 750KBytes!";
-    }
-
-    if ( @newsGroups == 0) {
-      if (exists $config->{upload}{newsgroup}){
-        @newsGroups = split(',', $config->{upload}{newsgroup});
-        $_ =~ s/^\s+|\s+$//g for @newsGroups;
-      }
-    }
-
-    if (exists $config->{extraHeaders}){
-      my $newHeaders = $config->{extraHeaders};
-      for my $key (keys %$newHeaders){
-        if (lc($key) eq 'from' || lc($key) eq 'message-id' || lc($key) eq 'subject' || lc($key) eq 'newsgoups'){
-          delete $newHeaders->{$key};
-          next;
-        }
-
-        if ($key !~ /^X-/ ) {
-          my $newKey="X-$key";
-          if (exists $newHeaders->{$newKey}) {
-            say "There's incompatible headers: $newKey and $key";
-            next;
-          }
-          $extraHeaders = $newKey.': '.$newHeaders->{$key}.$CRLF.$extraHeaders;
-        }
-      }
-    }
-
-
-    undef $config;
   }
-
-  $nzbName = 'newsup.nzb' if (!defined $nzbName);
-
-  if (!defined $server || !defined $port || !defined $username || !defined $from || @newsGroups==0 || !defined $threads) {
-    say "Please check the parameters ('server', 'port', 'username'/'password', 'connections','uploader' and 'newsgoup')";
-    exit 0;
-  }
-
-  return ($server, $port, $noTLS, $username, $userpasswd,
-	  \@filesToUpload, $threads, \@newsGroups,
-	  \@comments, $from, \%metadata, $headerCheck, $headerCheckSleep,
-	  $headerCheckServer, $headerCheckPort, $headerCheckUserName,
-	  $headerCheckPassword, $headerCheckRetries,
-	  $headerCheckConnections, $nzbName, $extraHeaders);
-}
-
-sub _get_files_to_upload{
-
-  my $filesToUploadRef = shift;
-
-  my @tempFiles=();
-  for my $dir (@$filesToUploadRef) {
-
-    find(sub{
-	   if (-f $_) {
-	     my $newName = $File::Find::name;
-	     push @tempFiles, $newName;
-
-	   }
-	 }, ($dir));
-  }
-
-  @tempFiles = sort @tempFiles;
-  my $tempFilesRef = \@tempFiles;
-  return $tempFilesRef;
 }
 
 
-sub main{
 
-  my ($server, $port, $noTLS, $username, $userpasswd,
-      $filesToUploadRef, $connections, $newsGroupsRef,
-      $commentsRef, $from, $meta, $headerCheck, $headerCheckSleep,
-      $headerCheckServer, $headerCheckPort,
-      $headerCheckUsername, $headerCheckPassword,
-      $headerCheckRetries, $headerCheckConnections,$nzbName, $extraHeaders)=_parse_command_line();
 
-  #Check if the files passed on the cmd are folders or not and if they are folders,
-  #it will search inside for files
-  my $files = _get_files_to_upload($filesToUploadRef);
-  my $size=0;
-  $size += -s $_ for @$files;
-  $size /=1024;
+sub _create_socket{
+  my ($host, $port, $withSSL, $ignoreCert) = @_;
 
-  my $uploadParts = _split_files($files);
-  my @nzbParts = @{$uploadParts};
-
-  my $init = time;
-  _start_upload($connections, $server, $port, $noTLS, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, $uploadParts);
-  undef $uploadParts;
-
-  my $time = time()-$init;
-  $time = 1 if $time==0;
-  say "Operation completed ".int($size/1024)."MB in ".int($time/60)."m ".($time%60)."s. Avg. Speed: [".int($size/$time)." KBytes/Sec]";
-  if ($headerCheck) {
-    my @missingSegments = @nzbParts;
-
-    $init = time();
-    _start_header_check($headerCheckConnections, $headerCheckServer, $headerCheckPort,
-			$noTLS, $headerCheckUsername, $headerCheckPassword, $headerCheckRetries,
-			$headerCheckSleep, $newsGroupsRef, $connections, $server, $port, $username,
-			$userpasswd, $from, $commentsRef, $extraHeaders, \@missingSegments);
-
-    $time = time()-$init;
-    say "HeaderCheck done in ".int($time/60)."m ".($time%60)."s";
-
+  my $socket = undef;
+  if(($port == 443 || $port== 563) && $withSSL){
+    $socket = IO::Socket::SSL->new(PeerHost=>$host,
+                                    PeerPort=>$port,
+                                    SSL_verify_mode=>$ignoreCert?SSL_VERIFY_NONE:SSL_VERIFY_PEER,
+                                    Proto => 'tcp',
+                                    Blocking=>1) or die "Error: Failed to connect or ssl handshake: $!, $SSL_ERROR";
+  }else{
+    $socket = IO::Socket::INET->new(PeerHost=>$host,
+                                    PeerPort=>$port,
+                                    Proto => 'tcp',
+                                    Blocking=>1) or die "Error: Failed to connect: $!";
   }
 
-  _create_nzb($from, $nzbName, \@nzbParts, $newsGroupsRef, $meta, $commentsRef);
-  say "NZB $nzbName created!";
+  #$socket->autoflush(1);
+  $socket->sockopt(SO_SNDBUF, 4*1024*1024);
+  $socket->sockopt(SO_RCVBUF, 4*1024*1024);
 
+  return $socket;
 }
 
-sub _start_header_check{
-
-  my ($headerCheckConnections, $headerCheckServer, $headerCheckPort, $noTLS,
-      $headerCheckUsername, $headerCheckPassword, $headerCheckRetries,
-      $headerCheckSleep, $newsGroupsRef, $connections, $server, $port, $username,
-      $userpasswd, $from, $commentsRef, $extraHeaders, $missingSegmentsRef) = @_;
-
-  my @missingSegments= @$missingSegmentsRef;
-  my $totalMissingSegments = scalar @missingSegments;
-
-  for (0..$headerCheckRetries-1) {
-    {
-      local $\;
-      print "Header Checking\r";
-    }
-    sleep($headerCheckSleep);
-    $headerCheckConnections = scalar @missingSegments if($headerCheckConnections > scalar @missingSegments);
-    say "Warping up header check engines to [$headerCheckServer:$headerCheckPort] with $headerCheckConnections connections!";
-    my $connectionList;
-    eval{
-      $connectionList = _get_connections($headerCheckConnections, $headerCheckServer, $headerCheckPort, $noTLS, $headerCheckUsername, $headerCheckPassword);
-    };
-    if ($@){
-      warn "Unable to connect properly to the header check server. Skipping header check. Please verify the headerchek settings";
-      last;
-    }
-
-    my $select = IO::Select->new(@$connectionList);
-
-    my %candidates=();
-    my $countProgress = 0;
-    my $missingReads = @missingSegments;
-    while ($missingReads>0) {
-      my ($readers, $writers) = IO::Select->select($select, $select, undef);
-
-      for my $socket (@$writers){
-        my $part = shift @missingSegments;
-        last if !defined $part;
-        _print_args_to_socket($socket, "stat <",$part->{id},'>');
-        $candidates{$part->{id}}=$part;
-      }
-
-      for my $socket (@$readers){
-        my $output = _read_from_socket($socket);
-        $missingReads--;
-        {
-          local $\;
-          print int((++$countProgress / $totalMissingSegments)*100),"%\r";
-        }
-
-        if ($output =~ /^223 \d <(.+)>/) {
-          delete $candidates{$1};
-        }elsif ($output =~ /^400 /) {
-          shutdown ($socket, 2);
-          $select->remove($socket);
-          undef $socket;
-          $select->add(_create_socket($headerCheckServer, $headerCheckPort, $noTLS, $headerCheckUsername, $headerCheckPassword));
-
-        }
-      }
-    }
-
-    @missingSegments = values %candidates;
-    undef %candidates;
-    for my $socket (@$connectionList){
-      _print_args_to_socket($socket, "QUIT") ;
-      shutdown $socket, 2;
-    }
-
-    undef $select;
-
-    say "There are ", scalar @missingSegments, " segments missing [Total: ".scalar(@$missingSegmentsRef)."]";
-
-    if (@missingSegments > 0) {
-
-      $connections = scalar @missingSegments if ($connections > scalar @missingSegments);
-
-      my @tempSegments = @missingSegments;
-      _start_upload($connections, $server, $port, $noTLS ,$username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, \@tempSegments);
-      say "Upload of the missing segments done!";
-      undef @tempSegments;
-    }else {
-      last;
-    }
+sub _initialize_sockets{
+  my ($numberSockets, @params) = @_;
+  my @sockets = ();
+  my %socketStatus = ();
+  while($numberSockets--){
+    my $socket = _create_socket(@params);
+    push @sockets, $socket;
+    $socketStatus{refaddr($socket)}=0;
   }
-  undef @missingSegments;
+
+  return (\@sockets, \%socketStatus);
 }
 
-sub _start_upload{
-  my ($connections, $server, $port, $noTLS, $username, $userpasswd, $from, $newsGroupsRef, $commentsRef, $extraHeaders, $parts) = @_;
 
-  my $connectionList = _get_connections($connections, $server, $port, $noTLS, $username, $userpasswd);
-  my $newsgroups = join(',',@$newsGroupsRef);
+sub _authenticate_sockets{
+  my ($sockets, $socketStatus, $username, $password) = @_;
+  my $select = IO::Select->new(@$sockets);
 
-  my $totalParts = scalar @$parts;
+  my $authenticatedSockets = 0;
+  while ($authenticatedSockets < @$sockets){
+    my ($readReady, $writeRead, $exceptionReady) = IO::Select->select($select, $select, undef);
+    for my $socket (@$sockets){
+      next if($socketStatus->{refaddr($socket)} > 4);
+      my $read = _read_from_socket($socket); #<$socket>;
 
-  my $select = IO::Select->new(@$connectionList);
-  my %status = map { $_ => 0} @$connectionList;
-  my @percentages =(0) x scalar @$parts;
-  for(my $i = 0; $i < scalar @$parts; $i++){
-    $percentages[$i]=int(($i / scalar @$parts)*100)."%\r";
-  }
+      if($socketStatus->{refaddr($socket)} == 0){
+        # Welcome message
+        $socketStatus->{refaddr($socket)}++;
 
-  my $currentPart = 0;
-
-  my %currentFile = (size=>0, filename=>'', filehandler=>undef);
-
-  while(@$parts > 0){
-    my ($readers, $writers) = IO::Select->select($select, $select, undef);
-
-    for my $socket (@$writers){
-      if($status{$socket} == 0){
-        _print_args_to_socket($socket, "POST");
-	      $status{$socket}=1;
-      }elsif($status{$socket} == 2){
-        if (scalar @$parts != 0){
-          my $part = shift @$parts;
-          _post_part ($socket, $from, $newsgroups, $commentsRef, $extraHeaders, $part, \%currentFile);
-          undef $part;
-          $status{$socket}=3;
-          {
-            local $\;
-            print $percentages[$currentPart++];
-          }
-
-        }
-      }
-    }
-
-    for my $socket (@$readers){
-      my $output = _read_from_socket($socket);
-      if($status{$socket} == 1){
-	      #If we get a 400 we return to the begining
-	      if ($output =~ /^400 /) {
-          undef $output;
-          shutdown ($socket, 2);
-          delete $status{$socket};
-          $select->remove($socket);
-
-          my $newSocket = _create_socket($server, $port, $noTLS, $username, $userpasswd);
-          $select->add($newSocket);
-          $status{$newSocket} = 0;
-
-
-	      }elsif($output =~ /^340 /) {
-          $status{$socket}=2;
-	      }else {
-          chomp $output;
-          print "\r\tRead after POST: $output";
-          $status{$socket}=0;
-	      }
+      }elsif($socketStatus->{refaddr($socket)} == 2 && $read =~ /^381/){
+        $socketStatus->{refaddr($socket)}++;
+      }elsif($socketStatus->{refaddr($socket)} == 4 && $read =~ /^281|^250/){
+        $socketStatus->{refaddr($socket)}++;
+        $authenticatedSockets++;
       }else{
-        #A post was done and we need to confirm the post was done OK
-        if ($output =~ /^400 /) {
-          #If we get a 400 then we need to start again.
-          shutdown ($socket, 2);
-          delete $status{$socket};
-          $socket = _create_socket($server, $port, $noTLS, $username, $userpasswd);
+        die 'Unable to authenticate!';
+      }
+    }
+    # my @writeReady = $select->can_write(0.5);
+    for my $socket (@$sockets){
+      if($socketStatus->{refaddr($socket)}==1){
+        _print_to_socket ($socket, "authinfo user $username");
+        $socketStatus->{refaddr($socket)}++;
 
-        }elsif ($output !~ /^240 /) {
-          chomp $output;
-          say "Warning: Read after posting article: $output ";
-        }
-        $status{$socket}=0;
-        undef $output;
+      }elsif($socketStatus->{refaddr($socket)}==3){
+        _print_to_socket ($socket, "authinfo pass $password");
+        $socketStatus->{refaddr($socket)}++;
       }
     }
   }
 
-  #No more articles.
-  #We need to close the final open filehandler
-  close $currentFile{filehandler};
-  #Now we need to be sure that all sockets are ready for being written
-  for my $sock ($select->handles){
-    shutdown ($sock,2);
-  }
+  return ($sockets, $socketStatus, $select);
 }
 
-sub _get_xml_escaped_string{
-  my $string = shift;
-  my %replacements=('&'=>'&amp;', '<' => '&lt;', '>' => '&gt;','"' => '&quot;', "'"=>'&apos;' );
-
-  $string =~ s/('|&|<|>|")/$replacements{$1}/g;
-
-#  $string=~ s/&/&amp;/g;
-#  $string=~ s/</&lt;/g;
-#  $string=~ s/>/&gt;/g;
-#  $string=~ s/"/&quot;/g;
-#  $string=~ s/'/&apos;/g;
-
-  return $string;
-}
-
-
-sub _create_nzb{
-  my ($from, $nzbName, $parts, $newsGroups, $meta, $commentsRef)=@_;
-  $from = _get_xml_escaped_string($from);
-  if ($nzbName !~ /\.nzb$/i) {
-    $nzbName .='.nzb';
-  }
-
-  if (!defined($commentsRef->[0])){ $commentsRef->[0]='';}
-  else{$commentsRef->[0].=' ';}
-  if (!defined($commentsRef->[1])){ $commentsRef->[1]=' ';}
-  else{$commentsRef->[1]=' - '.$commentsRef->[1].' ';}
-
-
-  my %files=();
-
-  for my $segment (@$parts) {
-    my $basename = fileparse($segment->{fileName});
-    my $bytes = $NNTP_MAX_UPLOAD_SIZE;
-    $bytes =  $segment-> {fileSize} % $NNTP_MAX_UPLOAD_SIZE if($segment->{segmentNumber} == $segment->{totalSegments});
-    $bytes = $NNTP_MAX_UPLOAD_SIZE if $bytes == 0;
-
-    push @{$files{$basename}},
-      "<segment bytes=\"$bytes\" number=\"".$segment->{segmentNumber}."\">".$segment->{id}."</segment>";
-  }
-
-  my $totalFiles = scalar(keys %files);
-  open my $ofh, '>:raw', $nzbName;
-
-  print $ofh "<?xml version=\"1.0\" encoding=\"iso-8859-1\" ?>";
-  print $ofh "<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">";
-  print $ofh "<head>";
-#  print $ofh "<meta>";
-  print $ofh "<meta type=\"$_\">".$meta->{$_}."</meta>\n" for (keys %$meta);
-#  print $ofh "</meta>\n";
-  print $ofh "</head>";
-  my $currentFileNumber = 0;
-  for my $filename (sort keys %files) {
-    my @segments = @{$files{$filename}};
-    my $time=time();
-    print $ofh "<file poster=\"$from\" date=\"$time\" subject=\"".$commentsRef->[0]."[".++$currentFileNumber."/".$totalFiles."] - &quot;".$filename."&quot;".$commentsRef->[1]."yEnc (1/",scalar(@segments),")\">";
-    print $ofh "<groups>";
-    print $ofh "<group>$_</group>" for @$newsGroups;
-    print $ofh "</groups>";
-    print $ofh "<segments>";
-    print $ofh "$_" for (sort{
-      $a =~ /number="(\d+)"/;
-      my $s1 = $1;
-      $b =~ /number="(\d+)"/;
-      my $s2 = $1;
-      return $s1 <=> $s2;
-    } @segments);
-    print $ofh "</segments>";
-    print $ofh "</file>";
-
-  }
-  print $ofh "</nzb>";
-
-}
-
-
-
-sub _post_part{
-  my ($socket, $from, $newsgroups, $commentsRef, $extraHeaders, $part, $currentFile) = @_;
-  my $baseName = fileparse($part->{fileName});
-  my $startPosition=1+$NNTP_MAX_UPLOAD_SIZE*($part->{segmentNumber}-1);
-  my ($binString, $readSize, $endPosition, $fileSize) = _get_file_data($part->{fileName}, $startPosition-1, $currentFile);
-  my $yenc = _yenc_encode_c($binString, $readSize);
-  my ($yenc_data, $crc32_data) = @{$yenc};
-
-  my $subject = '['.$part->{fileNumber}.'/'.$part->{totalFiles}.'] - "'.$baseName.'" ('.$part->{segmentNumber}.'/'.$part->{totalSegments}.')';
-  if(defined $commentsRef && scalar(@$commentsRef)>0 && defined $commentsRef->[0] && $commentsRef->[0] ne ''){
-    $subject = $commentsRef->[0]." $subject" ;
-    $subject .= ' ['.$commentsRef->[1].']' if(scalar(@$commentsRef)>0 && defined $commentsRef->[1] && $commentsRef->[1] ne '');
-  }
-
-  _print_args_to_socket($socket,
-			"From: ",$from, $CRLF,
-			"Newsgroups: ",$newsgroups,$CRLF,
-			"Subject: ",$subject,$CRLF,
-			"Message-ID: <", $part->{id},">",$CRLF, $extraHeaders, #extraHeaders by default is $CRLF. It needs to contain at least 1.
-			"=ybegin part=", $part->{segmentNumber}, " total=",$part->{totalSegments}," line=", $YENC_NNTP_LINESIZE, " size=", $fileSize, " name=",$baseName, $CRLF,
-			"=ypart begin=",$startPosition," end=", $endPosition, $CRLF,
-			$yenc_data, $CRLF,
-			"=yend size=",$readSize, " pcrc32=",$crc32_data,$CRLF,'.'
-		       );
-
-}
-
-sub _get_file_data{
-  my ($fileName, $position, $currentFile) = @_;
-  if($fileName ne $currentFile->{filename}){
-    close $currentFile->{filehandler} if(defined $currentFile->{filehandler});
-    open my $fh, '<:raw :bytes', $fileName;
-
-    $currentFile->{size}=-s $fileName;
-    $currentFile->{filehandler}=$fh;
-    $currentFile->{filename} = $fileName;
-  }
-  #open my $fh, '<:raw :bytes', $fileName;
-  #binmode $fh;
-  seek $currentFile->{filehandler}, $position,0;
-  my $readSize = read($currentFile->{filehandler}, my $byteString, $NNTP_MAX_UPLOAD_SIZE);
-  my $endPosition = tell $currentFile->{filehandler};
-
-  return ($byteString, $readSize, $endPosition, $currentFile->{size});
-
-}
-
-sub _print_args_to_socket{
+sub _print_to_socket{
 
   my ($socket, @args) = @_;
   local $,;
-
-  # return 1 if !$socket->connected;
-
-  #Note: using syswrite or print is the same (im assuming if we don't disable nagle's algorithm):
-  # Network Programming with Perl. Page: 311.
-
-  for my $arg ((@args, $CRLF)){
-   my $len = length $arg;
-   my $offset = 0;
-
-   while ($len) {
-     my $written = syswrite($socket, $arg, $len, $offset);
-
-     return 1 unless($written);
-     $len -= $written;
-     $offset += $written;
-     undef $written;
-   }
-  }
-  undef @args;
-  return 0;
-
-  #Using print
-  # return 0 if (print $socket @args);
-  # return 1;
+  return 0 if (print $socket @args);
+  return 1;
 
 }
 
 
 sub _read_from_socket{
   my ($socket) = @_;
-
-  my $output='';
-
-  while (1) {
-    # 31 - is an arbitrary value
-    # For performance it should be roughly as large as the largest chunk that can
-    # be emitted by the server - Network programming with perl
-    my $status = sysread($socket, my $buffer,31); 
-    $output.= $buffer;
-    undef $buffer;
-    if ($output =~ /\r\n$/ || $status == 0){
-      last;
-    }elsif (!defined $status) {
-      die "Error: $!";
-    }
-  }
+  my $output=<$socket>;
 
   return $output;
 }
 
-sub _authenticate{
-    my ($connectionList,  $user, $password) = @_;
-    my @connectionList = @{$connectionList};
-    my %status = map {$_ => 0} @connectionList;
+sub _upload_files{
+  my ($socketStatus, $select, $files) = @_;
+  $files = _get_file_list($files);
 
-    my $select = IO::Select->new(@connectionList);
+  my $segments = _get_segments($files);
+  my $initialTime = [gettimeofday];
+  $segments = _upload_segments($segments, $select, $socketStatus);
 
-    while($select->count() > 0){
-      my ($readers, $writers) = IO::Select->select($select, $select, undef);
-      for my $sock (@$readers){
-        if($status{$sock} == 0){
-          _read_from_socket $sock;
-          $status{$sock} = 1;
-        }elsif($status{$sock} == 2){
-          my $output= _read_from_socket $sock;
-          if ( $output !~ /^381/){
-            shutdown($_, 2) for (@connectionList);
-            die "Error when authenticating: $output";
-          }
+  my $uploadTime = tv_interval($initialTime);
+  my $uploadSize = $OPTIONS{uploadSize}*scalar (@$segments) / 1024 ;
+  my $approxSpeed = int($uploadSize/$uploadTime);
+  say 'Uploaded '.int($uploadSize/1024).' MB in '.int($uploadTime/60).'m '.int($uploadTime%60)." s. Avg. Speed: [$approxSpeed KBytes/sec]";
 
-          $status{$sock} = 3;
-        }elsif($status{$sock} == 4){
-          my $output= _read_from_socket $sock;
-          if ( $output !~ /^281/){
-            shutdown($_, 2) for (@connectionList);
-            die "Error when authenticating: $output";
-          }
+  return $segments;
 
-          $select->remove($sock);
-        }
-      }
+}
 
-      for my $sock (@$writers){
-        if($status{$sock} == 1){
-          die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo user ",$user) != 0);
-          $status{$sock} = 2;
-        }elsif($status{$sock} == 3){
-          die "Error: Unable to print to socket" if (_print_args_to_socket ($sock, "authinfo pass ",$password) != 0);
-          $status{$sock} = 4;
+sub _upload_segments{
+  my ($segments, $select, $status) = @_;
+
+  my $segment;
+  my $waitingForServerAck = @$segments;
+  my @lastFileHandlerOpened = ('', undef,0);
+
+  my @newIDs = ();
+  my %segmentsIDs = ();
+
+  while (@$segments){
+    for my $socket ($select->can_write(0.5)){
+      if($status->{refaddr $socket} == 5){
+        _print_to_socket($socket, 'POST');
+        $status->{refaddr $socket}=4;
+      }elsif($status->{refaddr $socket} == 3){
+        #post segment
+        $segment = shift @$segments;
+        if(defined $segment){
+          @lastFileHandlerOpened = @{_post_segment($socket, $segment, \@lastFileHandlerOpened)};
+          $status->{refaddr $socket} = 2;
+
+          $segmentsIDs{refaddr $socket} = $segment;
+        }else{
+          $status->{refaddr $socket}=4;
+          last;
         }
       }
     }
-    undef $select;
-}
+    for my $socket ($select->can_read(0.5)){
+      my $read = _read_from_socket($socket);
+      if($status->{refaddr $socket} == 4){
+        die 'Unable to POST!' if $read !~ /^340 /;
+        $status->{refaddr $socket}= 3;
+      }elsif($status->{refaddr $socket} == 2){
+        # A post was done and we need to confirm the post was done OK
+        if($read =~ /^400 /){
+          # The session expired. Put the segment back
+          push @$segments, $segment;
 
+          delete $status->{refaddr $socket};
+          $select->remove($socket);
 
-sub _get_connections{
-  my ($connections, $server, $port, $noTLS, $user, $password) = @_;
+          my ($socketListRef, $socketStatus) = _initialize_sockets(1, $OPTIONS{server}, $OPTIONS{port}, $OPTIONS{TLS}, $OPTIONS{ignoreCert});
+          ($socketListRef, undef, undef) = _authenticate_sockets($socketListRef, $socketStatus, $OPTIONS{username}, $OPTIONS{password});
+          $status->{refaddr $socketListRef->[0]} = 5;
+          $select->add($socketListRef->[0]);
 
-  my @connectionList = (0) x $connections;
+        }elsif($read =~ /^240 .*<(.*)>/){
+          $segmentsIDs{refaddr $socket}->{id}=$1;
+          push @newIDs, $segmentsIDs{refaddr $socket};
+          $status->{refaddr $socket} = 5;
 
-  for my $i (0..$connections-1) {
-    $connectionList[$i]=_create_socket($server, $port, $noTLS, $user, $password);
-    #my $socket = _create_socket($server, $port);
-    #push @connectionList, $socket;
+        }else{
+          chomp $read;
+          say "Warning: Read after posting article: $read";
+          push @newIDs, $segmentsIDs{refaddr $socket};
+          $segmentsIDs{refaddr $socket}->{id}=undef;
+          $status->{refaddr $socket} = 5;
+        }
+        $waitingForServerAck--;
+      }
+    }
   }
 
-  return \@connectionList;
+
+  # We need to wait until it finishes reading all the uploads
+  while($waitingForServerAck){
+    for my $socket ($select->can_read(0.5)){
+      # say "counter: $counter";
+      next if $status->{refaddr $socket} != 2;
+      my $read = _read_from_socket($socket);
+      if($read =~ /^240 .*<(.*)>/){
+        $segmentsIDs{refaddr $socket}->{id}=$1;
+      }else{
+        $segmentsIDs{refaddr $socket}->{id}=undef;
+      }
+      push @newIDs,  $segmentsIDs{refaddr $socket};
+      $status->{refaddr $socket} = 5;
+      $waitingForServerAck--;
+    }
+  }
+
+  close $lastFileHandlerOpened[1];
+  return \@newIDs;
+  # say Dumper(@newIDs);
 }
 
+sub _post_segment{
+  my ($socket, $segment, $lastFileHandlerOpened) = @_;
 
-sub _split_files{
+  my $baseName = fileparse($segment->{fileName});
+  my $startPosition=1+$OPTIONS{uploadSize}*($segment->{segmentNumber}-1);
+  (my $binString, my $readSize, my $endPosition, $lastFileHandlerOpened) = _get_file_data($segment->{fileName}, $startPosition-1, $lastFileHandlerOpened);
+  my ($yenc_data, $crc32_data) = @{_yenc_encode_c($binString, $readSize)};
+
+  my $subject = $OPTIONS{comments}->[0].'['.$segment->{fileNumber}.'/'.$segment->{totalFiles}.'] - "'.$baseName.'" ('.$segment->{segmentNumber}.'/'.$segment->{totalSegments}.')'.$OPTIONS{comments}->[1];
+
+  _print_to_socket($socket,
+      "From: ",$OPTIONS{uploader}, $CRLF,
+      "Newsgroups: ",join(',',@{$OPTIONS{newsgroups}}),$CRLF,
+      "Subject: ",$subject,$CRLF,
+      # "Message-ID: <", $segment->{id},">",$CRLF,
+      join($CRLF,@{$OPTIONS{extraHeaders}}), #Note: the extraHeaders contain a mandatory CRLF
+      "=ybegin part=", $segment->{segmentNumber}, " total=",$segment->{totalSegments}," line=", $OPTIONS{lineSize}, " size=", $lastFileHandlerOpened->[2], " name=",$baseName, $CRLF,
+      "=ypart begin=",$startPosition," end=", $endPosition, $CRLF,
+      $yenc_data, $CRLF,
+      "=yend size=",$readSize, " pcrc32=",$crc32_data,$CRLF,'.');
+
+      return $lastFileHandlerOpened;
+}
+
+sub _get_file_data{
+  my ($fileName, $position, $lastFileHandlerOpened) = @_;
+  if($fileName ne $lastFileHandlerOpened->[0]){
+    close $lastFileHandlerOpened->[1] if(defined $lastFileHandlerOpened->[1]);
+    open my $fh, '<:raw :bytes', $fileName;
+    $lastFileHandlerOpened->[0] = $fileName;
+    $lastFileHandlerOpened->[1] = $fh;
+    $lastFileHandlerOpened->[2] = -s $fileName;
+  }
+  #open my $fh, '<:raw :bytes', $fileName;
+  #binmode $fh;
+  seek $lastFileHandlerOpened->[1], $position,0;
+  my $readSize = read($lastFileHandlerOpened->[1], my $byteString, $OPTIONS{uploadSize});
+  my $endPosition = tell $lastFileHandlerOpened->[1];
+
+  return ($byteString, $readSize, $endPosition, $lastFileHandlerOpened);
+
+}
+
+sub _get_segments{
   my ($files) =@_;
   my $totalFiles=scalar(@$files);
   my $digitNumber = split(//,$totalFiles);
@@ -909,187 +539,266 @@ sub _split_files{
 
   my $digitString='%0'.$digitNumber.'d';
 
-
-  my @parts = ();
+  my @segments = ();
+  my $messageIDs={};
   for (my $fileNumber=0; $fileNumber < $totalFiles; $fileNumber++) {
     my $fileSize=-s $files->[$fileNumber];
     my $segmentNumber=0;
 
-    my $totalSegments=ceil($fileSize/$NNTP_MAX_UPLOAD_SIZE);
+    my $totalSegments=ceil($fileSize/$OPTIONS{uploadSize});
 
     while ($segmentNumber++ < $totalSegments) {
-      push @parts, {fileName=> $files->[$fileNumber],
+      push @segments, {fileName=> $files->[$fileNumber],
 		    fileSize=> $fileSize,
 		    segmentNumber=>$segmentNumber,
 		    totalSegments=>$totalSegments,
 		    fileNumber=>sprintf($digitString,$fileNumber+1),
 		    totalFiles=>sprintf($digitString,scalar(@$files)),
-		    id=>"$segmentNumber"._get_message_id(),
+		    id=>undef,
 		   };
     }
   }
-  undef %MESSAGE_IDS;
-  return \@parts;
+  return \@segments;
 }
 
-sub _get_message_id{
+sub _get_file_list{
 
-  (my $s, my $usec) = gettimeofday();
-  my $time = _encode_base36("$s$usec");
-  my $randomness = _encode_base36(rand("$s$usec"));
+  my ($userFilesToUpload) = @_;
 
-  my $mid = "$s$usec.$randomness\@$time.newsup";
+  my @tempFiles=();
+  for my $file (@$userFilesToUpload) {
+    if(-d $file){
+      find(sub{
+      if (-f $_) {
+        my $newName = $File::Find::name;
+        push @tempFiles, $newName;
 
-  if (!exists $MESSAGE_IDS{$mid}) {
-    $MESSAGE_IDS{$mid}=1;
-    return $mid;
-  }else {
-    return _get_message_id();
-  }
-}
-
-sub _encode_base36 {
-  my ($val) = @_;
-  my $symbols = join '', '0'..'9', 'A'..'Z';
-  my $b36 = '';
-  while ($val) {
-    $b36 = substr($symbols, $val % 36, 1) . $b36;
-    $val = int $val / 36;
-  }
-  return $b36 || '0';
-}
-
-sub _create_socket{
-
-  my ($server, $port, $noTLS, $username, $password) = @_;
-  my $socket;
-  while (1) {
-    eval{
-      if ($port != 119 && !$noTLS) {
-        $socket = IO::Socket::SSL->new(
-                                        PeerHost=>$server,
-                                        PeerPort=>$port,
-                                        SSL_verify_mode=>SSL_VERIFY_NONE,
-                                        #SSL_version=>'TLSv1_2',
-                                        Blocking => 1,
-                                        Timeout=> 30, #connection timeout
-                                        #SSL_hostname=>'',
-                                        #SSL_version=>'TLSv1_2',
-                                        #SSL_cipher_list=>'DHE-RSA-AES128-SHA',
-                                        #SSL_ca_path=>'/etc/ssl/certs',
-                                      ) or die "Error: Failed to connect or ssl handshake: $!, $SSL_ERROR";
-      }else {
-        $socket = IO::Socket::INET->new (
-                                          PeerAddr => $server,
-                                          PeerPort => $port,
-                                          Blocking => 1,
-                                          Proto => 'tcp',
-                                          Timeout => 30, #connection timeout
-                                        ) or die "Error: Failed to connect : $!\n";
-      }
-    };
-
-    if ( $@) {
-      warn $@;
-      sleep 3;
-    }else {
-      #Apparently windows doesn't perform TCP tunning correctly.
-      if($^O eq 'MSWin32'){
-        $socket->sockopt(SO_SNDBUF, 4*1024*1024);
-        $socket->sockopt(SO_RCVBUF, 4*1024*1024);
-      }
-      last;
+        }
+      }, ($file));
+    }elsif(-f $file){
+      push @tempFiles, $file;
     }
   }
-  $socket->autoflush(1);
 
-  return _authenticate_socket($socket, $username, $password);
-}
-
-sub _authenticate_socket{
-
-  my ($socket, $user, $password) = @_;
-
-  #200 - Welcome to XXXX
-  _read_from_socket($socket);
-
-  _print_args_to_socket($socket, ("authinfo user ",$user));
-  my $output = _read_from_socket($socket);
-  die "Authentication error while sending the username: $output" if($output !~ /^381 .*$/);
-
-  _print_args_to_socket($socket, ("authinfo pass ",$password));
-  $output = _read_from_socket($socket);
-  die "Unable to authenticate: $output" if($output !~ /^(281|250) .*$/);
-
-  return $socket;
-}
-
-sub help{
-  say << "END";
-This program is part of NewsUP.
-
-The goal of this program is to upload files to the usenet as fast as possible.
-
-I was not satisfied with the state of options to upload to usenet. There were not
-simple solutions that were able to run on a server without minimal configuration
-or installations.
-Since perl is available everywhere and you don't even need to
-be root/administrator to install it, i decided to it for development of this.
-
-Options available:
-\t-server <server> = the server to which the script will connect and upload the files
-
-\t-port <port> = the port on the server that it will use to connect. 119 for plain connection, 443 or 563 for TLS
-
-\t-username <username> = username to connect to the server
-
-\t-password <password> = user password to connect to the server
-
-\t-file <file> = the file (or folder) to be uploaded
-
-\t-comment <comment> = comment to be passed to the subject of the file's segments. The maximum number of comments you
-might have is two.
-
-\t-group <group> = group to where you want to upload. You can have multiple `group` switches.
-
-\t-newsgroup <group> = the same as the `group` switch.
-
-\t-connections <conn> = Number of connections to use for upload
-
-\t-metadata <metadata> = Metadata that will be in the nzb file. You can have as many metadata you want.
-
-\t-nzb <nzb> = the nzb file name that it will create. It will always create one nzb. By default the name is newsup.nzb
-
-\t-headerCheck <1|0> = you want to enable the header check or not.
-
-\t-headerCheckSleep <secs> = the number of seconds to sleep before starting a header check
-
-\t-headerCheckServer <server> = the server where you can perform the header check. This is only usefull if you want
-\t\t to upload to a server and perform the header check on a different one.
-
-\t-headerCheckPort <port> = the port on the header check server to where newsup is going to connect.
-
-\t-headerCheckUserName <username> = the username on the header check server to where newsup is going to connect.
-
-\t-headerCheckPassword <password> = the password for the headerCheckUsername on the header check server to where newsup
-\t\tis going to connect.
-
-\t-headerCheckRetries <retries> = the number of upload retries it should do before it gives up (one retry is one
-\t\theadercheck followed by one upload).
-
-\t-headerCheckConnections <conn> = the number of connections to use while performing the headercheck (not the
-\t\tconnections that will use to perform the uploads).
-
-\t-uploadSize <size> = the size of the segments to be uploaded. By default is 768000 (750KBytes)
-
-\t-configuration <file> = If you want to use a different newsup.conf, other than the default on in ~/.config/newsup.conf
-
-END
-
-exit 0;
-
+  @tempFiles = sort keys %{{map {$_ => 1} @tempFiles}};
+  return \@tempFiles;
 }
 
 
+sub main{
+  _parse_user_options;
+  my $segments = _start_upload();
+  $segments = _start_header_check($segments);
+  _save_nzb($segments);
 
-main;
+}
+
+sub _save_nzb{
+  my ($segments) = @_;
+
+  my $dom = XML::LibXML::Document->new('1.0', 'UTF-8');
+  my $nzb = $dom->createElement('nzb');
+  my $head = $dom->createElement('head');
+  $nzb->addChild($head);
+
+  for(keys %{$OPTIONS{metadata}}){
+    my $meta = $dom->createElement('meta');
+    $meta->setAttribute('type'=>$_);
+    $meta->appendText($OPTIONS{metadata}{$_});
+    $head->addChild($meta);
+  }
+
+  my $totalFiles = 0; # variable used to build the subject
+  my %fileMapping = ();
+  for my $segment (@$segments){
+    my $name = fileparse($segment->{fileName});
+    $fileMapping{$name} = [] if(!exists $fileMapping{$name});
+
+    push @{$fileMapping{$name}}, $segment;
+    $totalFiles++;
+  }
+
+  # The segments should be already ordered, but we need to make sure
+  my $currentFile = 0;
+  for my $filename (sort keys %fileMapping){
+    my $fileElement = $dom->createElement('file');
+    $fileElement->setAttribute('poster'=>$OPTIONS{uploader});
+    $fileElement->setAttribute('date'=>time());
+    $fileElement->setAttribute('subject'=>$OPTIONS{comments}->[0].'['.++$currentFile."/$totalFiles] - \"$filename\"".$OPTIONS{comments}->[1].' yEnc (1/'.scalar(@{$fileMapping{$filename}}).')');
+
+    my $groups = $dom->createElement('groups');
+    $fileElement->addChild($groups);
+    for my $groupname (@{$OPTIONS{newsgroups}}){
+      my $group = $dom->createElement('group');
+      $groups->addChild($group);
+      $group->appendText($groupname);
+    }
+
+    my $segmentsElement = $dom->createElement('segments');
+    $fileElement->addChild($segmentsElement);
+    for my $segment (sort {$a->{segmentNumber} <=> $b->{segmentNumber}}  @{$fileMapping{$filename}}){
+      my $segElement = $dom->createElement('segment');
+      $segElement->setAttribute('number'=>$segment->{segmentNumber});
+
+      my $byteSize = $OPTIONS{uploadSize};
+      $byteSize = $segment->{fileSize} % $OPTIONS{uploadSize} if $segment->{segmentNumber}==$segment->{totalSegments};
+      $byteSize = $OPTIONS{uploadSize} if $byteSize == 0;
+
+      $segElement->setAttribute('bytes'=>$byteSize);
+      $segElement->appendText($segment->{id});
+      $segmentsElement->addChild($segElement);
+    }
+    $nzb->addChild($fileElement);
+  }
+
+
+  $dom->setDocumentElement($nzb);
+  $OPTIONS{nzb}.='.nzb' if($OPTIONS{nzb} !~ /\.nzb$/);
+
+  open my $ofh, '>:raw', $OPTIONS{nzb};
+  print $ofh $dom->serialize;
+  close $ofh;
+  say "$OPTIONS{nzb} created!";
+}
+
+sub _start_upload{
+  my ($sockets, $socketStatus) = _initialize_sockets($OPTIONS{connections}, $OPTIONS{server}, $OPTIONS{port}, $OPTIONS{TLS}, $OPTIONS{ignoreCert});
+  ($sockets, $socketStatus, my $select) = _authenticate_sockets($sockets, $socketStatus, $OPTIONS{username}, $OPTIONS{password});
+  my $segments = _upload_files($socketStatus, $select, $OPTIONS{files});
+  _close_sockets($sockets);
+  return $segments;
+}
+
+sub _start_header_check{
+  my ($segments) = @_;
+  if($OPTIONS{headerCheck}){
+    $OPTIONS{headerCheckServer} = $OPTIONS{server} if (!defined $OPTIONS{headerCheckServer});
+    $OPTIONS{headerCheckPort} = $OPTIONS{port} if (!defined $OPTIONS{headerCheckPort});
+    $OPTIONS{headerCheckUsername} = $OPTIONS{username} if (!defined $OPTIONS{headerCheckUsername});
+    $OPTIONS{headerCheckPassword} = $OPTIONS{password} if (!defined $OPTIONS{headerCheckPassword});
+    $OPTIONS{headerCheckConnections} = $OPTIONS{connections} if (!defined $OPTIONS{headerCheckConnections});
+
+    # Temporary variable to avoid searching for segments with two loops.
+    my %segmentMap = map { $_->{fileNumber}.'|'.$_->{segmentNumber} => $_} @$segments;
+
+    my $initialTime=[gettimeofday];
+    while(@$segments && $OPTIONS{headerCheckRetries}--){
+      {local $\; print "Header Checking\r"; }
+
+      sleep($OPTIONS{headerCheckSleep});
+      my ($sockets, $socketStatus) = _initialize_sockets($OPTIONS{headerCheckConnections}, $OPTIONS{headerCheckServer}, $OPTIONS{headerCheckPort}, $OPTIONS{TLS}, $OPTIONS{ignoreCert});
+      ($sockets, undef, my $select) = _authenticate_sockets($sockets, $socketStatus, $OPTIONS{headerCheckUsername}, $OPTIONS{headerCheckPassword});
+
+      say 'Warping up header check engines to ['.$OPTIONS{headerCheckServer}.':'.$OPTIONS{headerCheckPort}.'] with '.$OPTIONS{headerCheckConnections}.' connections!';
+      my %socketStatus = map{ refaddr($_) => 0} @$sockets;
+      $segments = _header_check($select, \%socketStatus, $segments);
+      _close_sockets($sockets);
+      say 'Missing '.scalar @$segments." segments";
+      if(@$segments){
+        say 'Re-Uploading missing segments';
+        ($sockets, $socketStatus) = _initialize_sockets($OPTIONS{connections}, $OPTIONS{server}, $OPTIONS{port}, $OPTIONS{TLS}, $OPTIONS{ignoreCert});
+        ($sockets, $socketStatus, $select) = _authenticate_sockets($sockets, $socketStatus, $OPTIONS{username}, $OPTIONS{password});
+        $segments = _upload_segments($segments, $select, $socketStatus);
+
+        $segmentMap{$_->{fileNumber}.'|'.$_->{segmentNumber}}->{id} = $_->{id} for(@$segments);
+
+        _close_sockets($sockets);
+      }
+    }
+    my $headerCheckTime = tv_interval($initialTime);
+    say "HeaderCheck done in ".int($headerCheckTime/60)."m ".($headerCheckTime%60)."s";
+
+    # my @return = values(%segmentMap);
+    return [values(%segmentMap)];
+
+  }
+
+}
+
+sub _header_check{
+
+  my ($select, $socketStatus, $checkSegments) = @_;
+
+  my %missingSegments = map{$_->{id}, $_} @$checkSegments;
+
+  my $counter = 0;
+
+  while(@$checkSegments){
+    for my $socket  ($select->can_write(0.5)){
+      if($socketStatus->{refaddr $socket}==0){
+        my $segment = shift @$checkSegments;
+        if(defined $segment){
+          if(defined $segment->{id}){
+            _print_to_socket ($socket, 'stat <'.$segment->{id}.'>');
+            $socketStatus->{refaddr $socket}=1;
+            $counter++;
+          }
+        }
+      }
+    }
+    for my $socket  ($select->can_read(0.5)){
+      if($socketStatus->{refaddr $socket}==1){
+        my $read = _read_from_socket($socket);
+        chomp $read;
+
+        if($read =~ /^223 \d+ <(.*)>/){
+          delete $missingSegments{$1};
+        }
+        $socketStatus->{refaddr $socket}=0;
+        $counter--;
+      }
+    }
+  }
+
+  while($counter){
+    for my $socket ($select->can_read(0.5)){
+      if($socketStatus->{refaddr $socket}==1){
+        my $read = _read_from_socket($socket);
+        chomp $read;
+
+        if($read =~ /^223 \d+ <(.*)>/){
+          delete $missingSegments{$1};
+        }
+        $socketStatus->{refaddr $socket}=0;
+        $counter--;
+      }
+    }
+  }
+  return [values %missingSegments];
+}
+
+
+
+sub _close_sockets{
+  my ($sockets) = @_;
+
+  for (@$sockets){
+    _print_to_socket($_, "quit");
+    close $_;
+  }
+}
+
+
+sub _get_number_of_cores{
+
+  return $ENV{"NUMBER_OF_PROCESSORS"} if $^O eq 'MSWin32';
+
+  my $cpuCounter = 0;
+
+  if($^O eq 'linux'){
+    open my $ifh, '<', '/proc/cpuinfo';
+    local $/="\n";
+    while(<$ifh>){
+      if ($_ =~ /processor/){
+        $cpuCounter++;
+      }
+    }
+    close $ifh;
+
+  }
+
+  return $cpuCounter;
+}
+
+#say _get_number_of_cores;
+ main;
