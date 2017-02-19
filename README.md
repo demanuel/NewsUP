@@ -13,10 +13,6 @@ This program is licensed with GPLv3.
 This readme contains the basic info on how to run newsup and it's options.
 For windows installation, or another stuff more specific to some environment/script please check the wiki.
 
-## note 2
-This is developed in a Linux box. I can guarantee that it will work on it. I'm unable to guarantee that the latest version will work on windows.
-For a working solution in windows (with minimal testing on the windows platform) please check the tags W (in the form of Wx.x)
-
 
 ## Alternatives
 * newsmangler (https://github.com/madcowfred/newsmangler)
@@ -156,7 +152,7 @@ veryWeirdInfoIWantToPutOnTheNZBMetadata= it's really very weird!
 
 [upload]
 uploader= NewsUP <NewsUp@localhost.localdomain> #To identify de uploader and to receive replies. Usualy it's bogus. Switch -uploader
-newsgroup= alt.binaries.test, alt.binaries.conspiracy #you can put here as many newsgroups you want. They need to be comma separated.
+newsgroups= alt.binaries.test, alt.binaries.conspiracy #you can put here as many newsgroups you want. They need to be comma separated.
 
 [headerCheck]
 enabled= 1 #0 or 1. If this is enable, after each thread finishes their uploads it will check if the header was uploaded to server through a stat command

@@ -11,7 +11,6 @@ use Socket qw/SO_SNDBUF SO_RCVBUF/;
 use POSIX qw/ceil/;
 use XML::LibXML;
 use Config;
-use Data::Dumper;
 
 ###### C CODE YENC ######
 use Inline C => Config => cc => exists $ENV{NEWSUP_CC}?$ENV{NEWSUP_CC}:$Config{cc};
@@ -494,7 +493,6 @@ sub _upload_segments{
 
   close $lastFileHandlerOpened[1];
   return \@newIDs;
-  # say Dumper(@newIDs);
 }
 
 sub _post_segment{
