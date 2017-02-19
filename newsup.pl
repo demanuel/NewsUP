@@ -388,6 +388,7 @@ sub _upload_files{
   $files = _get_file_list($files);
 
   my $segments = _get_segments($files);
+
   my $initialTime = [gettimeofday];
   $segments = _upload_segments($segments, $select, $socketStatus);
 
@@ -410,6 +411,9 @@ sub _upload_segments{
   my @newIDs = ();
   my %segmentsIDs = ();
 
+  my @progressBar = _fill_progress_bar(scalar @$segments);
+  my $progressBarLineCounter = 0;
+
   while (@$segments){
     for my $socket ($select->can_write(0.5)){
       if($status->{refaddr $socket} == 5){
@@ -421,8 +425,13 @@ sub _upload_segments{
         if(defined $segment){
           @lastFileHandlerOpened = @{_post_segment($socket, $segment, \@lastFileHandlerOpened)};
           $status->{refaddr $socket} = 2;
-
           $segmentsIDs{refaddr $socket} = $segment;
+
+          {
+            local $\;
+            print $progressBar[$progressBarLineCounter++];
+          }
+
         }else{
           $status->{refaddr $socket}=4;
           last;
@@ -558,6 +567,7 @@ sub _get_segments{
 		   };
     }
   }
+
   return \@segments;
 }
 
@@ -779,26 +789,28 @@ sub _close_sockets{
 }
 
 
-sub _get_number_of_cores{
+sub _fill_progress_bar{
+  my ($size) = @_;
 
-  return $ENV{"NUMBER_OF_PROCESSORS"} if $^O eq 'MSWin32';
+  $size = $size < 20? $size : 20;
+  my @chars = qw (- \ | / );
+  my @progressBar = ();
+  my $progressString = '';
+  my $progressStringIndicator = '=';
 
-  my $cpuCounter = 0;
-
-  if($^O eq 'linux'){
-    open my $ifh, '<', '/proc/cpuinfo';
-    local $/="\n";
-    while(<$ifh>){
-      if ($_ =~ /processor/){
-        $cpuCounter++;
-      }
-    }
-    close $ifh;
-
+  my $jump = $size/20;
+  if($jump < 1 ){
+    $jump = 1;
+    $progressStringIndicator = '=' x int(20/$size);
   }
+  my $percentage = $size/20 < 1 ? 1 : $size/20 ;
+  for(0.. $size-1){
 
-  return $cpuCounter;
+    push @progressBar, sprintf("[%s] %02d%% [%-20s]\r", $chars[$_ % @chars ], $_/$size*100, $progressString);
+    $progressString .= $progressStringIndicator if ($_ % $percentage == 0);
+  }
+  return @progressBar;
 }
 
-#say _get_number_of_cores;
+
  main;
