@@ -791,7 +791,7 @@ sub _close_sockets{
 sub _fill_progress_bar{
   my ($size) = @_;
 
-  $size = $size < 20? $size : 20;
+  # $size = $size < 20? $size : 20;
   my @chars = qw (- \ | / );
   my @progressBar = ();
   my $progressString = '';
