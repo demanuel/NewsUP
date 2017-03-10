@@ -181,7 +181,7 @@ my %OPTIONS=(server=>undef,
             uploader=>undef,
             connections=>2,
             files=>[],
-            comments=>['',''],
+            comments=>[],
             newsgroups=>[],
             extraHeaders=>[],
             metadata=>{},
@@ -230,9 +230,18 @@ sub _parse_user_options{
     my $config = Config::Tiny->read( $OPTIONS{configuration} );
     $OPTIONS{metadata}=$config->{metadata} if(!%{$OPTIONS{metadata}} && exists $config->{metadata});
     # Usefull for creating the subject
-    $OPTIONS{comments}->[0] .=' ' if $OPTIONS{comments}->[0] ne '';
-    $OPTIONS{comments}->[1] =' '.$OPTIONS{comments}->[1] if $OPTIONS{comments}->[1] ne '';
-
+    if(!defined $OPTIONS{comments}->[0]){
+	$OPTIONS{comments}->[0] = '';
+	$OPTIONS{comments}->[1] = '';
+    }else{
+	$OPTIONS{comments}->[0] .=' ';
+	if (defined $OPTIONS{comments}->[1]){
+	    $OPTIONS{comments}->[1] =' '.$OPTIONS{comments}->[1] ;
+	}else{
+	    $OPTIONS{comments}->[1] ='';
+	}
+    }
+    
     $OPTIONS{server}=$config->{server}{server} if !defined $OPTIONS{server} && exists $config->{server}{server};
     $OPTIONS{port}=$config->{server}{port} || 443 if !defined $OPTIONS{port};
     $OPTIONS{connections}=$config->{server}{connections} || 2  if !defined $OPTIONS{connections};
