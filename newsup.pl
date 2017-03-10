@@ -8,7 +8,7 @@ use Config::Tiny;
 use File::Find;
 use Time::HiRes qw/gettimeofday tv_interval/;
 use File::Basename qw/fileparse basename/;
-use Socket qw/SO_SNDBUF SO_RCVBUF/;
+use Socket qw/SO_SNDBUF SO_RCVBUF TCP_NODELAY/;
 use POSIX qw/ceil/;
 use XML::LibXML;
 use Config;
@@ -313,9 +313,10 @@ sub _create_socket{
                                     Blocking=>1) or die "Error: Failed to connect: $!";
   }
 
-  #$socket->autoflush(1);
+  $socket->autoflush(1);
   $socket->sockopt(SO_SNDBUF, 4*1024*1024);
   $socket->sockopt(SO_RCVBUF, 4*1024*1024);
+  $socket->sockopt(TCP_NODELAY, 1);
 
   return $socket;
 }
@@ -423,7 +424,7 @@ sub _upload_segments{
   my $progressBarLineCounter = 0;
 
   while (@$segments){
-    for my $socket ($select->can_write(0.5)){
+    for my $socket ($select->can_write(0.05)){
       if($status->{refaddr $socket} == 5){
         _print_to_socket($socket, 'POST');
         $status->{refaddr $socket}=4;
@@ -446,10 +447,11 @@ sub _upload_segments{
         }
       }
     }
-    for my $socket ($select->can_read(0.5)){
+    for my $socket ($select->can_read(0.05)){
       my $read = _read_from_socket($socket);
+      next if $read eq '';
       if($status->{refaddr $socket} == 4){
-        die 'Unable to POST!' if $read !~ /^340 /;
+        die "Unable to POST: $read" if $read !~ /^340 /;
         $status->{refaddr $socket}= 3;
       }elsif($status->{refaddr $socket} == 2){
         # A post was done and we need to confirm the post was done OK
@@ -485,7 +487,7 @@ sub _upload_segments{
 
   # We need to wait until it finishes reading all the uploads
   while($waitingForServerAck){
-    for my $socket ($select->can_read(0.5)){
+    for my $socket ($select->can_read(0.05)){
       # say "counter: $counter";
       next if $status->{refaddr $socket} != 2;
       my $read = _read_from_socket($socket);
@@ -741,7 +743,7 @@ sub _header_check{
   my $counter = 0;
 
   while(@$checkSegments){
-    for my $socket  ($select->can_write(0.5)){
+    for my $socket  ($select->can_write(0.05)){
       if($socketStatus->{refaddr $socket}==0){
         my $segment = shift @$checkSegments;
         if(defined $segment){
@@ -753,7 +755,7 @@ sub _header_check{
         }
       }
     }
-    for my $socket  ($select->can_read(0.5)){
+    for my $socket  ($select->can_read(0.05)){
       if($socketStatus->{refaddr $socket}==1){
         my $read = _read_from_socket($socket);
         chomp $read;
@@ -768,7 +770,7 @@ sub _header_check{
   }
 
   while($counter){
-    for my $socket ($select->can_read(0.5)){
+    for my $socket ($select->can_read(0.05)){
       if($socketStatus->{refaddr $socket}==1){
         my $read = _read_from_socket($socket);
         chomp $read;
