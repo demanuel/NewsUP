@@ -179,7 +179,7 @@ my %OPTIONS=(server=>undef,
             TLS=>1,
             ignoreCert=>1,
             uploader=>undef,
-            connections=>2,
+            connections=>undef,
             files=>[],
             comments=>[],
             newsgroups=>[],
@@ -243,9 +243,8 @@ sub _parse_user_options{
     }
     
     $OPTIONS{server}=$config->{server}{server} if !defined $OPTIONS{server} && exists $config->{server}{server};
-    $OPTIONS{port}=$config->{server}{port} || 443 if !defined $OPTIONS{port};
-    $OPTIONS{connections}=$config->{server}{connections} || 2  if !defined $OPTIONS{connections};
-
+    $OPTIONS{port}=$config->{server}{port} // 443 if !defined $OPTIONS{port};
+    $OPTIONS{connections}=$config->{server}{connections} // 2  if !defined $OPTIONS{connections};
     $OPTIONS{username}=$config->{auth}{user} if !defined $OPTIONS{username} && exists $config->{auth}{user};
     $OPTIONS{password}=$config->{auth}{password} if !defined $OPTIONS{password} && exists $config->{auth}{password};
 
@@ -258,15 +257,15 @@ sub _parse_user_options{
       $OPTIONS{newsgroups}= [keys %{{map{$_ =~ s/^\s+|\s+$//;  $_=>1} split(',',$config->{upload}{newsgroups})}}];
     }
 
-    $OPTIONS{headerCheck} = $config->{headerCheck}{enabled} || 0 if !defined $OPTIONS{headerCheck};
-    $OPTIONS{headerCheckSleep} = $config->{headerCheck}{sleep} || 30 if !defined $OPTIONS{headerCheckSleep};
+    $OPTIONS{headerCheck} = $config->{headerCheck}{enabled} // 0 if !defined $OPTIONS{headerCheck};
+    $OPTIONS{headerCheckSleep} = $config->{headerCheck}{sleep} // 30 if !defined $OPTIONS{headerCheckSleep};
 
     $OPTIONS{headerCheckServer} = $config->{headerCheck}{server} if (!defined $OPTIONS{headerCheckServer} && exists $config->{headerCheck}{server});
     $OPTIONS{headerCheckPort} = $config->{headerCheck}{port} if (!defined $OPTIONS{headerCheckPort} && exists $config->{headerCheck}{port});
     $OPTIONS{headerCheckUsername} = $config->{headerCheck}{user} if (!defined $OPTIONS{headerCheckUsername} && exists $config->{headerCheck}{user});
     $OPTIONS{headerCheckPassword} = $config->{headerCheck}{password} if (!defined $OPTIONS{headerCheckPassword} && exists $config->{headerCheck}{password});
 
-    $OPTIONS{headerCheckRetries} = $config->{headerCheck}{retries} || 1 if(!defined $OPTIONS{headerCheckRetries});
+    $OPTIONS{headerCheckRetries} = $config->{headerCheck}{retries} // 1 if(!defined $OPTIONS{headerCheckRetries});
 
     $OPTIONS{headerCheckConnections} = $config->{headerCheck}{connections} if (!defined $OPTIONS{headerCheckRetries} && exists $config->{headerCheck}{connections});
     # uploadsize, linesize and TLS, only possible to set them through command line
