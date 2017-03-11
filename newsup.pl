@@ -398,10 +398,8 @@ sub _upload_files{
 
   my $segments = _get_segments($files);
 
-  my $initialTime = [gettimeofday];
-  $segments = _upload_segments($segments, $select, $socketStatus);
+  ($segments, my $uploadTime) = _upload_segments($segments, $select, $socketStatus);
 
-  my $uploadTime = tv_interval($initialTime);
   my $uploadSize = $OPTIONS{uploadSize}*scalar (@$segments) / 1024 ;
   my $approxSpeed = int($uploadSize/$uploadTime);
   say 'Uploaded '.int($uploadSize/1024).' MB in '.int($uploadTime/60).'m '.int($uploadTime%60)." s. Avg. Speed: [$approxSpeed KBytes/sec]";
@@ -423,8 +421,11 @@ sub _upload_segments{
   my @progressBar = _fill_progress_bar(scalar @$segments);
   my $progressBarLineCounter = 0;
 
+  my $initialTime = [gettimeofday];
   while (@$segments){
-    for my $socket ($select->can_write(0.05)){
+    my ($readers, $writers) = IO::Select->select($select, $select);
+    #    for my $socket ($select->can_write(0.05)){
+    for my $socket (@$writers){
       if($status->{refaddr $socket} == 5){
         _print_to_socket($socket, 'POST');
         $status->{refaddr $socket}=4;
@@ -447,7 +448,9 @@ sub _upload_segments{
         }
       }
     }
-    for my $socket ($select->can_read(0.05)){
+
+    for my $socket (@$readers){
+#    for my $socket ($select->can_read(0.05)){
       my $read = _read_from_socket($socket);
       next if $read eq '';
       if($status->{refaddr $socket} == 4){
@@ -502,8 +505,9 @@ sub _upload_segments{
     }
   }
 
+
   close $lastFileHandlerOpened[1];
-  return \@newIDs;
+  return (\@newIDs,tv_interval($initialTime));
 }
 
 sub _post_segment{
@@ -717,7 +721,7 @@ sub _start_header_check{
         say 'Re-Uploading missing segments';
         ($sockets, $socketStatus) = _initialize_sockets($OPTIONS{connections}, $OPTIONS{server}, $OPTIONS{port}, $OPTIONS{TLS}, $OPTIONS{ignoreCert});
         ($sockets, $socketStatus, $select) = _authenticate_sockets($sockets, $socketStatus, $OPTIONS{username}, $OPTIONS{password});
-        $segments = _upload_segments($segments, $select, $socketStatus);
+        ($segments, undef) = _upload_segments($segments, $select, $socketStatus);
 
         $segmentMap{$_->{fileNumber}.'|'.$_->{segmentNumber}}->{id} = $_->{id} for(@$segments);
 
