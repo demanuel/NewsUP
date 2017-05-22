@@ -398,10 +398,8 @@ sub _upload_files{
 
   my $segments = _get_segments($files);
 
-  my $initialTime = [gettimeofday];
-  $segments = _upload_segments($segments, $select, $socketStatus);
+  ($segments, my $uploadTime) = _upload_segments($segments, $select, $socketStatus);
 
-  my $uploadTime = tv_interval($initialTime);
   my $uploadSize = $OPTIONS{uploadSize}*scalar (@$segments) / 1024 ;
   my $approxSpeed = int($uploadSize/$uploadTime);
   say 'Uploaded '.int($uploadSize/1024).' MB in '.int($uploadTime/60).'m '.int($uploadTime%60)." s. Avg. Speed: [$approxSpeed KBytes/sec]";
@@ -423,8 +421,11 @@ sub _upload_segments{
   my @progressBar = _fill_progress_bar(scalar @$segments);
   my $progressBarLineCounter = 0;
 
+  my $initialTime = [gettimeofday];
   while (@$segments){
+#    my ($readers, $writers) = IO::Select->select($select, $select);
     for my $socket ($select->can_write(0.05)){
+#    for my $socket (@$writers){
       if($status->{refaddr $socket} == 5){
         _print_to_socket($socket, 'POST');
         $status->{refaddr $socket}=4;
@@ -436,10 +437,10 @@ sub _upload_segments{
           $status->{refaddr $socket} = 2;
           $segmentsIDs{refaddr $socket} = $segment;
 
-          {
-            local $\;
-            print $progressBar[$progressBarLineCounter++];
-          }
+          # {
+          #   local $\;
+          #   print $progressBar[$progressBarLineCounter++];
+          # }
 
         }else{
           $status->{refaddr $socket}=4;
@@ -447,6 +448,8 @@ sub _upload_segments{
         }
       }
     }
+
+#    for my $socket (@$readers){
     for my $socket ($select->can_read(0.05)){
       my $read = _read_from_socket($socket);
       next if $read eq '';
@@ -502,8 +505,9 @@ sub _upload_segments{
     }
   }
 
+
   close $lastFileHandlerOpened[1];
-  return \@newIDs;
+  return (\@newIDs,tv_interval($initialTime));
 }
 
 sub _post_segment{
@@ -606,9 +610,14 @@ sub _get_file_list{
 
 sub main{
   _parse_user_options;
-  my $segments = _start_upload();
-  $segments = _start_header_check($segments);
-  _save_nzb($segments);
+
+  if(@{$OPTIONS{files}}>0){
+    my $segments = _start_upload();
+    $segments = _start_header_check($segments);
+    _save_nzb($segments);
+  }else{
+    say "No files found! Please use -file to define files for upload";
+  }
 
 }
 
@@ -717,7 +726,7 @@ sub _start_header_check{
         say 'Re-Uploading missing segments';
         ($sockets, $socketStatus) = _initialize_sockets($OPTIONS{connections}, $OPTIONS{server}, $OPTIONS{port}, $OPTIONS{TLS}, $OPTIONS{ignoreCert});
         ($sockets, $socketStatus, $select) = _authenticate_sockets($sockets, $socketStatus, $OPTIONS{username}, $OPTIONS{password});
-        $segments = _upload_segments($segments, $select, $socketStatus);
+        ($segments, undef) = _upload_segments($segments, $select, $socketStatus);
 
         $segmentMap{$_->{fileNumber}.'|'.$_->{segmentNumber}}->{id} = $_->{id} for(@$segments);
 
@@ -821,5 +830,42 @@ sub _fill_progress_bar{
   return @progressBar;
 }
 
+sub help{
+
+  say <<END;
+  NewsUP -a binary usenet uploader/poster (multiple connections, SSL and NZB).
+
+  Command line options available:
+  --help
+  --configuration <CONFIG_FILE>
+  --server <SERVER>
+  --port <PORT_NUMBER>
+  --connections <NUMBER_OF_CONNECTIONS>
+  --username <USERNAME>
+  --password <PASSWORD>
+  --file <FILE>
+  --comment <COMMENT>
+  --uploader <UPLOADER>
+  --newsgroup|group <GROUP>
+  --metadata <KEY=VALUE>
+  --nzb <NZB_FILE>
+  --headerCheck <1|0>
+  --headerCheckServer <SERVER>
+  --headerCheckPort <PORT_NUMBER>
+  --headerCheckUsername <USERNAME>
+  --headerCheckPassword <PASSWORD>
+  --headerCheckRetries|retries <RETRIES>
+  --headerCheckConnections <NUMBER_OF_CONNECTIONS>
+  --uploadSize <KBYTES>
+  --linesize <SIZE>
+  --TLS
+  --ignoreCert
+
+  For complete info (with examples on how to set up your config file) please go
+  to: https://github.com/demanuel/NewsUP/blob/master/README.md
+END
+
+  exit 0;
+}
 
  main;
