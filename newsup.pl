@@ -741,7 +741,8 @@ sub _header_check{
   my %missingSegments = map{$_->{id}, $_} @$checkSegments;
 
   my $counter = 0;
-
+  my @progressBar = ("[-]\r", "[\\]\r", "[|]\r", "[/]\r" );
+  my $i = 0;
   while(@$checkSegments){
     for my $socket  ($select->can_write(0.05)){
       if($socketStatus->{refaddr $socket}==0){
@@ -751,6 +752,8 @@ sub _header_check{
             _print_to_socket ($socket, 'stat <'.$segment->{id}.'>');
             $socketStatus->{refaddr $socket}=1;
             $counter++;
+            local $\;
+            print $progressBar[$i++%4];
           }
         }
       }
@@ -759,7 +762,6 @@ sub _header_check{
       if($socketStatus->{refaddr $socket}==1){
         my $read = _read_from_socket($socket);
         chomp $read;
-
         if($read =~ /^223 \d+ <(.*)>/){
           delete $missingSegments{$1};
         }
@@ -768,13 +770,11 @@ sub _header_check{
       }
     }
   }
-
   while($counter){
     for my $socket ($select->can_read(0.05)){
       if($socketStatus->{refaddr $socket}==1){
         my $read = _read_from_socket($socket);
         chomp $read;
-
         if($read =~ /^223 \d+ <(.*)>/){
           delete $missingSegments{$1};
         }

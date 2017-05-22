@@ -292,7 +292,7 @@ sub par_files{
 	
 	my $par_name = '"'.catfile($OPTIONS->{temp_dir}, $name).'"';
 	
-	my $CMD = $OPTIONS->{par_arguments}." $par_name " ;
+	my $CMD = $OPTIONS->{par_arguments}." -B \"".$OPTIONS->{temp_dir}."\" $par_name " ;
 	for(@$fileList){
 		$CMD .= '"'.$_.'" ';
 	}
@@ -469,8 +469,8 @@ sub _run_command{
 	my ($CMD, $OPTIONS) = @_;
 	if($^O eq 'linux'){
 		open my $ofh , '-|', $CMD or die "Unable to launch process: $!";
-		while(<$ofh>){
-			warn if $OPTIONS->{debug};
+		while(defined ($_ = <$ofh>)){
+			warn if $OPTIONS->{debug} && defined $_;
 		}
 		close $ofh;
 	}elsif($^O eq 'MSWin32'){
