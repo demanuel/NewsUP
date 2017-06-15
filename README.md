@@ -250,6 +250,8 @@ Check sample newsup.conf for the available options
 
 -uploader <uploader id>: the email of the one who is uploading, so it can be later emailed for whoever sees the post. Usually this value is a bogus one.
 
+-ruploader : It will create a random string to use as uploader. It will overwrite the switch -uploader.
+
 -newsgroup <groups>: newsgroups. You can have as many as you want. This will crosspost the file.
 
 -nzb <name>: name of the NZB file.

@@ -195,10 +195,11 @@ my %OPTIONS=(server=>undef,
             headerCheckConnections=>undef,
             uploadSize=>750*1024,
             lineSize => 128,
+            randomUploader => 0,
             configuration=>$^O eq 'MSWin32'? $ENV{"USERPROFILE"}.'/.config/newsup.conf': $ENV{"HOME"}.'/.config/newsup.conf');
 
 
-sub _parse_user_options{
+sub _parse_user_options {
   GetOptions('help'=>=>sub{help();},
             'configuration=s'=>\$OPTIONS{configuration},
             'server=s'=>\$OPTIONS{server},
@@ -209,6 +210,7 @@ sub _parse_user_options{
             'file=s'=>$OPTIONS{files},
             'comment=s'=>$OPTIONS{comments},
             'uploader=s'=>\$OPTIONS{uploader},
+            'ruploadder!'=>\$OPTIONS{randomUploader},
             'newsgroup|group=s'=>$OPTIONS{newsgroups},
             'metadata=s'=>$OPTIONS{metadata},
             'nzb=s'=>\$OPTIONS{nzb},
@@ -241,12 +243,14 @@ sub _parse_user_options{
 	    $OPTIONS{comments}->[1] ='';
 	}
     }
-    
+
     $OPTIONS{server}=$config->{server}{server} if !defined $OPTIONS{server} && exists $config->{server}{server};
     $OPTIONS{port}=$config->{server}{port} // 443 if !defined $OPTIONS{port};
     $OPTIONS{connections}=$config->{server}{connections} // 2  if !defined $OPTIONS{connections};
     $OPTIONS{username}=$config->{auth}{user} if !defined $OPTIONS{username} && exists $config->{auth}{user};
     $OPTIONS{password}=$config->{auth}{password} if !defined $OPTIONS{password} && exists $config->{auth}{password};
+
+    $OPTIONS{uploader} = _generate_random_uploader() if($OPTIONS{randomUploader});
 
     $OPTIONS{uploader}=$config->{upload}{uploader} if !defined $OPTIONS{uploader} && exists $config->{upload}{uploader};
 
@@ -293,10 +297,31 @@ sub _parse_user_options{
   }
 }
 
+sub _generate_random_uploader {
+  
+  my @allowedCharacters = ('0'..'9','A'..'Z','a'..'z');
+  my ($uploaderName, $uploaderEmail) = ('','');
+  
+  my $maxLength = ceil rand(8);
+  $uploaderName .= $allowedCharacters[rand(@allowedCharacters)] while($maxLength--);
+   
+  $maxLength = ceil rand(25);
+  $uploaderEmail .= $allowedCharacters[rand(@allowedCharacters)] while($maxLength--);
+  $uploaderEmail .= '@';
+  $maxLength = ceil rand(12);
+  $uploaderEmail .= $allowedCharacters[rand(@allowedCharacters)] while($maxLength--);
+  
+  $uploaderEmail .= '.';
+  $maxLength = ceil rand(2)+1;
+  $uploaderEmail .= $allowedCharacters[rand(@allowedCharacters)] while($maxLength--);
+
+  my $uploader = "$uploaderName <$uploaderEmail>";
+
+  return $uploader;
+}
 
 
-
-sub _create_socket{
+sub _create_socket {
   my ($host, $port, $withSSL, $ignoreCert) = @_;
 
   my $socket = undef;
@@ -321,7 +346,7 @@ sub _create_socket{
   return $socket;
 }
 
-sub _initialize_sockets{
+sub _initialize_sockets {
   my ($numberSockets, @params) = @_;
   my @sockets = ();
   my %socketStatus = ();
@@ -335,7 +360,7 @@ sub _initialize_sockets{
 }
 
 
-sub _authenticate_sockets{
+sub _authenticate_sockets {
   my ($sockets, $socketStatus, $username, $password) = @_;
   my $select = IO::Select->new(@$sockets);
 
@@ -375,7 +400,7 @@ sub _authenticate_sockets{
   return ($sockets, $socketStatus, $select);
 }
 
-sub _print_to_socket{
+sub _print_to_socket {
 
   my ($socket, @args) = @_;
   local $,;
@@ -385,14 +410,14 @@ sub _print_to_socket{
 }
 
 
-sub _read_from_socket{
+sub _read_from_socket {
   my ($socket) = @_;
   my $output=<$socket>;
 
   return $output;
 }
 
-sub _upload_files{
+sub _upload_files {
   my ($socketStatus, $select, $files) = @_;
   $files = _get_file_list($files);
 
@@ -408,7 +433,7 @@ sub _upload_files{
 
 }
 
-sub _upload_segments{
+sub _upload_segments {
   my ($segments, $select, $status) = @_;
 
   my $segment;
@@ -510,7 +535,7 @@ sub _upload_segments{
   return (\@newIDs,tv_interval($initialTime));
 }
 
-sub _post_segment{
+sub _post_segment {
   my ($socket, $segment, $lastFileHandlerOpened) = @_;
 
   my $baseName = fileparse($segment->{fileName});
@@ -534,7 +559,7 @@ sub _post_segment{
       return $lastFileHandlerOpened;
 }
 
-sub _get_file_data{
+sub _get_file_data {
   my ($fileName, $position, $lastFileHandlerOpened) = @_;
   if($fileName ne $lastFileHandlerOpened->[0]){
     close $lastFileHandlerOpened->[1] if(defined $lastFileHandlerOpened->[1]);
@@ -553,7 +578,7 @@ sub _get_file_data{
 
 }
 
-sub _get_segments{
+sub _get_segments {
   my ($files) =@_;
   my $totalFiles=scalar(@$files);
   my $digitNumber = split(//,$totalFiles);
@@ -584,7 +609,7 @@ sub _get_segments{
   return \@segments;
 }
 
-sub _get_file_list{
+sub _get_file_list {
 
   my ($userFilesToUpload) = @_;
 
@@ -608,7 +633,7 @@ sub _get_file_list{
 }
 
 
-sub main{
+sub main {
   _parse_user_options;
 
   if(@{$OPTIONS{files}}>0){
@@ -621,7 +646,7 @@ sub main{
 
 }
 
-sub _save_nzb{
+sub _save_nzb {
   my ($segments) = @_;
 
   my $dom = XML::LibXML::Document->new('1.0', 'UTF-8');
@@ -697,7 +722,7 @@ sub _start_upload{
   return $segments;
 }
 
-sub _start_header_check{
+sub _start_header_check {
   my ($segments) = @_;
   if($OPTIONS{headerCheck}){
     $OPTIONS{headerCheckServer} = $OPTIONS{server} if (!defined $OPTIONS{headerCheckServer});
@@ -743,7 +768,7 @@ sub _start_header_check{
 
 }
 
-sub _header_check{
+sub _header_check {
 
   my ($select, $socketStatus, $checkSegments) = @_;
 
@@ -797,7 +822,7 @@ sub _header_check{
 
 
 
-sub _close_sockets{
+sub _close_sockets {
   my ($sockets) = @_;
 
   for (@$sockets){
@@ -807,7 +832,7 @@ sub _close_sockets{
 }
 
 
-sub _fill_progress_bar{
+sub _fill_progress_bar {
   my ($size) = @_;
 
   # $size = $size < 20? $size : 20;
@@ -830,7 +855,7 @@ sub _fill_progress_bar{
   return @progressBar;
 }
 
-sub help{
+sub help {
 
   say <<END;
   NewsUP -a binary usenet uploader/poster (multiple connections, SSL and NZB).
@@ -868,4 +893,4 @@ END
   exit 0;
 }
 
- main;
+main;
