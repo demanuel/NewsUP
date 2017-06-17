@@ -470,7 +470,7 @@ sub _run_command{
 	if($^O eq 'linux'){
 		open my $ofh , '-|', $CMD or die "Unable to launch process: $!";
 		while(defined ($_ = <$ofh>)){
-			warn if $OPTIONS->{debug} && defined $_;
+			warn $_ if $OPTIONS->{debug} && defined $_;
 		}
 		close $ofh;
 	}elsif($^O eq 'MSWin32'){
