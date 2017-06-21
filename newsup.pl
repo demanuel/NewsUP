@@ -705,22 +705,22 @@ sub _create_nzb{
   my $totalFiles = scalar(keys %files);
   open my $ofh, '>:raw', $nzbName or die "Unable to create NZB file: $!";
 
-  print $ofh "<?xml version=\"1.0\" encoding=\"iso-8859-1\" ?>";
-  print $ofh "<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">";
-  print $ofh "<head>";
+  print $ofh "<?xml version=\"1.0\" encoding=\"iso-8859-1\" ?>" or die "Error while writing the nzb: $!";
+  print $ofh "<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">" or die "Error while writing the nzb: $!";
+  print $ofh "<head>" or die "Error while writing the nzb: $!";;
 #  print $ofh "<meta>";
   print $ofh "<meta type=\"$_\">".$meta->{$_}."</meta>\n" for (keys %$meta);
 #  print $ofh "</meta>\n";
-  print $ofh "</head>";
+  print $ofh "</head>" or die "Error while writing the nzb: $!";;
   my $currentFileNumber = 0;
   for my $filename (sort keys %files) {
     my @segments = @{$files{$filename}};
     my $time=time();
-    print $ofh "<file poster=\"$from\" date=\"$time\" subject=\"".$commentsRef->[0]."[".++$currentFileNumber."/".$totalFiles."] - &quot;".$filename."&quot;".$commentsRef->[1]."yEnc (1/",scalar(@segments),")\">";
-    print $ofh "<groups>";
+    print $ofh "<file poster=\"$from\" date=\"$time\" subject=\"".$commentsRef->[0]."[".++$currentFileNumber."/".$totalFiles."] - &quot;".$filename."&quot;".$commentsRef->[1]."yEnc (1/",scalar(@segments),")\">" or die "Error while writing the nzb: $!";; 
+    print $ofh "<groups>" or die "Error while writing the nzb: $!";;
     print $ofh "<group>$_</group>" for @$newsGroups;
-    print $ofh "</groups>";
-    print $ofh "<segments>";
+    print $ofh "</groups>" or die "Error while writing the nzb: $!";;
+    print $ofh "<segments>" or die "Error while writing the nzb: $!";;
     print $ofh "$_" for (sort{
       $a =~ /number="(\d+)"/;
       my $s1 = $1;
