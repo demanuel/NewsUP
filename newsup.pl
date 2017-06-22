@@ -703,7 +703,9 @@ sub _create_nzb{
   }
 
   my $totalFiles = scalar(keys %files);
-  open my $ofh, '>:raw', $nzbName or die "Unable to create NZB file: $!";
+  use Cwd;
+  my $currentPath = getcwd();
+  open my $ofh, '>:raw', $nzbName or die "Unable to create NZB $currentPath/$nzbName : $!";
 
   print $ofh "<?xml version=\"1.0\" encoding=\"iso-8859-1\" ?>" or die "Error while writing the nzb: $!";
   print $ofh "<nzb xmlns=\"http://www.newzbin.com/DTD/2003/nzb\">" or die "Error while writing the nzb: $!";
