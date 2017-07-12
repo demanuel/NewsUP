@@ -32,6 +32,7 @@ A NZB file will be generated for later retrieving.
 * Multi connections
 * Header Check (including to a different server from the one the article was uploaded)
 * NZB Creation
+* Random posting user
 
 ### Functionalities extended by scripts
 * NZB completion checker
