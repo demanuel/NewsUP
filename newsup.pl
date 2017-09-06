@@ -210,7 +210,7 @@ sub _parse_user_options {
             'file=s'=>$OPTIONS{files},
             'comment=s'=>$OPTIONS{comments},
             'uploader=s'=>\$OPTIONS{uploader},
-            'ruploadder!'=>\$OPTIONS{randomUploader},
+            'ruploader!'=>\$OPTIONS{randomUploader},
             'newsgroup|group=s'=>$OPTIONS{newsgroups},
             'metadata=s'=>$OPTIONS{metadata},
             'nzb=s'=>\$OPTIONS{nzb},
