@@ -804,6 +804,8 @@ sub _header_check {
       }
     }
   }
+  
+  my $maxTries = 100;
   while($counter){
     for my $socket ($select->can_read(0.05)){
       if($socketStatus->{refaddr $socket}==1){
@@ -816,6 +818,8 @@ sub _header_check {
         $counter--;
       }
     }
+    sleep(0.05*$maxTries--);
+    last if $maxTries == 0;
   }
   return [values %missingSegments];
 }
