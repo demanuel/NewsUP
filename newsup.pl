@@ -818,6 +818,7 @@ sub _header_check {
         $counter--;
       }
     }
+
     sleep(0.05*$maxTries--);
     last if $maxTries == 0;
   }
