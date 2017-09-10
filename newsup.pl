@@ -807,7 +807,7 @@ sub _header_check {
   
   my $maxTries = 100;
   while($counter){
-    for my $socket ($select->can_read(0.05){
+    for my $socket ($select->can_read(0.05)){
       if($socketStatus->{refaddr $socket}==1){
         my $read = _read_from_socket($socket);
         chomp $read;
