@@ -2,23 +2,25 @@
 pkgname=newsup-git
 _pkgname=newsup
 pkgrel=1
-pkgver=r294.7664325
+pkgver=r368.d41590b
 provides=(_pkgname)
 pkgdesc="NewsUP - A usenet binary uploader"
 arch=('any')
 url="https://github.com/demanuel/NewsUP"
 license=('GPLv3')
-depends=('perl>=5.018' 'perl-io-socket-ssl>=2.020' 'perl-inline-c>=0.76' 'perl-config-tiny>=2.22')
-source=("$pkgname::git+$url.git")
+depends=('perl>=5.026' 'perl-io-socket-ssl>=2.020' 'perl-inline-c>=0.76' 'perl-config-tiny>=2.22')
+source=("$pkgname::git+$url.git#branch=v4")
 md5sums=('SKIP')
 install=newsup.install
 
 
 package() {
-	install -D $pkgname/newsup.pl $pkgdir/usr/bin/vendor_perl/$_pkgname
-	install -D $pkgname/scripts/uploadit.pl $pkgdir/usr/bin/vendor_perl/uploadit
-	install -D $pkgname/scripts/completion_checker.pl $pkgdir/usr/bin/vendor_perl/completion_checker
-	install -D -m644 $pkgname/newsup.conf $pkgdir/etc/$_pkgname/newsup.conf
+	install -D $srcdir/$pkgname/bin/newsup.pl $pkgdir/usr/bin/vendor_perl/$_pkgname
+	install -D -m644 $srcdir/$pkgname/conf/newsup.conf $pkgdir/etc/$_pkgname/newsup.conf
+  install -D $srcdir/$pkgname/bin/newsup.pl $pkgdir/usr/bin/vendor_perl/$_pkgname
+  mkdir -p $pkgdir/usr/share/perl5/vendor_perl/
+  cp -R $srcdir/$pkgname/lib/NewsUP/ $pkgdir/usr/share/perl5/vendor_perl/
+ 
 }
 
 pkgver() {
