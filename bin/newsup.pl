@@ -168,7 +168,8 @@ sub upload_files {
       . int($elapsed)
       . " seconds. Avg. Speed: "
       . int($total_upload / 1024 / $elapsed)
-      . " KBytes/second";
+      . " KBytes/second"
+      .' 'x$options->{PROGRESSBAR_SIZE};
 
 
     my $nzb_file = save_nzb($options, \@articles);
@@ -185,6 +186,7 @@ sub upload_files {
                   get_random_array_elements($options->{GROUPS})
                 : $options->{GROUPS},
                 file        => $nzb_file,
+                from        => $options->{OBFUSCATE} ? '' : $options->{UPLOADER},                
                 file_number => 1,
                 file_size   => $file_size,
                 total_files => 1,
@@ -198,7 +200,7 @@ sub upload_files {
             push @articles, $article;
         }
         multiplexer($options, \@articles);
-        print "NZB uploaded!";
+        print "NZB uploaded!".' 'x$options->{PROGRESSBAR_SIZE};
     }
 
     return \@articles;
