@@ -99,7 +99,6 @@ sub read_options {
     $options{UPLOADER}                //= $config->{upload}{uploader} // 'NewsUP <NewsUP@somewhere.cbr>';
     $options{METADATA}                //= $config->{metadata};
     $options{SPLITNPAR}               //= $config->{options}{splitnpar} // 0;
-    $options{SPLIT_SIZE}              //= $config->{options}{split_size} // 10;
     $options{PAR2}                    //= $config->{options}{par2} // 0;
     $options{PAR2_PATH}               //= $config->{options}{par2_path};
     $options{PAR2_RENAME_SETTINGS}    //= $config->{options}{par2_rename_settings} // 'c -s768000 -r0';

@@ -80,7 +80,6 @@ subtest 'Defaults' => sub {
     ok($OPTIONS{TLS_IGNORE_CERTIFICATE} == 0,              'Default TLS_IGNORE_CERTIFICATE');
     ok($OPTIONS{HEADERCHECK_CONNECTIONS} == 1,             'Default HEADERCHECK_CONNECTIONS');
     ok($OPTIONS{RARNPAR} == 0,                             'Default RARNPAR');
-    ok($OPTIONS{SPLIT_SIZE} == 10,                         'Default SPLIT_SIZE');
     ok($OPTIONS{PAR2} == 0,                                'Default PAR2');
     ok($OPTIONS{PAR2_RENAME_SETTINGS} eq 'c -s768000 -r0', 'Read Config File PAR2_RENAME_SETTINGS');
     ok($OPTIONS{SFV} == 0,                                 'Default SFV');
