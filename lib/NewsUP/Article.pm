@@ -294,6 +294,7 @@ sub headers {
 
     if ($headers) {
         while (my ($k, $v) = each %$headers) {
+            next if $k =~ /from|newsgroups|message\-id|subject/i;
             $k = "X-$k" if ($k !~ /^X-/);
             $self->{headers} .= "$k: $v$CRLF";
         }
