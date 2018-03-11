@@ -143,6 +143,12 @@ sub read_options {
                     say "\t$k:";
                     say "\t\t$_" for @$v;
                 }
+                elsif (ref $v eq 'HASH') {
+                    say "\t$k:";
+                    while (my ($key, $value) = each(%$v)) {
+                        say "\t\t$key: $value";
+                    }
+                }
                 else {
                     chomp $v;
                     say "\t$k: $v";
