@@ -354,10 +354,16 @@ sub _copy_files_to_temp {
 sub _par_files {
     my ($files, $options) = @_;
 
-    my $cmd = sprintf('%s %s %s "%s"',
+    my $cmd = sprintf(
+        '%s %s %s "%s"',
         $options->{PAR2_PATH},
         $options->{PAR2_SETTINGS},
-        catfile($options->{TEMP_FOLDER}, generate_random_string(12, 1)),
+        catfile(
+            $options->{TEMP_FOLDER},
+            $options->{OBFUSCATE} ? generate_random_string(12, 1)
+            : $options->{NAME}    ? $options->{NAME}
+            :                       generate_random_string(12, 1)
+        ),
         join('" "', @$files));
     qx/$cmd/;
     return _return_all_files_in_folder($options->{TEMP_FOLDER});
