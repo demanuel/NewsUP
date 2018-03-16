@@ -71,7 +71,8 @@ port= 443
 connections= 6
 tls = 1
 tls_ignore_certificate = 0
-generate_ids = 0 # To generate random ids or to use the returned ones from the server. Note: Some servers don't return anything. In that case change this option to 1
+# To generate random ids or to use the returned ones from the server. Note: Some servers don't return anything. In that case change this option to 1
+generate_ids = 0 
 
 [auth]
 user= myLogin
@@ -81,7 +82,8 @@ password= myPassword
 uploader= NewsUP <NewsUP@somewhere.cbr>
 newsgroups= alt.binaries.test
 obfuscate = 0
-size = 768000 # default value 750KBytes
+# default value 750KBytes
+size = 768000 
 
 [headerCheck]
 enabled= 1
@@ -93,28 +95,39 @@ port = 119
 user = myUser
 password = myPassword
 
-[metadata] #You can put here anything you want to appear on the nzb header. It must have the pattern: word= a big one line sentence
+[metadata]
+#You can put here anything you want to appear on the nzb header. It must have the pattern: word= a big one line sentence
 client= NewsUP
 veryWeirdInfoIWantToPutOnTheNZBMetadata= it's really very weird!
 
 [extraHeaders]
-extra-header= value1 #extra header. It will became X-extra-header
-X-extra-header= value3 #extra header. Non valid because there's already one
-extra-header2= value2 #second extra header
-from= test #non valid. Non valid headers are: from, newsgroups, message-id and subject.
+#extra header. It will became X-extra-header
+extra-header= value1
+#extra header. Non valid because there's already one
+X-extra-header= value3
+#second extra header
+extra-header2= value2
+#non valid. Non valid headers are: from, newsgroups, message-id and subject.
+from= test 
 
 
 [options]
 rarnpar= 1
 rar_password=newsup
-par2_path = par2 # full path to par2 executable
-rar_path = rar # full path to rar executable
+# full path to par2 executable
+par2_path = par2
+# full path to rar executable
+rar_path = rar
 temp_folder = /data/tmp
-upload_nzb = 1 # if the nzb is also uploaded
-split_size = 50 # The size of the split rars
+# if the nzb is also uploaded
+upload_nzb = 1
+# The size of the split rars
+split_size = 50
 nzb_save_path = /data/uploads/
-par2 = 0 # enable or disable the par'ing
-par2_redundancy = 15 # redundancy in %
+# enable or disable the par'ing
+par2 = 0
+# redundancy in %
+par2_redundancy = 15
 
 ```
 
