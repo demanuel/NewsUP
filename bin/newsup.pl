@@ -60,9 +60,7 @@ sub header_check {
             multiplexer($options, \@missing);
             my $elapsed = tv_interval($t1, [gettimeofday]);
             print "Re upload done in $elapsed seconds!\n";
-
         }
-
     } while ($retries-- && @missing);
     my $elapsed = tv_interval($t0, [gettimeofday]);
     print "Headercheck done in $elapsed seconds!\n";
@@ -322,8 +320,10 @@ sub multiplexer {
                     else {
                         chomp $read;
                         print STDERR "Article posting failed: $read";
+                        if ($read =~ /^4/) {
+                            die "Stopping download! Please check the error message above!\n";
+                        }
                     }
-
                 }
             }
         }
@@ -378,7 +378,6 @@ sub authenticate {
     }
     return $connections;
 }
-
 
 sub read_socket {
     my ($socket, $message, $function) = @_;
