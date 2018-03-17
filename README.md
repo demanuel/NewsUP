@@ -50,6 +50,11 @@ $ perl newsup.pl -file my_file -con 2 -news alt.binaries.test
 If you have a nfo file:
 $ perl newsup.pl -file my_file -con 2 -news alt.binaries.test -nfo nfo_file
 
+If you have a bunch of files and you don't want to keep launching the newsup process:
+$perl newsup.pl -filelist my_list -con 2 -news alt.binaries.test
+
+The my_list file must have one file/folder per line.
+
 
 # Advanced
 NewsUP uses C code to do the yenc enconding. The code needs to be compiled.
@@ -136,6 +141,7 @@ par2_redundancy = 15
 ## Command line options
 - help 
 - file # string
+- filelist # string
 - uploadsize # integer
 - obfuscate # integer
 - newsgroup|group # string
@@ -168,7 +174,7 @@ par2_redundancy = 15
 - name # string
 - progressBarSize # integer
 - tempFolder # string
-- nfo
+- nfo #string
 
 
 # Examples

@@ -5,15 +5,16 @@ use utf8;
 use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use NewsUP::Article;
-use Socket qw/SO_SNDBUF SO_RCVBUF TCP_NODELAY SO_KEEPALIVE/;
-use POSIX qw/ceil/;
+use Socket qw(SO_SNDBUF SO_RCVBUF TCP_NODELAY SO_KEEPALIVE);
+use POSIX qw(ceil);
 use IO::Socket::SSL;
 use IO::Select;
-use Scalar::Util qw/refaddr/;
+use Scalar::Util qw(refaddr);
 use File::Spec::Functions;
-use Time::HiRes qw/gettimeofday tv_interval alarm/;
-use NewsUP::Utils;
-use List::Util qw/min/;
+use Time::HiRes qw(gettimeofday tv_interval alarm);
+use NewsUP::Utils
+  qw (read_options generate_random_ids save_nzb get_random_array_elements find_files print_progress update_file_settings );
+use List::Util qw(min);
 use Carp;
 
 $\ = "\x0D\x0A";
@@ -38,6 +39,22 @@ sub controller {
         # All the files are now temporary files
         my $articles = upload_files($options, $files);
         header_check($options, $articles) if ($options->{HEADERCHECK});
+
+    }
+
+    if ($options->{FILELIST}) {
+        open my $ifh, '<', $options->{FILELIST} or die "Unable to open the file defined in filelist option: $!";
+        while (defined(my $line = <$ifh>)) {
+            delete_temporary_files();
+            chomp $line;
+            say "Processing file $line";
+            $options->{FILES} = [$line];
+            $files = find_files(update_file_settings($options));
+            # All the files are now temporary files
+            my $articles = upload_files($options, $files);
+            header_check($options, $articles) if ($options->{HEADERCHECK});
+        }
+        close $ifh;
     }
 
 }
@@ -225,8 +242,8 @@ sub multiplexer {
     my $to_post            = $number_of_articles;
     my %article_table      = ();
     my $posted             = 0;
-    my $to_wait            = 0;
-    print_progress(0, $progress_total);
+    my $upload_queue            = 0;
+    print_progress(0, $progress_total, 0);
     do {
         for my $socket ($select->can_read(0)) {
             my $socketId = refaddr $socket;
@@ -271,12 +288,7 @@ sub multiplexer {
 
             }
             elsif ($status == 3) {
-                # say "WAIT: ".$to_wait;
-                if (++$progress_current && ++$progress_print == $options->{PROGRESSBAR_SIZE}) {
-                    print_progress($progress_current, $progress_total);
-                    $progress_print = 0;
-                }
-                $to_wait--;
+                print_progress ++$progress_current, $progress_total, $upload_queue--;
                 $connection_status{$socketId} = 0;
                 my $read = <$socket>;
                 if ($read && $read =~ /^240/) {
@@ -342,11 +354,11 @@ sub multiplexer {
                   @{$articles->[$article_table{$socketId}]->body};
 
                 $connection_status{$socketId} = 3;
-                $to_wait++;
+                $upload_queue++;
             }
 
         }
-    } until ($posted == $number_of_articles && $to_wait == 0);
+    } until ($posted == $number_of_articles && $upload_queue == 0);
     {
         local $\;
         print ' ' x 18 . "\r";
@@ -442,9 +454,14 @@ sub get_connections {
     return \@sockets;
 }
 
-END {
+sub delete_temporary_files {
     # delete all the temporary files
     unlink @$files if $files;
+}
+
+END {
+    delete_temporary_files();
+    $files = [];
 }
 
 

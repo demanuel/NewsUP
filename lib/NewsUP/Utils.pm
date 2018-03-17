@@ -27,6 +27,7 @@ our @EXPORT = qw(
   find_files
   compress_files
   print_progress
+  update_file_settings
 );
 
 
@@ -38,6 +39,7 @@ sub read_options {
         'help'                         => sub { help(); },
         'debug!'                       => \$options{DEBUG},
         'file=s@'                      => \$options{FILES},
+        'filelist=s'                   => \$options{FILELIST},
         'nfo=s'                        => \$options{NFO},
         'configuration=s'              => \$CONFIGURATION_FILE,
         'uploadsize=i'                 => \$options{UPLOAD_SIZE},
@@ -112,26 +114,7 @@ sub read_options {
 
     croak '--nfo option is incompatible with obfuscation' if $options{NFO} && $options{OBFUSCATE};
 
-    if ($options{UPLOAD_NZB} && !$options{NZB_FILE}) {
-        if ($options{NAME}) {
-            $options{NZB_FILE} = $options{NAME} . '.nzb';
-        }
-        elsif ($options{FILES} && @{$options{FILES}} == 1) {
-            $options{NZB_FILE} = $options{FILES}[0] . '.nzb';
-        }
-    }
-    if ($options{SPLITNPAR} && !$options{NAME}) {
-        if ($options{FILES} && @{$options{FILES}} == 1) {
-            $options{NAME} = (fileparse($options{FILES}[0], qr/\.[^.]*/))[0];
-            $options{NZB_FILE} //= $options{NAME} . '.nzb';
-        }
-    }
-
-    eval "sub print_progress {
-        my (\$got, \$total) = \@_; 
-        my \$width = $options{PROGRESSBAR_SIZE};
-        printf \"|%-\${width}s|\r\", '='x((\$width-1)*(\$got/\$total)).'>';
-    }";
+    %options = %{update_file_settings(\%options)};
 
     if ($options{DEBUG}) {
         say "Using the options: ";
@@ -158,6 +141,35 @@ sub read_options {
 
 
     return \%options;
+}
+
+sub print_progress {
+    my ($got, $total, $wait) = @_; 
+    local $\;
+    print "U:$got T:$total Q:$wait\r";
+}
+
+
+sub update_file_settings {
+
+    my ($options) = @_;
+
+    if ($options->{UPLOAD_NZB} && !$options->{NZB_FILE}) {
+        if ($options->{NAME}) {
+            $options->{NZB_FILE} = $options->{NAME} . '.nzb';
+        }
+        elsif ($options->{FILES} && @{$options->{FILES}} == 1) {
+            $options->{NZB_FILE} = $options->{FILES}[0] . '.nzb';
+        }
+    }
+    if ($options->{SPLITNPAR} && !$options->{NAME}) {
+        if ($options->{FILES} && @{$options->{FILES}} == 1) {
+            $options->{NAME} = (fileparse($options->{FILES}[0], qr/\.[^.]*/))[0];
+            $options->{NZB_FILE} //= $options->{NAME} . '.nzb';
+        }
+    }
+
+    return $options;
 }
 
 sub help {
