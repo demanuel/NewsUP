@@ -10,7 +10,6 @@ use File::Spec;
 use File::Spec::Functions;
 use Config::Tiny;
 use Carp;
-#use Data::Dumper;
 use File::Basename;
 use File::Find;
 use File::Path qw/rmtree/;
@@ -39,6 +38,7 @@ sub read_options {
         'help'                         => sub { help(); },
         'debug!'                       => \$options{DEBUG},
         'file=s@'                      => \$options{FILES},
+        'nfo=s'                        => \$options{NFO},
         'configuration=s'              => \$CONFIGURATION_FILE,
         'uploadsize=i'                 => \$options{UPLOAD_SIZE},
         'obfuscate!'                   => \$options{OBFUSCATE},
@@ -74,9 +74,7 @@ sub read_options {
 
     my $config = {};
     $config = Config::Tiny->read($CONFIGURATION_FILE) if $CONFIGURATION_FILE && -e $CONFIGURATION_FILE;
-    # my $config = Config::Tiny->read($CONFIGURATION_FILE);
-    # use Data::Dumper;
-    # say Dumper($config);
+
     $options{UPLOAD_SIZE} //= $config->{upload}{size} // 750 * 1024;
     $options{OBFUSCATE}   //= $config->{upload}{obfuscate} // 0;
     $options{GROUPS}      //= [split(',', $config->{upload}{newsgroups} // '')];
@@ -110,9 +108,10 @@ sub read_options {
     $options{SPLIT_PATTERN}           //= $config->{options}{split_pattern} // '*7z *[0-9][0-9][0-9]';
     $options{TEMP_FOLDER}             //= $config->{options}{temp_folder};
     $options{PROGRESSBAR_SIZE}        //= $config->{options}{progressbar_size} // 16;
+    $options{UPLOAD_NZB}              //= 0;
 
+    croak '--nfo option is incompatible with obfuscation' if $options{NFO} && $options{OBFUSCATE};
 
-    $options{UPLOAD_NZB} //= 0;
     if ($options{UPLOAD_NZB} && !$options{NZB_FILE}) {
         if ($options{NAME}) {
             $options{NZB_FILE} = $options{NAME} . '.nzb';
@@ -156,6 +155,7 @@ sub read_options {
             }
         }
     }
+
 
     return \%options;
 }
@@ -291,7 +291,6 @@ sub get_random_array_elements {
 }
 
 sub find_files {
-    use Data::Dumper;
     my ($options) = @_;
     my @files = ();
 

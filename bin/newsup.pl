@@ -129,10 +129,11 @@ sub upload_files {
 
     my @articles     = ();
     my $i            = 1;
-    my $total_files  = @$files;
+    my @files        = $options->{NFO} ? (@$files, $options->{NFO}) : @$files;
+    my $total_files  = @files;
     my $total_upload = 0;
 
-    for my $file (@$files) {
+    for my $file (@files) {
         my $file_size   = -s $file;
         my $total_parts = ceil($file_size / $options->{UPLOAD_SIZE});
         $total_upload += $file_size;

@@ -47,6 +47,8 @@ If you have any issue installing/running this check the wiki, if you still have 
 The most basic way to run it (please check the options section) is:
 $ perl newsup.pl -file my_file -con 2 -news alt.binaries.test
 
+If you have a nfo file:
+$ perl newsup.pl -file my_file -con 2 -news alt.binaries.test -nfo nfo_file
 
 
 # Advanced
@@ -166,6 +168,7 @@ par2_redundancy = 15
 - name # string
 - progressBarSize # integer
 - tempFolder # string
+- nfo
 
 
 # Examples
