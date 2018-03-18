@@ -255,6 +255,8 @@ sub multiplexer {
                     print STDERR 'Sending article failed';
                     print STDERR ": $read" if $read;
                     print STDERR "\n";
+                    die "Stopping download! Please check the error message above!\n" if $read =~ /^4|5/;
+                    
                     if (!connection_is_alive($socket)) {
                         print STDERR "Starting a new connection!\n";
                         $select->remove($socket);
@@ -332,9 +334,7 @@ sub multiplexer {
                     else {
                         chomp $read;
                         print STDERR "Article posting failed: $read";
-                        if ($read =~ /^4/) {
-                            die "Stopping download! Please check the error message above!\n";
-                        }
+                        die "Stopping download! Please check the error message above!\n" if $read =~ /^4|5/;
                     }
                 }
             }
@@ -457,13 +457,13 @@ sub get_connections {
 sub delete_temporary_files {
     # delete all the temporary files
     unlink @$files if $files;
-}
-
-END {
-    delete_temporary_files();
     $files = [];
 }
 
+END {
+    delete_temporary_files();  
+}
 
-main() unless caller();
+
+main(@ARGV) unless caller();
 
