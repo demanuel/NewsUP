@@ -144,11 +144,10 @@ sub upload_files {
 
     my @articles     = ();
     my $i            = 1;
-    my @files        = $options->{NFO} ? (@$files, $options->{NFO}) : @$files;
-    my $total_files  = @files;
+    my $total_files  = @$files;
     my $total_upload = 0;
 
-    for my $file (@files) {
+    for my $file (@$files) {
         my $file_size   = -s $file;
         my $total_parts = ceil($file_size / $options->{UPLOAD_SIZE});
         $total_upload += $file_size;
@@ -242,7 +241,7 @@ sub multiplexer {
     my $to_post            = $number_of_articles;
     my %article_table      = ();
     my $posted             = 0;
-    my $upload_queue            = 0;
+    my $upload_queue       = 0;
     print_progress(0, $progress_total, 0);
     do {
         for my $socket ($select->can_read(0)) {
@@ -256,7 +255,7 @@ sub multiplexer {
                     print STDERR ": $read" if $read;
                     print STDERR "\n";
                     die "Stopping download! Please check the error message above!\n" if $read =~ /^4|5/;
-                    
+
                     if (!connection_is_alive($socket)) {
                         print STDERR "Starting a new connection!\n";
                         $select->remove($socket);
@@ -461,7 +460,7 @@ sub delete_temporary_files {
 }
 
 END {
-    delete_temporary_files();  
+    delete_temporary_files();
 }
 
 

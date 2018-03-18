@@ -113,6 +113,7 @@ sub read_options {
     $options{UPLOAD_NZB}              //= 0;
 
     croak '--nfo option is incompatible with obfuscation' if $options{NFO} && $options{OBFUSCATE};
+    croak "NFO file $options{NFO} doesn't exist" if !-f $options{NFO};
 
     %options = %{update_file_settings(\%options)};
 
@@ -144,7 +145,7 @@ sub read_options {
 }
 
 sub print_progress {
-    my ($got, $total, $wait) = @_; 
+    my ($got, $total, $wait) = @_;
     local $\;
     print "U:$got T:$total Q:$wait\r";
 }
@@ -364,6 +365,11 @@ sub _copy_files_to_temp {
 
 sub _par_files {
     my ($files, $options) = @_;
+
+    # Add the NFO in this step
+    if ($options->{NFO}) {
+        $files = _copy_files_to_temp([$options->{NFO}], $options);
+    }
 
     my $cmd = sprintf(
         '%s %s %s "%s"',
