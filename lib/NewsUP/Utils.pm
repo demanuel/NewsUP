@@ -283,10 +283,10 @@ sub save_nzb {
 
     my $nzb_file = catfile($options->{NZB_SAVE_PATH}, $options->{NAME} // $options->{NZB_FILE});
     $nzb_file .= '.nzb' if $nzb_file !~ /\.nzb$/;
-    say "$nzb_file";
     open my $fh, '>:raw', $nzb_file or die "Unable to create the NZB: $!";
     print $fh $nzb->serialize;
     close $fh;
+    say "created nzb $nzb_file";
     return $nzb_file;
 }
 
