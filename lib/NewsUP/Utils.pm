@@ -147,7 +147,7 @@ sub read_options {
 sub print_progress {
     my ($got, $total, $wait) = @_;
     local $\;
-    print "U:$got T:$total Q:$wait\r";
+    print "U:$got Q:$wait T:$total\r";
 }
 
 
