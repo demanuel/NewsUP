@@ -14,7 +14,7 @@ use File::Spec::Functions;
 use Time::HiRes qw(gettimeofday tv_interval alarm);
 use NewsUP::Utils
   qw (read_options generate_random_ids save_nzb get_random_array_elements find_files update_file_settings );
-use List::Util qw(min);
+use List::Util qw(min max);
 use Carp;
 
 $\ = "\x0D\x0A";
@@ -290,7 +290,7 @@ sub multiplexer {
 
             }
             elsif ($status == 3) {
-                print_progress_short(++$progress_current, $upload_queue--);
+                print_progress(++$progress_current, $upload_queue--, $progress_total);
                 $connection_status{$socketId} = 0;
                 my $read = <$socket>;
                 if ($read && $read =~ /^240/) {
@@ -377,13 +377,6 @@ sub print_progress {
     my ($got, $wait, $total) = @_;
     local $\;
     print "U:$got Q:$wait T:$total\r";
-}
-
-sub print_progress_short {
-    my ($got, $wait) = @_;
-    local $\;
-    print "U:$got Q:$wait\r";
-
 }
 
 sub authenticate {
