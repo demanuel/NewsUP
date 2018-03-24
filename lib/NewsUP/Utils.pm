@@ -38,7 +38,7 @@ sub read_options {
         'help'                         => sub { help(); },
         'debug!'                       => \$options{DEBUG},
         'file=s@'                      => \$options{FILES},
-        'filelist=s'                   => \$options{FILELIST},
+        'list=s'                       => \$options{LIST},
         'nfo=s'                        => \$options{NFO},
         'configuration=s'              => \$CONFIGURATION_FILE,
         'uploadsize=i'                 => \$options{UPLOAD_SIZE},

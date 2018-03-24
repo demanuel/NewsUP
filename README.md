@@ -51,7 +51,7 @@ If you have a nfo file:
 $ perl newsup.pl -file my_file -con 2 -news alt.binaries.test -nfo nfo_file
 
 If you have a bunch of files and you don't want to keep launching the newsup process:
-$perl newsup.pl -filelist my_list -con 2 -news alt.binaries.test
+$perl newsup.pl -list my_list -con 2 -news alt.binaries.test
 
 The my_list file must have one file/folder per line.
 
@@ -141,7 +141,7 @@ par2_redundancy = 15
 ## Command line options
 - help 
 - file # string
-- filelist # string
+- list # string
 - uploadsize # integer
 - obfuscate # integer
 - newsgroup|group # string

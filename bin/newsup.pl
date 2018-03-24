@@ -42,8 +42,8 @@ sub controller {
 
     }
 
-    if ($options->{FILELIST}) {
-        open my $ifh, '<', $options->{FILELIST} or die "Unable to open the file defined in filelist option: $!";
+    if ($options->{LIST}) {
+        open my $ifh, '<', $options->{LIST} or die "Unable to open the file defined in list option: $!";
         while (defined(my $line = <$ifh>)) {
             delete_temporary_files();
             chomp $line;
