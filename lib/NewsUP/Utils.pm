@@ -112,7 +112,7 @@ sub read_options {
     $options{UPLOAD_NZB}              //= 0;
 
     croak '--nfo option is incompatible with obfuscation' if $options{NFO} && $options{OBFUSCATE};
-    croak "NFO file $options{NFO} doesn't exist" if !-f $options{NFO};
+    croak "NFO file $options{NFO} doesn't exist" if $options{NFO} && !-f $options{NFO};
 
     %options = %{update_file_settings(\%options)};
 
