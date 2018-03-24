@@ -13,7 +13,7 @@ use Scalar::Util qw(refaddr);
 use File::Spec::Functions;
 use Time::HiRes qw(gettimeofday tv_interval alarm);
 use NewsUP::Utils
-  qw (read_options generate_random_ids save_nzb get_random_array_elements find_files print_progress update_file_settings );
+  qw (read_options generate_random_ids save_nzb get_random_array_elements find_files update_file_settings );
 use List::Util qw(min);
 use Carp;
 
@@ -242,7 +242,7 @@ sub multiplexer {
     my %article_table      = ();
     my $posted             = 0;
     my $upload_queue       = 0;
-    print_progress(0, $progress_total, 0);
+    print_progress(0, 0, $progress_total);
     do {
         for my $socket ($select->can_read(0)) {
             my $socketId = refaddr $socket;
@@ -281,6 +281,7 @@ sub multiplexer {
                         $select->add($new_socket);
                         $connection_status{refaddr $new_socket} = 0;
                     }
+                    print_progress($progress_current, $upload_queue, $progress_total);
 
                 }
                 else {
@@ -289,7 +290,7 @@ sub multiplexer {
 
             }
             elsif ($status == 3) {
-                print_progress ++$progress_current, $progress_total, $upload_queue--;
+                print_progress_short(++$progress_current, $upload_queue--);
                 $connection_status{$socketId} = 0;
                 my $read = <$socket>;
                 if ($read && $read =~ /^240/) {
@@ -335,6 +336,7 @@ sub multiplexer {
                         print STDERR "Article posting failed: $read";
                         die "Stopping download! Please check the error message above!\n" if $read =~ /^4|5/;
                     }
+                    print_progress($progress_current, $upload_queue, $progress_total);
                 }
             }
         }
@@ -368,6 +370,20 @@ sub multiplexer {
         $_->shutdown(2);
         $_->close();
     }
+}
+
+
+sub print_progress {
+    my ($got, $wait, $total) = @_;
+    local $\;
+    print "U:$got Q:$wait T:$total\r";
+}
+
+sub print_progress_short {
+    my ($got, $wait) = @_;
+    local $\;
+    print "U:$got Q:$wait\r";
+
 }
 
 sub authenticate {

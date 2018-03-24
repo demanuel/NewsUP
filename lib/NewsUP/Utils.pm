@@ -26,7 +26,6 @@ our @EXPORT = qw(
   get_random_array_elements
   find_files
   compress_files
-  print_progress
   update_file_settings
 );
 
@@ -143,13 +142,6 @@ sub read_options {
 
     return \%options;
 }
-
-sub print_progress {
-    my ($got, $total, $wait) = @_;
-    local $\;
-    print "U:$got Q:$wait T:$total\r";
-}
-
 
 sub update_file_settings {
 
