@@ -330,7 +330,7 @@ sub _generate_random_uploader {
     return
         generate_random_string(8) . ' <'
       . generate_random_string(int(25)) . '@'
-      . generate_random_string(1 + int(rand(2))) . '>';
+      . generate_random_string(1 + int(rand(2)),1) . '>';
 }
 
 1;
