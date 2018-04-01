@@ -242,7 +242,7 @@ sub multiplexer {
     my %article_table      = ();
     my $posted             = 0;
     my $upload_queue       = 0;
-    print_progress(0, 0, $progress_total);
+    print_progress(0, $progress_total);
     do {
         for my $socket ($select->can_read(0)) {
             my $socketId = refaddr $socket;
@@ -281,8 +281,6 @@ sub multiplexer {
                         $select->add($new_socket);
                         $connection_status{refaddr $new_socket} = 0;
                     }
-                    print_progress($progress_current, $upload_queue, $progress_total);
-
                 }
                 else {
                     $connection_status{$socketId} = 2;
@@ -290,7 +288,8 @@ sub multiplexer {
 
             }
             elsif ($status == 3) {
-                print_progress(++$progress_current, $upload_queue--, $progress_total);
+                $upload_queue--;
+                print_progress(++$progress_current, $progress_total);
                 $connection_status{$socketId} = 0;
                 my $read = <$socket>;
                 if ($read && $read =~ /^240/) {
@@ -336,7 +335,6 @@ sub multiplexer {
                         print STDERR "Article posting failed: $read";
                         die "Stopping download! Please check the error message above!\n" if $read =~ /^4|5/;
                     }
-                    print_progress($progress_current, $upload_queue, $progress_total);
                 }
             }
         }
@@ -374,9 +372,9 @@ sub multiplexer {
 
 
 sub print_progress {
-    my ($got, $wait, $total) = @_;
+    my ($got, $total) = @_;
     local $\;
-    print "U:$got Q:$wait T:$total\r";
+    print "$got/$total\r";
 }
 
 sub authenticate {
