@@ -523,13 +523,20 @@ sub generate_random_string {
 }
 
 sub generate_random_ids {
-    my ($how_many)        = @_;
+    my ($how_many, $options) = @_;
     my %ids               = ();
-    my @random_generators = (
-        \&_generate_random_id,           \&_generate_random_id_gopoststuff, \&_generate_random_id_newsmangler,
-        \&_generate_random_ids_newsup,   \&_generate_random_ids_nyuu,       \&_generate_random_ids_jbinup,
-        \&_generate_random_ids_jbindown, \&_generate_random_ids_powerpost
-    );
+    my @random_generators = (\&_generate_random_ids_newsup);
+    push @random_generators,
+      (
+        \&_generate_random_id,       \&_generate_random_id_gopoststuff, \&_generate_random_id_newsmangler,
+        \&_generate_random_ids_nyuu, \&_generate_random_ids_jbinup,     \&_generate_random_ids_jbindown,
+        \&_generate_random_ids_powerpost
+      ) if $options->{OBFUSCATE};
+    # my @random_generators = (
+    #     \&_generate_random_id,           \&_generate_random_id_gopoststuff, \&_generate_random_id_newsmangler,
+    #     \&_generate_random_ids_newsup,   \&_generate_random_ids_nyuu,       \&_generate_random_ids_jbinup,
+    #     \&_generate_random_ids_jbindown, \&_generate_random_ids_powerpost
+    # );
     while ($how_many--) {
         while (1) {
             my $id = $random_generators[int(rand(scalar @random_generators))]->(gettimeofday());

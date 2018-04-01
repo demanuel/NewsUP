@@ -151,7 +151,7 @@ sub upload_files {
         my $file_size   = -s $file;
         my $total_parts = ceil($file_size / $options->{UPLOAD_SIZE});
         $total_upload += $file_size;
-        my $ids = generate_random_ids($total_parts) if $options->{GENERATE_IDS} || $options->{OBFUSCATE};
+        my $ids = generate_random_ids($total_parts, $options) if $options->{GENERATE_IDS} || $options->{OBFUSCATE};
         for (my $part = 1; $part <= $total_parts; $part++) {
             my $article = NewsUP::Article->new(
                 newsgroups => $options->{OBFUSCATE} ?
@@ -191,10 +191,10 @@ sub upload_files {
 
     if ($options->{UPLOAD_NZB}) {
         print "Uploading NZB";
-        my $file_size   = -s $nzb_file;
+        my $file_size = -s $nzb_file;
         my $total_parts = ceil($file_size / (750 * 1024));
-        my $ids         = generate_random_ids($total_parts) if $options->{GENERATE_IDS} || $options->{OBFUSCATE};
-        my @articles    = ();
+        my $ids      = generate_random_ids($total_parts, $options) if $options->{GENERATE_IDS} || $options->{OBFUSCATE};
+        my @articles = ();
         for (my $part = 1; $part <= $total_parts; $part++) {
             my $article = NewsUP::Article->new(
                 newsgroups => $options->{OBFUSCATE} ?
