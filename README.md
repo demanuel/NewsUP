@@ -119,22 +119,27 @@ from= test
 
 
 [options]
-rarnpar= 1
-rar_password=newsup
+splitnpar= 1
+# Command that will be used to generate the splitted files
+# For rar files use:
+# rar a -m0 -v50m -ed -ep1
+split_cmd = 7z a -mx0 -v50m -t7z --
+# pattern of the files generated with the split_cmd.
+# If splitnpar is set to 1, these are the files that
+# are going to be uploaded.
+# For rar files use: 
+# *rar
+split_pattern = *7z *[0-9][0-9][0-9]
+par2 = 1
 # full path to par2 executable
 par2_path = par2
-# full path to rar executable
-rar_path = rar
+# this will be used if you use the obfuscation option
+par2_rename_settings = c -s768000 -r0
+par2_settings = c -s768000 -r15
 temp_folder = /data/tmp
 # if the nzb is also uploaded
-upload_nzb = 1
-# The size of the split rars
-split_size = 50
+upload_nzb = 1 
 nzb_save_path = /data/uploads/
-# enable or disable the par'ing
-par2 = 0
-# redundancy in %
-par2_redundancy = 15
 
 ```
 
@@ -167,12 +172,10 @@ par2_redundancy = 15
 - nzb # string
 - unzb
 - nzbSavePath # string
-- rarnpar
-- rarPassword # string
-- splitSize # integer
+- splitnpar # negatable
+- par2 # negatable
 - headers # string in the form key=val
 - name # string
-- progressBarSize # integer
 - tempFolder # string
 - nfo #string
 

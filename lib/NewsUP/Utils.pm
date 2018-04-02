@@ -70,7 +70,6 @@ sub read_options {
         'par2!'                        => \$options{PAR2},
         'headers=s%'                   => \$options{HEADERS},
         'name=s'                       => \$options{NAME},
-        'progressBarSize=i'            => \$options{PROGRESSBAR_SIZE},
         'tempFolder=s'                 => \$options{TEMP_FOLDER});
 
     my $config = {};
