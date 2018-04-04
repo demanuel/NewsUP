@@ -329,8 +329,8 @@ sub message {
 sub _generate_random_uploader {
     return
         generate_random_string(8) . ' <'
-      . generate_random_string(int(25)) . '@'
-      . generate_random_string(1 + int(rand(2)), 1) . '>';
+      . generate_random_string(int(rand(18))) . '@'
+      . generate_random_string(1 + int(rand(6))) . '.'
+      . generate_random_string(1 + int(rand(3))) . '>';
 }
-
 1;

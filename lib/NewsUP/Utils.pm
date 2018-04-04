@@ -512,12 +512,40 @@ sub _create_renaming_par_from_folder {
     return \@files, catfile($folder, 'rename.with.this.par2');
 }
 
+# Avoid two consecutive symbols
+# A string must not start or end in symbol
 sub generate_random_string {
     my ($length, $alphan) = @_;
     my @allowedCharacters = ('0' .. '9', 'A' .. 'Z', 'a' .. 'z');
-    push @allowedCharacters, ('-', '_', '.', '$') if !$alphan;
-    my $string = '';
-    $string .= $allowedCharacters[rand(@allowedCharacters)] while ($length--);
+
+    my $string = $allowedCharacters[rand(@allowedCharacters)];
+    $length -= 2;
+    $length = 0 if $length < 0;
+
+    # avoid two consecutive alpha chars
+    unless ($alphan) {
+        my %alpha_chars = ('-' => 1, '_' => 1, '.' => 1, '$' => 1);
+        my @set_allowed = (@allowedCharacters, keys %alpha_chars);
+
+        my ($previous_char, $current_char) = ('', '');
+
+        while ($length--) {
+            do {
+                $current_char = $allowedCharacters[rand(@set_allowed)];
+            } while (exists $alpha_chars{$current_char} && exists $alpha_chars{$previous_char});
+            $string .= $current_char;
+            $previous_char = $current_char;
+        }
+
+        $string .= $allowedCharacters[rand(@allowedCharacters)];
+
+    }
+    else {
+
+        $string .= $allowedCharacters[rand(@allowedCharacters)] while ($length--);
+    }
+
+    $string .= $allowedCharacters[rand(@allowedCharacters)];
     return $string;
 }
 
