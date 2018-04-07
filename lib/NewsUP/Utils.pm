@@ -29,13 +29,14 @@ our @EXPORT = qw(
   update_file_settings
 );
 
-
+our $VERSION = 2018_04_07_19_36;
 our $CONFIGURATION_FILE = catfile($ENV{HOME}, '.config', 'newsup.conf');
 
 sub read_options {
     my %options = (DEBUG => 0);
     GetOptions(
         'help'                         => sub { help(); },
+        'version'                      => sub { version(); },
         'debug!'                       => \$options{DEBUG},
         'file=s@'                      => \$options{FILES},
         'list=s'                       => \$options{LIST},
@@ -164,9 +165,12 @@ sub update_file_settings {
     return $options;
 }
 
-sub help {
+sub version {
+    my $year = (localtime())[5]+1900;
     say <<"END";
-    Copyright (C) 2018 David Santiago
+    NewsUP $VERSION
+    
+    Copyright (C) $year David Santiago
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -179,10 +183,61 @@ sub help {
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.    
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    
 END
+
     _exit 0;
 }
+
+sub help {
+
+    say <<'END';
+    Usage: newsup [options] --file <file1>
+
+    Options available:
+        --help                         => Print this help message
+        --version                      => Prints the version
+        --debug!                       => Prints debug information
+        --file=s@                      => Files to upload
+        --list=s                       => Text file with one file per line to be uploaded
+        --nfo=s                        => File to be uploaded but not included in the compressed files
+        --configuration=s              => Configuration file
+        --uploadsize=i                 => Size of the upload message. By default 750KBytes. Unless you know what you are doing do not change!
+        --obfuscate!                   => Enable obfuscation. Tip: If this is set, some options that might conflict with the obfuscation are ignored
+        --newsgroup|group=s@           => Groups to where the files are going to be uploaded
+        --username=s                   => Username for authentication in the USP
+        --password=s                   => Password to be used in the authentication
+        --connections=i                => Number of connections to be used. Tip: use the minimal value that saturates your connection
+        --server=s                     => Server to upload your files
+        --port=i                       => Port in the server to where you are uploading the files
+        --TLS!                         => If you want to use secure sockets when connecting to the USP
+        --generateIDs!                 => If NewsUP should create IDs or not. Some servers require the client to use IDs. If possible do not use it
+        --ignoreCert!                  => Ignore the usenet server certificate
+        --headerCheck!                 => Perform headercheck
+        --headerCheckServer=s          => Server to perform the header check. By default it is the same server to where the files were uploaded
+        --headerCheckPort=i            => Port of the server where the header check is being done. By default it is the same port to where the files were uploaded
+        --headerCheckRetries|retries=i => Number of retries to perform the headercheck, after which it will ignore
+        --headerCheckSleep=i           => Number of seconds to sleep between the upload and the headercheck and the headercheck retries
+        --headerCheckUsername=s        => Username for authentication in the headercheck USP. By default it is the same as the normal username
+        --headerCheckPassword=s        => Password for authentication in the headercheck USP. By default it is the same as the normal password
+        --headerCheckConnections=i     => Number of connections to use when doing the headercheck
+        --comment=s@                   => Comment to be added to the uploaded files. The user can specify two
+        --uploader=s                   => From who the post is from. It needs to be compliance with internet syntax
+        --metadata=s%                  => Metadata to be added in the nzb
+        --nzb=s                        => The name of the NZB to be created. By default is the name option or if not set the name of the uploaded file
+        --unzb!                        => If the nzb created should also be uploaded
+        --nzbSavePath=s                => To where the nzb should be saved
+        --splitnpar!                   => If newsup should split and/or par the files before upload. You need to set some options correctly in the config file to use this feature
+        --par2!                        => If newsup should par the files before upload
+        --headers=s%                   => Headers to be added to the post
+        --name=s                       => Name of the upload
+        --tempFolder=s                 => Path to a temporary folder, to where newsup is going to copy the files to be uploaded and which newsup is going to perform the require operations.
+
+END
+    exit 0;
+}
+
 
 sub save_nzb {
     my ($options, $articles) = @_;
