@@ -531,7 +531,7 @@ sub generate_random_string {
 
         while ($length--) {
             do {
-                $current_char = $allowedCharacters[rand(@set_allowed)];
+                $current_char = $set_allowed[rand(@set_allowed)];
             } while (exists $alpha_chars{$current_char} && exists $alpha_chars{$previous_char});
             $string .= $current_char;
             $previous_char = $current_char;
