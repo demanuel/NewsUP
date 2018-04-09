@@ -30,7 +30,7 @@ our @EXPORT = qw(
 );
 
 our $VERSION = 2018_04_07_19_36;
-our $CONFIGURATION_FILE = catfile($ENV{HOME}, '.config', 'newsup.conf');
+our $CONFIGURATION_FILE = catfile(($^O eq 'MSWin32' ? $ENV{"USERPROFILE"} : $ENV{HOME}), '.config', 'newsup.conf');
 
 sub read_options {
     my %options = (DEBUG => 0);
@@ -166,7 +166,7 @@ sub update_file_settings {
 }
 
 sub version {
-    my $year = (localtime())[5]+1900;
+    my $year = (localtime())[5] + 1900;
     say <<"END";
     NewsUP $VERSION
     
