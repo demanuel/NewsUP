@@ -35,6 +35,7 @@ A NZB file will be generated for later retrieving.
 * Obfuscation
 * RAR creation (you need *rar* command in your path)
 * PAR2 creation (you need *par2cmdline* command in your path)
+* Multiple nzb checking
 
 # Requirements:
 * Perl (preferably 5.020 or higher)
@@ -51,9 +52,14 @@ If you have a nfo file:
 $ perl newsup.pl -file my_file -con 2 -news alt.binaries.test -nfo nfo_file
 
 If you have a bunch of files and you don't want to keep launching the newsup process:
-$perl newsup.pl -list my_list -con 2 -news alt.binaries.test
+$ perl newsup.pl -list my_list -con 2 -news alt.binaries.test
 
 The my_list file must have one file/folder per line.
+
+If you want to check the status of a nzb:
+$ perl newsup.pl -check my_nzb.nzb
+
+In this example it will use the headercheck server settings defined in the config file.
 
 
 # Advanced

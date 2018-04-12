@@ -38,6 +38,7 @@ sub read_options {
         'help'                         => sub { help(); },
         'version'                      => sub { version(); },
         'debug!'                       => \$options{DEBUG},
+        'checkNZB=s@'                  => \$options{CHECK_NZB},
         'file=s@'                      => \$options{FILES},
         'list=s'                       => \$options{LIST},
         'nfo=s'                        => \$options{NFO},
@@ -199,6 +200,7 @@ sub help {
         --help                         => Print this help message
         --version                      => Prints the version
         --debug!                       => Prints debug information
+        --checkNZB=s@                  => Checks the status of the NZB files
         --file=s@                      => Files to upload
         --list=s                       => Text file with one file per line to be uploaded
         --nfo=s                        => File to be uploaded but not included in the compressed files

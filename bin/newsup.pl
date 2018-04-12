@@ -5,7 +5,7 @@ use utf8;
 use FindBin qw($Bin);
 use lib "$Bin/../lib";
 use NewsUP::Article;
-use Socket qw(SO_SNDBUF SO_RCVBUF TCP_NODELAY SO_KEEPALIVE);
+use Socket qw(SO_SNDBUF SO_RCVBUF TCP_NODELAY SO_KEEPALIVE :crlf);
 use POSIX qw(ceil);
 use IO::Socket::SSL;
 use IO::Select;
@@ -17,7 +17,8 @@ use NewsUP::Utils
 use List::Util qw(min max);
 use Carp;
 
-$\ = "\x0D\x0A";
+$\ = $CRLF;
+$/ = $LF;
 $, = undef;
 
 BEGIN {
@@ -33,6 +34,10 @@ sub main {
 
 sub controller {
     my ($options) = @_;
+
+    if ($options->{CHECK_NZB}) {
+        verify_nzb($options);
+    }
 
     if ($options->{FILES}) {
         $files = find_files($options);
@@ -57,6 +62,128 @@ sub controller {
         close $ifh;
     }
 
+}
+
+sub verify_nzb {
+    my ($options) = @_;
+
+    my %aggregate_stats = ();
+
+    my $select = IO::Select->new(
+        @{
+            authenticate(
+                $options->{HEADERCHECK_AUTH_USER},
+                $options->{HEADERCHECK_AUTH_PASS},
+                get_connections(
+                    $options->{HEADERCHECK_CONNECTIONS}, $options->{HEADERCHECK_SERVER},
+                    $options->{HEADERCHECK_SERVER_PORT}, $options->{TLS},
+                    $options->{TLS_IGNORE_CERTIFICATE}))});
+
+    for my $nzb (@{$options->{CHECK_NZB}}) {
+        if (-f $nzb) {
+            my @file_stats         = ();
+            my $total_completeness = 0;
+            my $files_in_nzb       = 0;
+            my %nzb_stats          = %{multiplexer_nzb_verification($select, $nzb)};
+            while (my ($key, $value) = each %nzb_stats) {
+                push @file_stats, [$key, $value];
+                $total_completeness += $value;
+                $files_in_nzb++;
+            }
+            $aggregate_stats{$nzb} = [int($total_completeness / ($files_in_nzb || 1)), \@file_stats];
+        }
+        else {
+            warn "$nzb isn't a valid file!";
+        }
+    }
+    while (my ($key, $value) = each %aggregate_stats) {
+        say "$key [$value->[0]% available]";
+        if (@{$options->{CHECK_NZB}} < 2 && $value->[1]) {
+            say "\t@{[$_->[0]]} @{[$_->[1]]}%" for (sort { $a->[0] cmp $b->[0] } @{$value->[1]});
+        }
+    }
+    for ($select->handles()) {
+        print $_ "quit";
+        $_->shutdown(2);
+        $_->close();
+    }
+}
+
+sub multiplexer_nzb_verification {
+    my ($select, $nzb) = @_;
+    my $parser        = XML::LibXML->new();
+    my $doc           = $parser->parse_file($nzb);
+    my $current_group = '';
+    my %stats         = ();
+    my %sockets       = map { refaddr $_ => 0 } $select->handles;
+
+    for my $file (@{$doc->getElementsByTagName("file")}) {
+        my $group = $file->getElementsByTagName('group')->[0]->textContent;
+
+        {
+            local $\;
+            print "Changing to group $group\r";
+        }
+        my $read = '';
+        if ($group ne $current_group) {
+            for my $socket ($select->handles) {
+                print $socket "group $group";
+                $read = <$socket>;
+            }
+            $current_group = $group;
+        }
+        my $subject = $file->getAttribute('subject');
+
+        my $filename = $subject;
+        my @segments = @{$file->getElementsByTagName('segment')};
+
+        my $correct_segments = @segments;
+        my $total_segments   = @segments;
+        if ($subject =~ /"(.*)"\s.*\(1\/(\d+)\)/i) {
+            $filename         = $1;
+            $correct_segments = $2;
+        }
+        elsif ($subject =~ /\"(.*?)\"/) {
+            $filename = $1;
+        }
+        {
+            local $\;
+            print "Checking $filename" . (' ' x 20) . "\r";
+
+        }
+
+        if ($correct_segments != $total_segments) {
+            $stats{$filename} = [int(($total_segments / $correct_segments) * 100.0), []];
+            next;
+        }
+
+        my ($counter_ok, $counter_fail) = (0, 0);
+        do {
+            for my $socket ($select->can_write(0.125)) {
+                last unless @segments;
+                next if $sockets{refaddr $socket};
+                my $segment = shift @segments;
+                my $mid     = $segment->textContent;
+                print $socket "stat <$mid>";
+                $sockets{refaddr $socket} = 1;
+            }
+            for my $socket ($select->can_read(0.125)) {
+                last if $counter_fail + $counter_ok == $total_segments;
+                next unless $sockets{refaddr $socket};
+                $read = <$socket>;
+                if ($read && $read =~ /^223/) {
+                    $counter_ok++;
+                }
+                else {
+                    $counter_fail++;
+                }
+                $sockets{refaddr $socket} = 0;
+            }
+        } until ($counter_fail + $counter_ok == $total_segments);
+        $stats{$filename} = int($counter_ok / $total_segments * 100);
+    }
+
+    return \%stats;
 }
 
 sub header_check {
