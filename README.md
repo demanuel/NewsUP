@@ -153,6 +153,7 @@ nzb_save_path = /data/uploads/
 - help 
 - file # string
 - list # string
+- checkNZB # string
 - uploadsize # integer
 - obfuscate # integer
 - newsgroup|group # string
