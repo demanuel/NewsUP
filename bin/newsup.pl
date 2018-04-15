@@ -44,7 +44,6 @@ sub controller {
         # All the files are now temporary files
         my $articles = upload_files($options, $files);
         header_check($options, $articles) if ($options->{HEADERCHECK});
-
     }
 
     if ($options->{LIST}) {
@@ -61,7 +60,6 @@ sub controller {
         }
         close $ifh;
     }
-
 }
 
 sub verify_nzb {
@@ -310,8 +308,7 @@ sub upload_files {
       . int($elapsed)
       . " seconds. Avg. Speed: "
       . int($total_upload / 1024 / $elapsed)
-      . " KBytes/second"
-      . ' ' x $options->{PROGRESSBAR_SIZE};
+      . " KBytes/second";
 
 
     my $nzb_file = save_nzb($options, \@articles);
