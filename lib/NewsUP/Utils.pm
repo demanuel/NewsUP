@@ -161,7 +161,9 @@ sub update_file_settings {
     }
     if ($options->{SPLITNPAR} && !$options->{NAME}) {
         if ($options->{FILES} && @{$options->{FILES}} == 1) {
-            $options->{NAME} = (fileparse($options->{FILES}[0], qr/\.[^.]*/))[0];
+            my $file = $options->{FILES}[0];
+            use File::Spec;
+            $options->{NAME} = (File::Spec->splitpath($file))[-1];
             $options->{NZB_FILE} //= $options->{NAME} . '.nzb';
         }
     }
