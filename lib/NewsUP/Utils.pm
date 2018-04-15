@@ -147,6 +147,9 @@ sub read_options {
 sub update_file_settings {
 
     my ($options) = @_;
+    for my $f (@{$options->{FILES}}) {
+        chop $f if $f =~ m#/$#;
+    }
 
     if ($options->{UPLOAD_NZB} && !$options->{NZB_FILE}) {
         if ($options->{NAME}) {
