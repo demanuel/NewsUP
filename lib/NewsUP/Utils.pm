@@ -459,6 +459,8 @@ sub _split_files {
     }
     elsif ($options->{NAME}) {
         $split_name = $options->{NAME};
+        (split(/\s/, $options->{SPLIT_PATTERN}))[0] =~ m/([a-zA-Z0-9]+)$/;
+        $split_name .= ".$1";
         my $test_split_name = catfile($options->{TEMP_FOLDER}, $split_name);
         for (@{_return_all_files_in_folder($options->{TEMP_FOLDER})}) {
             if ($test_split_name eq $_) {
@@ -471,13 +473,11 @@ sub _split_files {
         $split_name = generate_random_string(12, 1);
     }
 
-
     my $cmd = sprintf('%s "%s" "%s"',
         $options->{SPLIT_CMD},
         catfile($options->{TEMP_FOLDER}, $split_name),
         join('" "', glob(catfile($options->{TEMP_FOLDER}, '*'))));
     qx/$cmd/;
-
     my %f = ();
     for my $pat (split(/\s/, $options->{SPLIT_PATTERN})) {
         for (glob(catfile($options->{TEMP_FOLDER}, $pat))) {
