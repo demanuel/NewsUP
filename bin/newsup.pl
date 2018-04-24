@@ -378,7 +378,7 @@ sub multiplexer {
                     print STDERR 'Sending article failed';
                     print STDERR ": $read" if $read;
                     print STDERR "\n";
-                    die "Stopping download! Please check the error message above!\n" if $read =~ /^4|5/;
+                    die "Stopping download! Please check the error message above!\n" if $read && $read =~ /^4|5/;
 
                     if (!connection_is_alive($socket)) {
                         print STDERR "Starting a new connection!\n";
