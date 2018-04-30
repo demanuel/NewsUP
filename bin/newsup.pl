@@ -39,7 +39,7 @@ sub controller {
         verify_nzb($options);
     }
 
-    if ($options->{FILES}) {
+    if (@{$options->{FILES}}) {
         $files = find_files($options);
         # All the files are now temporary files
         my $articles = upload_files($options, $files);
@@ -77,6 +77,7 @@ sub verify_nzb {
                     $options->{HEADERCHECK_SERVER_PORT}, $options->{TLS},
                     $options->{TLS_IGNORE_CERTIFICATE}))});
 
+    my $date = 0;
     for my $nzb (@{$options->{CHECK_NZB}}) {
         if (-f $nzb) {
             my @file_stats         = ();
@@ -84,8 +85,9 @@ sub verify_nzb {
             my $files_in_nzb       = 0;
             my %nzb_stats          = %{multiplexer_nzb_verification($select, $nzb)};
             while (my ($key, $value) = each %nzb_stats) {
-                push @file_stats, [$key, $value];
-                $total_completeness += $value;
+                push @file_stats, [$key, $value->[0]];
+                $date = $value->[1] unless $date;
+                $total_completeness += $value->[0];
                 $files_in_nzb++;
             }
             $aggregate_stats{$nzb} = [int($total_completeness / ($files_in_nzb || 1)), \@file_stats];
@@ -95,7 +97,7 @@ sub verify_nzb {
         }
     }
     while (my ($key, $value) = each %aggregate_stats) {
-        say "$key [$value->[0]% available]";
+        say "$key [uploaded at $date is $value->[0]% available]";
         if (@{$options->{CHECK_NZB}} < 2 && $value->[1]) {
             say "\t@{[$_->[0]]} @{[$_->[1]]}%" for (sort { $a->[0] cmp $b->[0] } @{$value->[1]});
         }
@@ -115,6 +117,7 @@ sub multiplexer_nzb_verification {
     my %stats         = ();
     my %sockets       = map { refaddr $_ => 0 } $select->handles;
 
+    my $date;
     for my $file (@{$doc->getElementsByTagName("file")}) {
         my $group = $file->getElementsByTagName('group')->[0]->textContent;
 
@@ -126,7 +129,7 @@ sub multiplexer_nzb_verification {
         if ($group ne $current_group) {
             for my $socket ($select->handles) {
                 print $socket "group $group";
-                $read = <$socket>;
+                sysread_from_socket($socket);
             }
             $current_group = $group;
         }
@@ -156,21 +159,41 @@ sub multiplexer_nzb_verification {
         }
 
         my ($counter_ok, $counter_fail) = (0, 0);
+
         do {
-            for my $socket ($select->can_write(0.125)) {
+            my ($read_ready, $write_ready, $exception_ready) = IO::Select->select($select, $select, $select, 0.125);
+
+            for my $socket (@$write_ready) {
                 last unless @segments;
+                my $mid = $segments[0]->textContent;
+                unless ($date) {
+                    print $socket "head <$mid>";
+                    $date = 1;
+                    $sockets{refaddr $socket} = 1;
+                    next;
+                }
                 next if $sockets{refaddr $socket};
-                my $segment = shift @segments;
-                my $mid     = $segment->textContent;
+                shift @segments;
                 print $socket "stat <$mid>";
                 $sockets{refaddr $socket} = 1;
             }
-            for my $socket ($select->can_read(0.125)) {
+
+            for my $socket (@$read_ready) {
                 last if $counter_fail + $counter_ok == $total_segments;
                 next unless $sockets{refaddr $socket};
-                $read = <$socket>;
+                $read = sysread_from_socket($socket);
+
                 if ($read && $read =~ /^223/) {
                     $counter_ok++;
+                }
+                elsif ($read && $read =~ /^221/) {
+                    $counter_ok++;
+                    $read =~ /Date: \w+, (\d+\s\w+\s\d+).*$CRLF/;
+                    $date = '20' . join(' ', reverse split /\s/, $1);
+                }
+                elsif ($read && $read =~ /^430/) {
+                    $date = 0;
+                    $counter_fail++;
                 }
                 else {
                     $counter_fail++;
@@ -178,7 +201,7 @@ sub multiplexer_nzb_verification {
                 $sockets{refaddr $socket} = 0;
             }
         } until ($counter_fail + $counter_ok == $total_segments);
-        $stats{$filename} = int($counter_ok / $total_segments * 100);
+        $stats{$filename} = [int($counter_ok / $total_segments * 100), $date];
     }
 
     return \%stats;
@@ -521,15 +544,64 @@ sub authenticate {
     return $connections;
 }
 
+# because we're using select, we need to use sysread/syswrite
 sub read_socket {
     my ($socket, $message, $function) = @_;
-    if (defined(my $read = <$socket>)) {
+    if (defined(my $read = sysread_from_socket($socket))) {
         if ($function) {
             $function->($read);
         }
         return $read;
     }
 }
+
+sub sysread_from_socket {
+    my ($socket) = @_;
+    my $output = '';
+
+    while (1) {
+        my $status = sysread($socket, my $buffer, 2048);
+        $output .= $buffer;
+        undef $buffer;
+        if ($output =~ /.$CRLF$/ || $status == 0) {
+            last;
+        }
+        elsif (!defined $status) {
+            die "Error: $!";
+        }
+    }
+
+    return $output;
+}
+
+# sub syswrite_to_socket {
+
+#     my ($socket, @args) = @_;
+#     local $,;
+
+
+#     #Note: using syswrite or print is the same (im assuming if we don't disable nagle's algorithm):
+#     # Network Programming with Perl. Page: 311.
+
+#     for my $arg ((@args, $CRLF)){
+#         my $len = length $arg;
+#         my $offset = 0;
+
+#         while ($len) {
+#             my $written = syswrite($socket, $arg, $len, $offset);
+
+#             return 1 unless($written);
+#             $len -= $written;
+#             $offset += $written;
+#             undef $written;
+#         }
+#     }
+#     undef @args;
+# #Using print
+# # return 0 if (print $socket @args);
+# # return 1;
+
+# }
 
 sub connection_is_alive {
     my ($socket) = @_;
