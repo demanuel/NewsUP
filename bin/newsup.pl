@@ -161,7 +161,7 @@ sub multiplexer_nzb_verification {
         my ($counter_ok, $counter_fail) = (0, 0);
 
         do {
-            my ($read_ready, $write_ready, $exception_ready) = IO::Select->select($select, $select, $select, 0.125);
+            my ($read_ready, $write_ready, undef) = IO::Select->select($select, $select, undef, 0.125);
 
             for my $socket (@$write_ready) {
                 last unless @segments;
@@ -246,7 +246,8 @@ sub header_check_multiplexer {
     my $current_position = 0;
     my %connection_status = map { refaddr $_ => -1 } $select->handles();
     do {
-        for my $socket ($select->can_write(0)) {
+        my ($read_ready, $write_ready, $exception_ready) = IO::Select->select($select, $select, $select, 0.125);
+        for my $socket (@$write_ready) {
             my $key = refaddr $socket;
             last if $current_position > $#$articles;
             if ($connection_status{$key} == -1) {
@@ -258,10 +259,10 @@ sub header_check_multiplexer {
                 $connection_status{$key} = $current_position++;
             }
         }
-        for my $socket ($select->can_read(0)) {
+        for my $socket (@$read_ready) {
             my $key = refaddr $socket;
             if ($connection_status{$key} > -1) {
-                my $read = <$socket>;
+                my $read = sysread_from_socket($socket);
                 chomp $read;
                 # say "'$read'";
                 # say "\t-> ".$articles->[$connection_status{$key}]->message_id();
@@ -391,11 +392,12 @@ sub multiplexer {
     my $upload_queue       = 0;
     print_progress(0, $progress_total);
     do {
-        for my $socket ($select->can_read(0)) {
+        my ($read_ready, $write_ready, $exception_ready) = IO::Select->select($select, $select, $select, 0.125);
+        for my $socket (@$read_ready) {
             my $socketId = refaddr $socket;
             my $status   = $connection_status{$socketId};
             if ($status == 1) {
-                my $read = <$socket>;
+                my $read = sysread_from_socket($socket);
                 if (!$read || $read !~ /^340/) {
                     local $\;
                     print STDERR 'Sending article failed';
@@ -438,7 +440,7 @@ sub multiplexer {
                 $upload_queue--;
                 print_progress(++$progress_current, $progress_total);
                 $connection_status{$socketId} = 0;
-                my $read = <$socket>;
+                my $read = sysread_from_socket($socket);
                 if ($read && $read =~ /^240/) {
                     if ($read =~ /<(.*)>/) {
                         $articles->[$article_table{$socketId}]->message_id($1);
@@ -485,8 +487,7 @@ sub multiplexer {
                 }
             }
         }
-        my @a = $select->can_write();
-        for my $socket ($select->can_write(0)) {
+        for my $socket (@$write_ready) {
             my $socketId = refaddr $socket;
             my $status   = $connection_status{$socketId};
             if ($status == 0) {
@@ -496,8 +497,7 @@ sub multiplexer {
             }
             elsif ($status == 2) {
                 $article_table{$socketId} = $posted++;
-                print $socket @{$articles->[$article_table{$socketId}]->head},
-                  @{$articles->[$article_table{$socketId}]->body};
+                print $socket $articles->[$article_table{$socketId}]->message();
 
                 $connection_status{$socketId} = 3;
                 $upload_queue++;
@@ -574,14 +574,15 @@ sub sysread_from_socket {
     return $output;
 }
 
+
+#Note: using syswrite or print is the same (im assuming if we don't disable nagle's algorithm):
+# Network Programming with Perl. Page: 311.
+# Since using print seems to be faster than this function, i', using print
 # sub syswrite_to_socket {
 
 #     my ($socket, @args) = @_;
 #     local $,;
 
-
-#     #Note: using syswrite or print is the same (im assuming if we don't disable nagle's algorithm):
-#     # Network Programming with Perl. Page: 311.
 
 #     for my $arg ((@args, $CRLF)){
 #         my $len = length $arg;

@@ -54,8 +54,8 @@ sub header_check {
 sub newsgroups {
     my ($self, $newsgroups) = @_;
 
-    $self->{newsgroups} = $newsgroups if $newsgroups;
-    return join(',', @{$self->{newsgroups}});
+    $self->{newsgroups} = join(',', @$newsgroups) if $newsgroups;
+    return $self->{newsgroups};
 }
 
 sub part {
@@ -118,7 +118,6 @@ sub message_id {
           ];
         #};
     }
-
     return $self->{message_id};
 }
 
@@ -278,15 +277,16 @@ sub head {
     if (!$self->{head}) {
         $self->{head} =    #sub {
           [
-            "From: ${\$self->from}$CRLF",
-            "Newsgroups: @{[$self->newsgroups]}$CRLF",
-            "Subject: @{[$self->subject]}$CRLF",
-            $self->headers,
+            "From: $self->from()$CRLF",
+            "Newsgroups: $self->newsgroups()$CRLF",
+            "Subject: $self->subject()$CRLF",
+            $self->headers(),
             "$CRLF",
           ];
         #};
     }
-    return $self->{head};
+
+    return @{$self->{head}};
 }
 
 sub headers {
@@ -311,19 +311,19 @@ sub body {
 # TODO: to be truly obfuscated we need need to break YENC spec. I prefer not to do that. If you want that, replase the first line
 # from the returned array for:
 # =ybegin part=-1 total-2 line=128 size=999999999 name=${\$self->obfuscate_filename}$CRLF
-    return [
+    return (
 "=ybegin part=${\$self->part} total=${\$self->total_parts} line=128 size=${\$self->file_size} name=${\$self->filename}$CRLF",
         "=ypart begin=@{[$self->begin_position+1]} end=${\$self->end_position}$CRLF",
         $encoding->[0],
         $CRLF,
         "=yend size=${\$self->size} pcrc32=$encoding->[1]$CRLF",
         "."
-    ];
+    );
 }
 
 sub message {
     my ($self) = @_;
-    return $self->head, $self->body;
+    return $self->head(), $self->body();
 }
 
 sub _generate_random_uploader {

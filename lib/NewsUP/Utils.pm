@@ -306,7 +306,7 @@ sub save_nzb {
 
         }
         else {
-            my @newsgroups = @{$fileMapping{$filename}->[0]{newsgroups}};
+            my @newsgroups = split(',', $fileMapping{$filename}->[0]{newsgroups});
             for (@newsgroups) {
                 my $groupElement = $dom->createElement('group');
                 $groupElement->appendText($_);
