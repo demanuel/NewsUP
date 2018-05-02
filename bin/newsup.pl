@@ -188,8 +188,9 @@ sub multiplexer_nzb_verification {
                 }
                 elsif ($read && $read =~ /^221/) {
                     $counter_ok++;
-                    $read =~ /Date: \w+, (\d+\s\w+\s\d+).*$CRLF/;
-                    $date = '20' . join(' ', reverse split /\s/, $1);
+                    if ($read =~ /Date: \w+, (\d+\s\w+\s\d+).*$CRLF/) {
+                        $date = '20' . join(' ', reverse split /\s/, $1);
+                    }
                 }
                 elsif ($read && $read =~ /^430/) {
                     $date = 0;
