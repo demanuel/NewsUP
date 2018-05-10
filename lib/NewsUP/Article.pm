@@ -4,9 +4,8 @@ use Data::Dumper;
 use 5.026;
 use NewsUP::yEnc;
 use NewsUP::Utils qw(generate_random_string);
+use Socket ':crlf';
 use File::Basename 'basename';
-
-my $CRLF = "\x0D\x0A";
 
 sub new {
     my ($class, %args) = @_;
@@ -107,16 +106,14 @@ sub message_id {
 
     if ($message_id) {
         $self->{message_id} = $message_id;
-        $self->{head} =    #sub {
-          [
-            "From: ${\$self->from}$CRLF",
-            "Newsgroups: @{[$self->newsgroups]}$CRLF",
-            "Subject: ${\$self->subject}$CRLF",
-            "Message-ID: <$message_id>$CRLF",
-            $self->headers(),
-            "$CRLF"
-          ];
-        #};
+        my @head = (
+            "From: ${\$self->from}",         $CRLF, "Newsgroups: ${\$self->newsgroups}", $CRLF,
+            "Subject: ${\$self->{subject}}", $CRLF, "Message-ID: <$message_id>",         $CRLF
+        );
+
+        push @head, ($self->headers(), $CRLF) if ($self->headers());
+        push @head, $CRLF;
+        $self->{head} = \@head;
     }
     return $self->{message_id};
 }
@@ -219,9 +216,9 @@ sub obfuscate_filename {
 
 sub read_file_data {
     my ($self) = @_;
-    $self->begin_position($self->upload_size * ($self->part - 1));
+    $self->{begin_position} = $self->upload_size * ($self->part - 1);
     open my $fh, '<:raw :bytes', $self->{file} or die "Unable to open file: $!";
-    seek $fh, $self->begin_position, 0;
+    seek $fh, $self->{begin_position}, 0;
     $self->size(read($fh, my $bin_data, $self->upload_size));
     $self->end_position(tell $fh);
     close $fh;
@@ -261,7 +258,7 @@ sub subject {
         }
         else {
             $self->{subject}
-              = "[${\$self->file_number}/${\$self->total_files}] - \"${\$self->filename}\" (${\$self->part}/${\$self->total_parts})";
+              = "[${\$self->{file_number}}/${\$self->{total_files}}] - \"${\$self->{filename}}\" (${\$self->{part}}/${\$self->{total_parts}})";
             my $comments = $self->comments();
             $self->{subject} = $comments->[0] . ' ' . $self->{subject} if ($comments->[0]);
             $self->{subject} = $self->{subject} . ' ' . $comments->[1] if ($comments->[1]);
@@ -275,17 +272,17 @@ sub subject {
 sub head {
     my ($self) = @_;
     if (!$self->{head}) {
-        $self->{head} =    #sub {
-          [
-            "From: $self->from()$CRLF",
-            "Newsgroups: $self->newsgroups()$CRLF",
-            "Subject: $self->subject()$CRLF",
-            $self->headers(),
-            "$CRLF",
-          ];
-        #};
-    }
+        my @head = (
+            "From: ${\$self->from}",
+            $CRLF, "Newsgroups: ${\$self->{newsgroups}}",
+            $CRLF, "Subject: ${\$self->subject}", $CRLF,
+        );
 
+        push @head, $self->headers(), $CRLF if ($self->headers());
+
+        push @head, $CRLF;
+        $self->{head} = \@head;
+    }
     return @{$self->{head}};
 }
 
@@ -307,18 +304,20 @@ sub body {
     my ($self) = @_;    #params always different, so for us to have low memory usage we should avoid storing them
 
     # Avoid de-ref stuff. It creates overhead
-    my $encoding = NewsUP::yEnc::encode($self->read_file_data, $self->size);
+    my $encoding = NewsUP::yEnc::encode($self->read_file_data, $self->{size});
 # TODO: to be truly obfuscated we need need to break YENC spec. I prefer not to do that. If you want that, replase the first line
-# from the returned array for:
+# from the returned value for:
 # =ybegin part=-1 total-2 line=128 size=999999999 name=${\$self->obfuscate_filename}$CRLF
-    return (
-"=ybegin part=${\$self->part} total=${\$self->total_parts} line=128 size=${\$self->file_size} name=${\$self->filename}$CRLF",
-        "=ypart begin=@{[$self->begin_position+1]} end=${\$self->end_position}$CRLF",
-        $encoding->[0],
-        $CRLF,
-        "=yend size=${\$self->size} pcrc32=$encoding->[1]$CRLF",
-        "."
-    );
+    return
+"=ybegin part=${\$self->{part}} total=${\$self->{total_parts}} line=128 size=${\$self->{file_size}} name=${\$self->{filename}}",
+      $CRLF,
+      "=ypart begin=@{[$self->{begin_position}+1]} end=${\$self->{end_position}}",
+      $CRLF,
+      "${\$encoding->[0]}",
+      $CRLF,
+      "=yend size=${\$self->{size}} pcrc32=${\$encoding->[1]}",
+      $CRLF,
+      ".";
 }
 
 sub message {

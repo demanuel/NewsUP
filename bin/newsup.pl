@@ -19,7 +19,6 @@ use Carp;
 
 $\ = $CRLF;
 $/ = $LF;
-$, = undef;
 
 BEGIN {
     $| = 1;
@@ -66,8 +65,7 @@ sub verify_nzb {
     my ($options) = @_;
 
     my %aggregate_stats = ();
-
-    my $select = IO::Select->new(
+    my $select          = IO::Select->new(
         @{
             authenticate(
                 $options->{HEADERCHECK_AUTH_USER},
@@ -128,7 +126,7 @@ sub multiplexer_nzb_verification {
         my $read = '';
         if ($group ne $current_group) {
             for my $socket ($select->handles) {
-                print $socket "group $group";
+                syswrite_to_socket($socket, "group $group");
                 sysread_from_socket($socket);
             }
             $current_group = $group;
@@ -167,14 +165,14 @@ sub multiplexer_nzb_verification {
                 last unless @segments;
                 my $mid = $segments[0]->textContent;
                 unless ($date) {
-                    print $socket "head <$mid>";
+                    syswrite_to_socket($socket, "head <$mid>");
                     $date = 1;
                     $sockets{refaddr $socket} = 1;
                     next;
                 }
                 next if $sockets{refaddr $socket};
                 shift @segments;
-                print $socket "stat <$mid>";
+                syswrite_to_socket($socket, "stat <$mid>");
                 $sockets{refaddr $socket} = 1;
             }
 
@@ -259,7 +257,7 @@ sub header_check_multiplexer {
                 while (!$mid && $current_position < scalar @$articles) {
                     $mid = $articles->[++$current_position]->message_id();
                 }
-                print $socket "stat <$mid>";
+                syswrite_to_socket($socket, "stat <$mid>");
                 $connection_status{$key} = $current_position++;
             }
         }
@@ -281,7 +279,7 @@ sub header_check_multiplexer {
             }
         }
 
-      } until ($current_position > $#$articles && $options->{CONNECTIONS} == grep { $_ == -1 }
+    } until ($current_position > $#$articles && $options->{CONNECTIONS} == grep { $_ == -1 }
           values %connection_status);
 
     for ($select->handles()) {
@@ -497,12 +495,11 @@ sub multiplexer {
             if ($status == 0) {
                 next if $to_post-- <= 0;
                 $connection_status{$socketId} = 1;
-                print $socket "POST";
+                syswrite_to_socket($socket, "POST");
             }
             elsif ($status == 2) {
                 $article_table{$socketId} = $posted++;
-                print $socket $articles->[$article_table{$socketId}]->message();
-
+                syswrite_to_socket($socket, $articles->[$article_table{$socketId}]->message());
                 $connection_status{$socketId} = 3;
                 $upload_queue++;
             }
@@ -533,13 +530,13 @@ sub authenticate {
 
     for my $socket (@$connections) {
         read_socket($socket, 'Problem Reading from the server: ', sub { });    # Welcoming message
-        print $socket "authinfo user $user";
+        syswrite_to_socket($socket, "authinfo user $user");
         read_socket(
             $socket,
             'Authentication failed!',
             sub { my ($read) = @_; die "Error while login: $!" if $read !~ /^381/; }
         );                                                                     # Welcoming message
-        print $socket "authinfo pass $passwd";
+        syswrite_to_socket($socket, "authinfo pass $passwd");
         read_socket(
             $socket,
             'Authentication failed!',
@@ -582,31 +579,31 @@ sub sysread_from_socket {
 #Note: using syswrite or print is the same (im assuming if we don't disable nagle's algorithm):
 # Network Programming with Perl. Page: 311.
 # Since using print seems to be faster than this function, i', using print
-# sub syswrite_to_socket {
+sub syswrite_to_socket {
 
-#     my ($socket, @args) = @_;
-#     local $,;
+    my ($socket, @args) = @_;
+    local $,;
 
 
-#     for my $arg ((@args, $CRLF)){
-#         my $len = length $arg;
-#         my $offset = 0;
+    for my $arg ((@args, $CRLF)) {
+        my $len    = length $arg;
+        my $offset = 0;
 
-#         while ($len) {
-#             my $written = syswrite($socket, $arg, $len, $offset);
+        while ($len) {
+            my $written = syswrite($socket, $arg, $len, $offset);
 
-#             return 1 unless($written);
-#             $len -= $written;
-#             $offset += $written;
-#             undef $written;
-#         }
-#     }
-#     undef @args;
-# #Using print
-# # return 0 if (print $socket @args);
-# # return 1;
+            return 1 unless ($written);
+            $len -= $written;
+            $offset += $written;
+            undef $written;
+        }
+    }
+    undef @args;
+    #Using print
+    # return 0 if (print $socket @args);
+    # return 1;
 
-# }
+}
 
 sub connection_is_alive {
     my ($socket) = @_;
@@ -615,7 +612,7 @@ sub connection_is_alive {
     $SIG{'PIPE'} = sub { $dead = 1; $poll = 0 };
     $SIG{'ALRM'} = sub { say "connection is alive!"; $poll = 0 };
     alarm(11);
-    print $socket 0x00;    #print the null byte
+    syswrite_to_socket($socket, 0x00);    #print the null byte
     do {
         sleep(3);
     } while ($poll);
@@ -646,13 +643,14 @@ sub get_connections {
                 PeerPort => $port,
                 Proto    => 'tcp',
                 Blocking => 1
-            ) or die "Error: Failed to connect: $!";
+            ) or die "Error: Failed to connect to $host:$port: $! [$@]";
         }
 
         $socket->autoflush(1);
-        $socket->sockopt(SO_SNDBUF,    4 * 1024 * 1024);
-        $socket->sockopt(SO_RCVBUF,    4 * 1024 * 1024);
-        $socket->sockopt(TCP_NODELAY,  1);
+        $socket->sockopt(SO_SNDBUF,   4 * 1024 * 1024);
+        $socket->sockopt(SO_RCVBUF,   4 * 1024 * 1024);
+        $socket->sockopt(TCP_NODELAY, 1);
+        # disable naggle algorithm
         $socket->sockopt(SO_KEEPALIVE, 1);
 
         push @sockets, $socket;

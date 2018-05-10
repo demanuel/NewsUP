@@ -374,29 +374,23 @@ sub find_files {
         my $obfuscated_files = _obfuscate_files($options->{FILES}, $options);
         my $split_files = _split_files($obfuscated_files, $options);
         return _par_files($split_files, $options);
-        # my @compressed_files = compress_files(@obfuscated_files);
-        # my @rarnpar_files = par_files(@compressed_files);
-
     }
     elsif ($options->{SPLITNPAR} && !$options->{OBFUSCATE}) {
         my $temp_files = _copy_files_to_temp($options->{FILES}, $options);
         my $split_files = _split_files($temp_files, $options);
+        return $split_files unless $options->{PAR2};
         return _par_files($split_files, $options);
-
     }
     elsif ($options->{PAR2} && $options->{OBFUSCATE}) {
         my $obfuscated_files = _obfuscate_files($options->{FILES}, $options);
         return _par_files($obfuscated_files, $options);
-
     }
     elsif ($options->{PAR2} && !$options->{OBFUSCATE}) {
         my $temp_files = _copy_files_to_temp($options->{FILES}, $options);
         return _par_files($temp_files, $options);
-
     }
     elsif ($options->{OBFUSCATE}) {
         return _obfuscate_files($options->{FILES}, $options);
-
     }
     else {
         return _copy_files_to_temp($options->{FILES}, $options);
