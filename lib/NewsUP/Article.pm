@@ -1,6 +1,5 @@
 package NewsUP::Article;
 use POSIX;
-use Data::Dumper;
 use 5.026;
 use NewsUP::yEnc;
 use NewsUP::Utils qw(generate_random_string);
@@ -106,15 +105,17 @@ sub message_id {
 
     if ($message_id) {
         $self->{message_id} = $message_id;
+
         my @head = (
-            "From: ${\$self->from}",         $CRLF, "Newsgroups: ${\$self->newsgroups}", $CRLF,
-            "Subject: ${\$self->{subject}}", $CRLF, "Message-ID: <$message_id>",         $CRLF
+            "From: ${\$self->{from}}",         $CRLF, "Newsgroups: ${\$self->{newsgroups}}", $CRLF,
+            "Subject: ${\$self->subject}", $CRLF, "Message-ID: <$message_id>",         $CRLF
         );
 
         push @head, ($self->headers(), $CRLF) if ($self->headers());
         push @head, $CRLF;
         $self->{head} = \@head;
     }
+
     return $self->{message_id};
 }
 

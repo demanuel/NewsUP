@@ -253,12 +253,12 @@ sub header_check_multiplexer {
             my $key = refaddr $socket;
             last if $current_position > $#$articles;
             if ($connection_status{$key} == -1) {
-                my $mid = $articles->[$current_position]->message_id();
+                my $mid = $articles->[$current_position++]->message_id();
                 while (!$mid && $current_position < scalar @$articles) {
-                    $mid = $articles->[++$current_position]->message_id();
+                    $mid = $articles->[$current_position++]->message_id();
                 }
                 syswrite_to_socket($socket, "stat <$mid>");
-                $connection_status{$key} = $current_position++;
+                $connection_status{$key} = $current_position-1;
             }
         }
         for my $socket (@$read_ready) {
