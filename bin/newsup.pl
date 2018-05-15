@@ -236,14 +236,15 @@ sub header_check {
 
 sub header_check_multiplexer {
     my ($options, $articles) = @_;
+    my $header_check_connections = min($options->{HEADERCHECK_CONNECTIONS}, scalar(@$articles));
     my $select = IO::Select->new(
         @{
             authenticate(
-                $options->{AUTH_USER},
-                $options->{AUTH_PASS},
+                $options->{HEADERCHECK_AUTH_USER},
+                $options->{HEADERCHECK_AUTH_PASS},
                 get_connections(
-                    min($options->{CONNECTIONS}, scalar(@$articles)), $options->{SERVER},
-                    $options->{SERVER_PORT}, $options->{TLS},
+                    $header_check_connections, $options->{HEADERCHECK_SERVER},
+                    $options->{HEADERCHECK_SERVER_PORT}, $options->{TLS},
                     $options->{TLS_IGNORE_CERTIFICATE}))});
     my $current_position = 0;
     my %connection_status = map { refaddr $_ => -1 } $select->handles();
@@ -279,7 +280,7 @@ sub header_check_multiplexer {
             }
         }
 
-    } until ($current_position > $#$articles && $options->{CONNECTIONS} == grep { $_ == -1 }
+    } until ($current_position > $#$articles && $header_check_connections == grep { $_ == -1 }
           values %connection_status);
 
     for ($select->handles()) {
