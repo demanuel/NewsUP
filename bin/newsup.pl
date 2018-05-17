@@ -613,7 +613,8 @@ sub connection_is_alive {
     $SIG{'PIPE'} = sub { $dead = 1; $poll = 0 };
     $SIG{'ALRM'} = sub { say "connection is alive!"; $poll = 0 };
     alarm(11);
-    syswrite_to_socket($socket, 0x00);    #print the null byte
+    my $error = syswrite_to_socket($socket, 0x00);    #print the null byte
+    $dead = 1 and say $! if $error;
     do {
         sleep(3);
     } while ($poll);
