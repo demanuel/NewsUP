@@ -243,7 +243,7 @@ sub header_check_multiplexer {
                 $options->{HEADERCHECK_AUTH_USER},
                 $options->{HEADERCHECK_AUTH_PASS},
                 get_connections(
-                    $header_check_connections, $options->{HEADERCHECK_SERVER},
+                    $header_check_connections,           $options->{HEADERCHECK_SERVER},
                     $options->{HEADERCHECK_SERVER_PORT}, $options->{TLS},
                     $options->{TLS_IGNORE_CERTIFICATE}))});
     my $current_position = 0;
@@ -259,7 +259,7 @@ sub header_check_multiplexer {
                     $mid = $articles->[$current_position++]->message_id();
                 }
                 syswrite_to_socket($socket, "stat <$mid>");
-                $connection_status{$key} = $current_position-1;
+                $connection_status{$key} = $current_position - 1;
             }
         }
         for my $socket (@$read_ready) {
@@ -614,7 +614,10 @@ sub connection_is_alive {
     $SIG{'ALRM'} = sub { say "connection is alive!"; $poll = 0 };
     alarm(11);
     my $error = syswrite_to_socket($socket, 0x00);    #print the null byte
-    $dead = 1 and say $! if $error;
+    if ($error) {
+        $dead = 1;
+        say $! ;
+    }
     do {
         sleep(3);
     } while ($poll);

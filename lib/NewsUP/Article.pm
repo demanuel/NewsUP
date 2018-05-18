@@ -107,8 +107,10 @@ sub message_id {
         $self->{message_id} = $message_id;
 
         my @head = (
-            "From: ${\$self->{from}}",         $CRLF, "Newsgroups: ${\$self->{newsgroups}}", $CRLF,
-            "Subject: ${\$self->subject}", $CRLF, "Message-ID: <$message_id>",         $CRLF
+            "From: ${\$self->{from}}",
+            $CRLF, "Newsgroups: ${\$self->{newsgroups}}",
+            $CRLF, "Subject: ${\$self->subject}",
+            $CRLF, "Message-ID: <$message_id>", $CRLF
         );
 
         push @head, ($self->headers(), $CRLF) if ($self->headers());
