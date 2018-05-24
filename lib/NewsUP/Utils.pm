@@ -278,40 +278,24 @@ sub save_nzb {
     for my $filename (sort keys %fileMapping) {
         my $fileElement = $dom->createElement('file');
         $fileElement->setAttribute(
-            'poster' => $options->{OBFUSCATE} ? generate_random_string(12, 1) : $options->{UPLOADER});
-        $fileElement->setAttribute('date' => time() - $options->{OBFUSCATE} * int(rand(1_000_000)));
-        if ($options->{OBFUSCATE}) {
-            $fileElement->setAttribute('subject' => generate_random_string(64));
+            'poster' => $options->{UPLOADER});
+        $fileElement->setAttribute('date' => time());
+
+        my $subject = '[' . ++$currentFile . "/$totalFiles] - \"$filename\" ";
+        if ($options->{COMMENTS}) {
+            $subject = $options->{COMMENTS}[0] . " $subject";
+            $subject .= "$options->{COMMENTS}[1] " if ($options->{COMMENTS}[1]);
+            $subject .= 'yEnc (1/' . scalar(@{$fileMapping{$filename}}) . ')';
         }
-        else {
-            my $subject = '[' . ++$currentFile . "/$totalFiles] - \"$filename\" ";
-            if ($options->{COMMENTS}) {
-                $subject = $options->{COMMENTS}[0] . " $subject";
-                $subject .= "$options->{COMMENTS}[1] " if ($options->{COMMENTS}[1]);
-                $subject .= 'yEnc (1/' . scalar(@{$fileMapping{$filename}}) . ')';
-            }
-            $fileElement->setAttribute('subject' => $subject);
-        }
+        $fileElement->setAttribute('subject' => $subject);
 
         my $groupsElement = $dom->createElement('groups');
 
-        if ($options->{obfuscate}) {
-            my @common_groups = (
-                'boneless', 'cores',      'erotica', 'games',  'sounds.lossless', 'anime',
-                'mp3',      'multimedia', 'tv',      'teevee', 'music',           'warez',
-                'movies'
-            );
+        my @newsgroups = split(',', $fileMapping{$filename}->[0]{newsgroups});
+        for (@newsgroups) {
             my $groupElement = $dom->createElement('group');
-            $groupElement->appendText($common_groups[int(rand(@common_groups))]);
-
-        }
-        else {
-            my @newsgroups = split(',', $fileMapping{$filename}->[0]{newsgroups});
-            for (@newsgroups) {
-                my $groupElement = $dom->createElement('group');
-                $groupElement->appendText($_);
-                $groupsElement->addChild($groupElement);
-            }
+            $groupElement->appendText($_);
+            $groupsElement->addChild($groupElement);
         }
 
         $fileElement->addChild($groupsElement);

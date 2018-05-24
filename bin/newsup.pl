@@ -340,19 +340,17 @@ sub upload_files {
 
     my $nzb_file = save_nzb($options, \@articles);
 
-    if ($options->{UPLOAD_NZB}) {
+    if ($options->{UPLOAD_NZB} && !$options->{OBFUSCATE}) {
         print "Uploading NZB";
-        my $file_size = -s $nzb_file;
+        my $file_size   = -s $nzb_file;
         my $total_parts = ceil($file_size / (750 * 1024));
-        my $ids      = generate_random_ids($total_parts, $options) if $options->{GENERATE_IDS} || $options->{OBFUSCATE};
-        my @articles = ();
+        my $ids         = generate_random_ids($total_parts, $options) if $options->{GENERATE_IDS};
+        my @articles    = ();
         for (my $part = 1; $part <= $total_parts; $part++) {
             my $article = NewsUP::Article->new(
-                newsgroups => $options->{OBFUSCATE} ?
-                  get_random_array_elements($options->{GROUPS})
-                : $options->{GROUPS},
+                newsgroups  => $options->{GROUPS},
                 file        => $nzb_file,
-                from        => $options->{OBFUSCATE} ? '' : $options->{UPLOADER},
+                from        => $options->{UPLOADER},
                 file_number => 1,
                 file_size   => $file_size,
                 total_files => 1,
@@ -360,8 +358,8 @@ sub upload_files {
                 part        => $part,
                 total_parts => $total_parts,
                 upload_size => $options->{UPLOAD_SIZE},
-                message_id  => ($options->{GENERATE_IDS} || $options->{OBFUSCATE}) ? $ids->[$part - 1] : undef,
-                obfuscate   => $options->{OBFUSCATE},
+                message_id  => $options->{GENERATE_IDS} ? $ids->[$part - 1] : undef,
+                obfuscate   => 0,
                 headers     => $options->{HEADERS});
             push @articles, $article;
         }
