@@ -119,9 +119,8 @@ AV* encode(unsigned char* data, size_t data_size)
 		}
 
 		*(pointer++) = c;
-		column++;
 
-		if(column >= maxwidth)
+		if(++column >= maxwidth)
 		{
 			column = 0;
 			*(pointer++) = '\r';
