@@ -25,9 +25,6 @@ echo "Recommends: par2, rar, p7zip" >> ../newsup/DEBIAN/control
 echo "echo \"Create a ~/.config/newsup.cfg for the user\\nPlease check /etc/newsup/newsup.conf.example\"" >> ../newsup/DEBIAN/postinst
 chmod 755 ../newsup/DEBIAN/postinst
 cd ..
-sed -i "s/use 5.026/use 5.022/" newsup/usr/local/bin/newsup
-sed -i "s/use 5.026/use 5.022/" newsup/usr/share/perl5/NewsUP/*
-
 
 dpkg-deb --build newsup
 
