@@ -345,7 +345,7 @@ sub upload_files {
         my $file_size   = -s $nzb_file;
         my $total_parts = ceil($file_size / (750 * 1024));
         my $ids         = generate_random_ids($total_parts, $options) if $options->{GENERATE_IDS};
-        my @articles    = ();
+        my @nzb_articles    = ();
         for (my $part = 1; $part <= $total_parts; $part++) {
             my $article = NewsUP::Article->new(
                 newsgroups  => $options->{GROUPS},
@@ -361,9 +361,9 @@ sub upload_files {
                 message_id  => $options->{GENERATE_IDS} ? $ids->[$part - 1] : undef,
                 obfuscate   => 0,
                 headers     => $options->{HEADERS});
-            push @articles, $article;
+            push @nzb_articles, $article;
         }
-        multiplexer($options, \@articles);
+        multiplexer($options, \@nzb_articles);
         print "NZB uploaded!" . ' ' x $options->{PROGRESSBAR_SIZE};
     }
 
