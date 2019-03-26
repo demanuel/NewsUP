@@ -29,7 +29,7 @@ our @EXPORT = qw(
   update_file_settings
 );
 
-our $VERSION            = 2018_04_07_19_36;
+our $VERSION = 2018_04_07_19_36;
 our $CONFIGURATION_FILE = catfile(($^O eq 'MSWin32' ? $ENV{"USERPROFILE"} : $ENV{HOME}), '.config', 'newsup.conf');
 
 sub read_options {
@@ -75,48 +75,45 @@ sub read_options {
         'tempFolder=s'                 => \$options{TEMP_FOLDER});
 
     my $config = {};
-    $config = Config::Tiny->read($CONFIGURATION_FILE)
-      if $CONFIGURATION_FILE && -e $CONFIGURATION_FILE;
+    $config = Config::Tiny->read($CONFIGURATION_FILE) if $CONFIGURATION_FILE && -e $CONFIGURATION_FILE;
 
-    $options{UPLOAD_SIZE} //= $config->{upload}{size}      // 750 * 1024;
+    $options{UPLOAD_SIZE} //= $config->{upload}{size} // 750 * 1024;
     $options{OBFUSCATE}   //= $config->{upload}{obfuscate} // 0;
-    $options{GROUPS}    //= [split(',', $config->{upload}{newsgroups} // '')];
-    $options{AUTH_USER} //= $config->{auth}{user} // '';
-    $options{AUTH_PASS}   //= $config->{auth}{password}      // '';
+    $options{GROUPS}      //= [split(',', $config->{upload}{newsgroups} // '')];
+    $options{AUTH_USER}   //= $config->{auth}{user} // '';
+    $options{AUTH_PASS}   //= $config->{auth}{password} // '';
     $options{CONNECTIONS} //= $config->{server}{connections} // 2;
-    $options{SERVER}      //= $config->{server}{server}      // '';
-    $options{SERVER_PORT} //= $config->{server}{port}        // 443;
+    $options{SERVER}      //= $config->{server}{server} // '';
+    $options{SERVER_PORT} //= $config->{server}{port} // 443;
     $options{TLS} //= $config->{server}{tls} // ($options{SERVER_PORT} == 443 || $options{SERVER_PORT} == 563 ? 1 : 0);
-    $options{GENERATE_IDS}            //= $config->{server}{generate_ids}           // 1;
+    $options{GENERATE_IDS}            //= $config->{server}{generate_ids} // 1;
     $options{TLS_IGNORE_CERTIFICATE}  //= $config->{server}{tls_ignore_certificate} // 0;
     $options{HEADERCHECK}             //= $config->{headerCheck}{enabled};
-    $options{HEADERCHECK_SERVER}      //= $config->{headerCheck}{server}            // $options{SERVER};
-    $options{HEADERCHECK_SERVER_PORT} //= $config->{headerCheck}{port}              // $options{SERVER_PORT};
-    $options{HEADERCHECK_CONNECTIONS} //= $config->{headerCheck}{connections}       // 1;
-    $options{HEADERCHECK_AUTH_USER}   //= $config->{headerCheck}{user}              // $options{AUTH_USER};
-    $options{HEADERCHECK_AUTH_PASS}   //= $config->{headerCheck}{password}          // $options{AUTH_PASS};
-    $options{HEADERCHECK_RETRIES}     //= $config->{headerCheck}{retries}           // 1;
-    $options{HEADERCHECK_SLEEP}       //= $config->{headerCheck}{sleep}             // 30;
-    $options{UPLOADER}                //= $config->{upload}{uploader}               // 'NewsUP <NewsUP@somewhere.cbr>';
+    $options{HEADERCHECK_SERVER}      //= $config->{headerCheck}{server} // $options{SERVER};
+    $options{HEADERCHECK_SERVER_PORT} //= $config->{headerCheck}{port} // $options{SERVER_PORT};
+    $options{HEADERCHECK_CONNECTIONS} //= $config->{headerCheck}{connections} // 1;
+    $options{HEADERCHECK_AUTH_USER}   //= $config->{headerCheck}{user} // $options{AUTH_USER};
+    $options{HEADERCHECK_AUTH_PASS}   //= $config->{headerCheck}{password} // $options{AUTH_PASS};
+    $options{HEADERCHECK_RETRIES}     //= $config->{headerCheck}{retries} // 1;
+    $options{HEADERCHECK_SLEEP}       //= $config->{headerCheck}{sleep} // 30;
+    $options{UPLOADER}                //= $config->{upload}{uploader} // 'NewsUP <NewsUP@somewhere.cbr>';
     $options{METADATA}                //= $config->{metadata};
-    $options{SPLITNPAR}               //= $config->{options}{splitnpar}             // 0;
-    $options{PAR2}                    //= $config->{options}{par2}                  // 0;
+    $options{SPLITNPAR}               //= $config->{options}{splitnpar} // 0;
+    $options{PAR2}                    //= $config->{options}{par2} // 0;
     $options{PAR2_PATH}               //= $config->{options}{par2_path};
-    $options{PAR2_RENAME_SETTINGS}    //= $config->{options}{par2_rename_settings}  // 'c -s768000 -r0';
-    $options{PAR2_SETTINGS}           //= $config->{options}{par2_settings}         // 'c -s768000 -r15';
+    $options{PAR2_RENAME_SETTINGS}    //= $config->{options}{par2_rename_settings} // 'c -s768000 -r0';
+    $options{PAR2_SETTINGS}           //= $config->{options}{par2_settings} // 'c -s768000 -r15';
     $options{HEADERS}                 //= $config->{'extra-headers'};
-    $options{UPLOAD_NZB}              //= $config->{options}{upload_nzb}            // 0;
-    $options{NZB_SAVE_PATH}           //= $config->{options}{nzb_save_path}         // '.';
+    $options{UPLOAD_NZB}              //= $config->{options}{upload_nzb} // 0;
+    $options{NZB_SAVE_PATH}           //= $config->{options}{nzb_save_path} // '.';
     $options{SPLIT_CMD}               //= $config->{options}{split_cmd};
-    $options{SPLIT_PATTERN}           //= $config->{options}{split_pattern}         // '*7z *[0-9][0-9][0-9]';
+    $options{SPLIT_PATTERN}           //= $config->{options}{split_pattern} // '*7z *[0-9][0-9][0-9]';
     $options{TEMP_FOLDER}             //= $config->{options}{temp_folder};
-    $options{PROGRESSBAR_SIZE}        //= $config->{options}{progressbar_size}      // 16;
+    $options{PROGRESSBAR_SIZE}        //= $config->{options}{progressbar_size} // 16;
     $options{UPLOAD_NZB}              //= 0;
 
-    croak '--nfo option is incompatible with obfuscation'
-      if $options{NFO} && $options{OBFUSCATE};
-    croak "NFO file $options{NFO} doesn't exist"
-      if $options{NFO} && !-f $options{NFO};
+    croak '--nfo option is incompatible with obfuscation' if $options{NFO} && $options{OBFUSCATE};
+    croak "NFO file $options{NFO} doesn't exist" if $options{NFO} && !-f $options{NFO};
 
     %options = %{update_file_settings(\%options)};
 
@@ -142,6 +139,7 @@ sub read_options {
             }
         }
     }
+
 
     return \%options;
 }
@@ -247,12 +245,12 @@ END
     exit 0;
 }
 
+
 sub save_nzb {
     my ($options, $articles) = @_;
     my $dom  = XML::LibXML::Document->new('1.0', 'UTF-8');
     my $nzb  = $dom->createElement('nzb');
     my $head = $dom->createElement('head');
-
     # if ($options->{SPLIT_PASSWORD}) {
     #     my $pass_meta = $dom->createElement('meta');
     #     $pass_meta->setAttribute('type' => "password");
@@ -270,8 +268,7 @@ sub save_nzb {
     my $totalFiles  = 0;    # variable used to build the subject
     my %fileMapping = ();
     for my $article (@$articles) {
-        $fileMapping{$article->filename} = []
-          if (!exists $fileMapping{$article->filename});
+        $fileMapping{$article->filename} = [] if (!exists $fileMapping{$article->filename});
 
         push @{$fileMapping{$article->filename}}, $article;
         $totalFiles++;
@@ -280,14 +277,14 @@ sub save_nzb {
     my $currentFile = 0;
     for my $filename (sort keys %fileMapping) {
         my $fileElement = $dom->createElement('file');
-        $fileElement->setAttribute('poster' => $options->{UPLOADER});
-        $fileElement->setAttribute('date'   => time());
+        $fileElement->setAttribute(
+            'poster' => $options->{UPLOADER});
+        $fileElement->setAttribute('date' => time());
 
         my $subject = '[' . ++$currentFile . "/$totalFiles] - \"$filename\" ";
         if ($options->{COMMENTS}) {
             $subject = $options->{COMMENTS}[0] . " $subject";
-            $subject .= "$options->{COMMENTS}[1] "
-              if ($options->{COMMENTS}[1]);
+            $subject .= "$options->{COMMENTS}[1] " if ($options->{COMMENTS}[1]);
             $subject .= 'yEnc (1/' . scalar(@{$fileMapping{$filename}}) . ')';
         }
         $fileElement->setAttribute('subject' => $subject);
@@ -325,7 +322,7 @@ sub save_nzb {
     $nzb_file .= '.nzb' if $nzb_file !~ /\.nzb$/;
     open my $fh, '>:raw', $nzb_file or die "Unable to create the NZB: $!";
     my $handler = select $fh;
-    $| = 1;
+    $|=1;
     select $handler;
     print $fh $nzb->serialize;
     close $fh;
@@ -350,15 +347,11 @@ sub find_files {
     my ($options) = @_;
     my @files = ();
 
-    croak "The `temp_folder` option isn't defined!" if !$options->{TEMP_FOLDER};
-    croak "The `temp_folder` isn't empty! Please clean it."
-      if glob(catfile($options->{TEMP_FOLDER}, '*'));
-    croak "The `temp_folder` doesn't exist! Please create it."
-      if !-e $options->{TEMP_FOLDER};
-    croak "The  `par2_path` option isn't defined!"
-      if $options->{OBFUSCATE} && !$options->{PAR2_PATH};
-    croak "The  `split_cmd` option isn't defined!"
-      if $options->{SPLITNPAR} && !$options->{SPLIT_CMD};
+    croak "The `temp_folder` option isn't defined!"            if !$options->{TEMP_FOLDER};
+    croak "The `temp_folder` isn't empty! Please clean it."    if glob(catfile($options->{TEMP_FOLDER}, '*'));
+    croak "The `temp_folder` doesn't exist! Please create it." if !-e $options->{TEMP_FOLDER};
+    croak "The  `par2_path` option isn't defined!"             if $options->{OBFUSCATE} && !$options->{PAR2_PATH};
+    croak "The  `split_cmd` option isn't defined!"             if $options->{SPLITNPAR} && !$options->{SPLIT_CMD};
 
     for my $path (@{$options->{FILES}}) {
         croak "The file $path doesn't exist!" if !-e $path;
@@ -366,11 +359,11 @@ sub find_files {
 
     if ($options->{SPLITNPAR} && $options->{OBFUSCATE}) {
         my $obfuscated_files = _obfuscate_files($options->{FILES}, $options);
-        my $split_files      = _split_files($obfuscated_files, $options);
+        my $split_files = _split_files($obfuscated_files, $options);
         return _par_files($split_files, $options);
     }
     elsif ($options->{SPLITNPAR} && !$options->{OBFUSCATE}) {
-        my $temp_files  = _copy_files_to_temp($options->{FILES}, $options);
+        my $temp_files = _copy_files_to_temp($options->{FILES}, $options);
         my $split_files = _split_files($temp_files, $options);
         return $split_files unless $options->{PAR2};
         return _par_files($split_files, $options);
@@ -399,9 +392,7 @@ sub _copy_files_to_temp {
         }
     }
 
-    rcopy($_, $options->{TEMP_FOLDER})
-      or die "Unable to copy the file to the temp folder: $!"
-      for (@$files);
+    rcopy($_, $options->{TEMP_FOLDER}) or die "Unable to copy the file to the temp folder: $!" for (@$files);
 
     return _return_all_files_in_folder($options->{TEMP_FOLDER});
 }
@@ -436,8 +427,8 @@ sub _return_all_files_in_folder {
     return \@files;
 }
 
-sub _split_files {
 
+sub _split_files {
     # $files - isn't being used but i want a consistent function signature
     my ($files, $options) = @_;
 
@@ -449,7 +440,7 @@ sub _split_files {
     }
     elsif ($options->{NAME}) {
         $split_name = $options->{NAME};
-        (split(/\s/, $options->{SPLIT_PATTERN}))[0] =~ m/([a-zA-Z0-9]+)/;
+        (split(/\s/, $options->{SPLIT_PATTERN}))[0] =~ m/([a-zA-Z0-9]+)$/;
         $split_name .= ".$1";
         my $test_split_name = catfile($options->{TEMP_FOLDER}, $split_name);
         for (@{_return_all_files_in_folder($options->{TEMP_FOLDER})}) {
@@ -546,7 +537,6 @@ sub _create_renaming_par_from_files {
         $options->{PAR2_RENAME_SETTINGS},
         catfile($options->{TEMP_FOLDER}, 'rename.with.this.par2'),
         join("' '", @$files));
-
     # say "create renaming par from files: $cmd";
     qx/$cmd/;
     return catfile($options->{TEMP_FOLDER}, 'rename.with.this.par2');
@@ -555,12 +545,11 @@ sub _create_renaming_par_from_files {
 sub _create_renaming_par_from_folder {
     my ($folder, $options) = @_;
     my @files = glob(catfile($folder, '*'));
-    my $cmd   = sprintf("%s %s '%s' '%s'",
+    my $cmd = sprintf("%s %s '%s' '%s'",
         $options->{PAR2_PATH},
         $options->{PAR2_RENAME_SETTINGS},
         catfile($folder, 'rename.with.this.par2'),
         join("' '", @files));
-
     # say $cmd;
     qx/$cmd/;
     return \@files, catfile($folder, 'rename.with.this.par2');
@@ -570,7 +559,7 @@ sub _create_renaming_par_from_folder {
 # A string must not start or end in symbol
 sub generate_random_string {
     my ($length, $alphan) = @_;
-    state @allowedCharacters = ('0' .. '9', 'A' .. 'Z', 'a' .. 'z');
+    my @allowedCharacters = ('0' .. '9', 'A' .. 'Z', 'a' .. 'z');
 
     my $string = $allowedCharacters[rand(@allowedCharacters)];
     $length -= 2;
@@ -579,15 +568,14 @@ sub generate_random_string {
     # avoid two consecutive alpha chars
     unless ($alphan) {
         my %alpha_chars = ('-' => 1, '_' => 1, '.' => 1, '$' => 1);
-        state @set_allowed = (@allowedCharacters, keys %alpha_chars);
+        my @set_allowed = (@allowedCharacters, keys %alpha_chars);
 
         my ($previous_char, $current_char) = ('', '');
 
         while ($length--) {
             do {
                 $current_char = $set_allowed[rand(@set_allowed)];
-            } while (exists $alpha_chars{$current_char}
-                && exists $alpha_chars{$previous_char});
+            } while (exists $alpha_chars{$current_char} && exists $alpha_chars{$previous_char});
             $string .= $current_char;
             $previous_char = $current_char;
         }
@@ -614,7 +602,6 @@ sub generate_random_ids {
         \&_generate_random_ids_nyuu, \&_generate_random_ids_jbinup,     \&_generate_random_ids_jbindown,
         \&_generate_random_ids_powerpost
       ) if $options->{OBFUSCATE};
-
     # my @random_generators = (
     #     \&_generate_random_id,           \&_generate_random_id_gopoststuff, \&_generate_random_id_newsmangler,
     #     \&_generate_random_ids_newsup,   \&_generate_random_ids_nyuu,       \&_generate_random_ids_jbinup,
@@ -647,10 +634,10 @@ sub _generate_random_ids_newsup {
 
 sub _generate_encode_base36 {
     my ($val) = @_;
-    state @symbols = ('0' .. '9', 'A' .. 'Z');
+    my $symbols = join '', '0' .. '9', 'A' .. 'Z';
     my $b36 = '';
     while ($val) {
-        $b36 .= $symbols[$val % 36];
+        $b36 = substr($symbols, $val % 36, 1) . $b36;
         $val = int $val / 36;
     }
     return $b36 || '0';
@@ -696,13 +683,14 @@ sub _generate_random_id_newsmangler {
         'news.xennews.com',        'news.yottanews.com',
         'secure.fastusenet.org',   'news.newsdemon.com'
     );
-    my $number_of_domains = 28;    # micro-optimization
-    return "$sec.$usec." . int(rand(1024)) . '@' . $domains[int(rand($number_of_domains))];
+    return "$sec.$usec." . int(rand(1024)) . '@' . $domains[int(rand(scalar @domains))];
 }
 
 sub _generate_random_id_gopoststuff {
     my ($sec, $usec) = @_;
     return "$sec.$usec\$gps\@gpoststuff";
 }
+
+
 
 1;
