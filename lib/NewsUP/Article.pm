@@ -246,13 +246,6 @@ sub upload_size {
     return $self->{upload_size};
 }
 
-# sub _ypart_begin {
-#     my ($self) = @_;
-
-#     $self->{_ypart_begin} = 1+$self->file_position unless $self->{_ypart_begin};
-#     return $self->{_ypart_begin};
-# }
-
 sub subject {
     my ($self) = @_;
     unless ($self->{subject}) {

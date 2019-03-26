@@ -27,8 +27,7 @@ BEGIN {
 my $files;
 
 sub main {
-    my $options = read_options();
-    controller($options);
+    controller(read_options());
 }
 
 sub controller {
@@ -126,8 +125,8 @@ sub multiplexer_nzb_verification {
         my $read = '';
         if ($group ne $current_group) {
             for my $socket ($select->handles) {
-                syswrite_to_socket($socket, "group $group");
-                sysread_from_socket($socket);
+		print $socket "group $group";
+		<$socket>;
             }
             $current_group = $group;
         }
@@ -165,35 +164,35 @@ sub multiplexer_nzb_verification {
                 last unless @segments;
                 my $mid = $segments[0]->textContent;
                 unless ($date) {
-                    syswrite_to_socket($socket, "head <$mid>");
+		    print $socket "head <$mid>";
                     $date = 1;
                     $sockets{refaddr $socket} = 1;
                     next;
                 }
                 next if $sockets{refaddr $socket};
                 shift @segments;
-                syswrite_to_socket($socket, "stat <$mid>");
+		print $socket "stat <$mid>";
                 $sockets{refaddr $socket} = 1;
             }
 
             for my $socket (@$read_ready) {
                 last if $counter_fail + $counter_ok == $total_segments;
                 next unless $sockets{refaddr $socket};
-                $read = sysread_from_socket($socket);
+		$read = <$socket>;
 
-                if ($read && $read =~ /^223/) {
+                if ($read && $read =~ /223/) {
                     $counter_ok++;
                 }
-                elsif ($read && $read =~ /^221/) {
+                elsif ($read && $read =~ /221/) {
                     $counter_ok++;
-                    if ($read =~ /Date: \w+, (\d+ \w+ \d+)|Date: (\d+ \w+ \d+)/) {
+                    if ($read =~ /Date: \w+, (?:\d+ \w+ \d+)|Date: (?:\d+ \w+ \d+)/) {
                         $date = '20' . join(' ', reverse split /\s/, $^N);
                     }
                     else {
                         $date = 0;
                     }
                 }
-                elsif ($read && $read =~ /^430/) {
+                elsif ($read && $read =~ /430/) {
                     $date = 0;
                     $counter_fail++;
                 }
@@ -258,17 +257,16 @@ sub header_check_multiplexer {
                 while (!$mid && $current_position < scalar @$articles) {
                     $mid = $articles->[$current_position++]->message_id();
                 }
-                syswrite_to_socket($socket, "stat <$mid>");
+		print $socket "stat <$mid>";
+                #syswrite_to_socket($socket, "stat <$mid>");
                 $connection_status{$key} = $current_position - 1;
             }
         }
         for my $socket (@$read_ready) {
             my $key = refaddr $socket;
             if ($connection_status{$key} > -1) {
-                my $read = sysread_from_socket($socket);
+		my $read = <$socket>;
                 chomp $read;
-                # say "'$read'";
-                # say "\t-> ".$articles->[$connection_status{$key}]->message_id();
                 if ($read =~ /223 /) {
                     $articles->[$connection_status{$key}]->header_check(1);
                 }
@@ -391,15 +389,20 @@ sub multiplexer {
     my %article_table      = ();
     my $posted             = 0;
     my $upload_queue       = 0;
-    print_progress(0, $progress_total);
+
+    {
+	local $\;
+	print "0/$progress_total\r";
+    }
+
     do {
         my ($read_ready, $write_ready, $exception_ready) = IO::Select->select($select, $select, $select, 0.125);
         for my $socket (@$read_ready) {
             my $socketId = refaddr $socket;
             my $status   = $connection_status{$socketId};
             if ($status == 1) {
-                my $read = sysread_from_socket($socket);
-                if (!$read || $read !~ /^340/) {
+                my $read = <$socket>;
+                if (!$read || $read !~ /340/) {
                     local $\;
                     print STDERR 'Sending article failed';
                     print STDERR ": $read" if $read;
@@ -439,18 +442,17 @@ sub multiplexer {
             }
             elsif ($status == 3) {
                 $upload_queue--;
-                print_progress(++$progress_current, $progress_total);
+
+		{
+		    local $\;
+		    print ++$progress_current,'/', "$progress_total\r";
+		}
+
                 $connection_status{$socketId} = 0;
-                my $read = sysread_from_socket($socket);
-                if ($read && $read =~ /^240/) {
+                my $read = <$socket>;
+                if ($read && $read =~ /240/) {
                     if ($read =~ /<(.*)>/) {
                         $articles->[$article_table{$socketId}]->message_id($1);
-
-                        # #my $article = $articles->[$article_table{$socketId}];
-                        # if (!defined $article->message_id()) {
-                        #     $article->message_id($1);
-                        # }
-                        #
                     }
                 }
                 else {
@@ -494,11 +496,12 @@ sub multiplexer {
             if ($status == 0) {
                 next if $to_post-- <= 0;
                 $connection_status{$socketId} = 1;
-                syswrite_to_socket($socket, "POST");
+		print $socket "POST";
+                # syswrite_to_socket($socket, "POST");
             }
             elsif ($status == 2) {
                 $article_table{$socketId} = $posted++;
-                syswrite_to_socket($socket, $articles->[$article_table{$socketId}]->message());
+		print $socket $articles->[$article_table{$socketId}]->head(), $articles->[$article_table{$socketId}]->body();
                 $connection_status{$socketId} = 3;
                 $upload_queue++;
             }
@@ -518,91 +521,74 @@ sub multiplexer {
 }
 
 
-sub print_progress {
-    my ($got, $total) = @_;
-    local $\;
-    print "$got/$total\r";
-}
-
 sub authenticate {
     my ($user, $passwd, $connections) = @_;
 
     for my $socket (@$connections) {
-        read_socket($socket, 'Problem Reading from the server: ', sub { });    # Welcoming message
-        syswrite_to_socket($socket, "authinfo user $user");
-        read_socket(
-            $socket,
-            'Authentication failed!',
-            sub { my ($read) = @_; die "Error while login: $!" if $read !~ /^381/; }
-        );                                                                     # Welcoming message
-        syswrite_to_socket($socket, "authinfo pass $passwd");
-        read_socket(
-            $socket,
-            'Authentication failed!',
-            sub { my ($read) = @_; die "Wrong authentication parameters!" if $read !~ /^281/; });
+
+	# Welcoming message
+	<$socket>;
+	print $socket "authinfo user $user";
+	if ((my $read = <$socket>) !~ /381 / ) {die "Authentication failed: $read "; }
+	print $socket "authinfo pass $passwd";
+	if ((my $read = <$socket>) !~ /281 / ) {die "Wrong authtication parameters: $read "; }
+
     }
     return $connections;
 }
 
-# because we're using select, we need to use sysread/syswrite
-sub read_socket {
-    my ($socket, $message, $function) = @_;
-    if (defined(my $read = sysread_from_socket($socket))) {
-        if ($function) {
-            $function->($read);
-        }
-        return $read;
-    }
-}
 
-sub sysread_from_socket {
-    my ($socket) = @_;
-    my $output = '';
+# Even though sysread can be faster than readline, the rest of the code to check if we read until the end of the line isn't.
+# Leaving this function as historical
+# sub sysread_from_socket {
+#     my ($socket) = @_;
+#     my $output = '';
 
-    while (1) {
-        my $status = sysread($socket, my $buffer, 2048);
-        $output .= $buffer;
-        undef $buffer;
-        if ($output =~ /.$CRLF$/ || $status == 0) {
-            last;
-        }
-        elsif (!defined $status) {
-            die "Error: $!";
-        }
-    }
+#     while (1) {
+#         my $status = sysread($socket, my $buffer, 2048);
+#         $output .= $buffer;
+#         undef $buffer;
+#         if ($output =~ /.$CRLF$/ || $status == 0) {
+#             last;
+#         }
+#         elsif (!defined $status) {
+#             die "Error: $!";
+#         }
+#     }
 
-    return $output;
-}
+#     return $output;
+# }
 
 
-#Note: using syswrite or print is the same (im assuming if we don't disable nagle's algorithm):
+# Note: using syswrite or print is the same (im assuming if we don't disable nagle's algorithm):
 # Network Programming with Perl. Page: 311.
 # Since using print seems to be faster than this function, i', using print
-sub syswrite_to_socket {
+# Leaving as historical
+# sub syswrite_to_socket {
 
-    my ($socket, @args) = @_;
-    local $,;
+#     my ($socket, @args) = @_;
+#     local $,;
 
 
-    for my $arg ((@args, $CRLF)) {
-        my $len    = length $arg;
-        my $offset = 0;
+#     for my $arg ((@args, $CRLF)) {
+#         my $len    = length $arg;
+#         my $offset = 0;
 
-        while ($len) {
-            my $written = syswrite($socket, $arg, $len, $offset);
+#         while ($len) {
+#             my $written = syswrite($socket, $arg, $len, $offset);
 
-            return 1 unless ($written);
-            $len -= $written;
-            $offset += $written;
-            undef $written;
-        }
-    }
-    undef @args;
-    #Using print
-    # return 0 if (print $socket @args);
-    # return 1;
+#             return 1 unless ($written);
+#             $len -= $written;
+#             $offset += $written;
+#             undef $written;
+#         }
+#     }
+#     undef @args;
+#     #Using print
+#     # return 0 if (print $socket @args);
+#     # return 1;
 
-}
+# }
 
 sub connection_is_alive {
     my ($socket) = @_;
@@ -611,7 +597,7 @@ sub connection_is_alive {
     $SIG{'PIPE'} = sub { $dead = 1; $poll = 0 };
     $SIG{'ALRM'} = sub { say "connection is alive!"; $poll = 0 };
     alarm(11);
-    my $error = syswrite_to_socket($socket, 0x00);    #print the null byte
+    my $error = ! print $socket 0x00; #print the null byte
     if ($error) {
         $dead = 1;
         say $! ;
