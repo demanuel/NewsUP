@@ -1,6 +1,6 @@
 NewsUP
 ======
-NewsUP a binary usenet uploader/poster. Backup your personal files to the usenet!
+NewsUP a high performance binary usenet uploader/poster. Backup your personal files to the usenet!
 It will run on any platform that supports perl that matches the requirements (check the wiki for on how to run in windows)
 
 # Intro
@@ -25,7 +25,9 @@ For windows installation, or another stuff more specific to some environment/scr
 
 It will upload a file or folder to the usenet.
 If it is a folder it will search for files inside of the folder.
+It can obfuscate the uploads.
 A NZB file will be generated for later retrieving.
+
 
 ## Supports
 * SSL
@@ -65,15 +67,17 @@ In this example it will use the headercheck server settings defined in the confi
 # Advanced
 NewsUP uses C code to do the yenc enconding. The code needs to be compiled.
 You can change the C compiler (GCC, CLang,..) and the compiler flags by
-setting the environment variables NEWSUP_CC (for the compiler to be used)
+setting the *environment variables* NEWSUP_CC (for the compiler to be used)
 and NEWSUP_CCFLAGS (for the compiler flags).
-By default it's set to use GCC with -O3 flag.
 
 This can be a difference between being a bit faster or a bit slower.
 
-Only set this options if you know what you're doing.
-After this option is set or change you need to remove the inline folder
-so that the code is recompiled again.
+*Only set this options if you know what you're doing*
+
+Example for GCC: `-Ofast -march=native -mcpu=native -mtune=native`
+
+*After this option is set or change you need to remove the inline folder
+so that the code is recompiled again.*
 
 ## Config file
 **This config file needs to be in ~/.config/ folder**
@@ -85,7 +89,7 @@ connections= 6
 tls = 1
 tls_ignore_certificate = 0
 # To generate random ids or to use the returned ones from the server. Note: Some servers don't return anything. In that case change this option to 1
-generate_ids = 0 
+generate_ids = 0
 
 [auth]
 user= myLogin
@@ -96,7 +100,7 @@ uploader= NewsUP <NewsUP@somewhere.cbr>
 newsgroups= alt.binaries.test
 obfuscate = 0
 # default value 750KBytes
-size = 768000 
+size = 768000
 
 [headerCheck]
 enabled= 1
@@ -121,7 +125,7 @@ X-extra-header= value3
 #second extra header
 extra-header2= value2
 #non valid. Non valid headers are: from, newsgroups, message-id and subject.
-from= test 
+from= test
 
 
 [options]
@@ -133,7 +137,7 @@ split_cmd = 7z a -mx0 -v50m -t7z --
 # pattern of the files generated with the split_cmd.
 # If splitnpar is set to 1, these are the files that
 # are going to be uploaded.
-# For rar files use: 
+# For rar files use:
 # *rar
 split_pattern = *7z *[0-9][0-9][0-9]
 par2 = 1
@@ -144,13 +148,13 @@ par2_rename_settings = c -s768000 -r0
 par2_settings = c -s768000 -r15
 temp_folder = /data/tmp
 # if the nzb is also uploaded
-upload_nzb = 1 
+upload_nzb = 1
 nzb_save_path = /data/uploads/
 
 ```
 
 ## Command line options
-- help 
+- help
 - file # string
 - list # string
 - checkNZB # string
