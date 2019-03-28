@@ -5,9 +5,11 @@ use strict;
 use Config;
 
 ###### C CODE YENC ######
-use Inline C => Config => cc => exists $ENV{NEWSUP_CC} ? $ENV{NEWSUP_CC} : $Config{cc};
-#In case of message "loaded library mismatch" (this happens typically in windows) we need to add the flag -DPERL_IMPLICIT_SYS
-use Inline C => Config => ccflags => exists $ENV{NEWSUP_CCFLAGS} ? $ENV{NEWSUP_CCFLAGS} : $Config{ccflags};
+use Inline (C => Config =>
+	    cc => exists $ENV{'NEWSUP_CC'} ? $ENV{'NEWSUP_CC'} : $Config{cc},
+	    ccflags => exists $ENV{'NEWSUP_CCFLAGS'} ? $ENV{'NEWSUP_CCFLAGS'} : $Config{ccflags}
+    );
+#In case of message "loaded library mismatch" (this happens typically in windows) we need to add the flag -DPER L_IMPLICIT_SYS
 use Inline C => <<'C_CODE';
 #include <stdint.h>;
 static uint32_t crc32_tab[] = {
