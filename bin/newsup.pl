@@ -159,7 +159,7 @@ sub multiplexer_nzb_verification {
         my ($counter_ok, $counter_fail) = (0, 0);
 
         do {
-            my ($read_ready, $write_ready, undef) = IO::Select->select($select, $select, undef, 0.125);
+            my ($read_ready, $write_ready, undef) = IO::Select->select($select, $select, undef);
 
             for my $socket (@$write_ready) {
                 last unless @segments;
@@ -181,7 +181,6 @@ sub multiplexer_nzb_verification {
                 next unless $sockets{refaddr $socket};
                 $read = <$socket>;
                 #chomp $read;
-                #say "linha: $read";
                 if ($read) {
                     if ($read =~ /^223 / || $read =~ /^221 /) {
                         $counter_ok++;
@@ -198,13 +197,11 @@ sub multiplexer_nzb_verification {
                     elsif ($read =~ /^\.$/) {
                         $sockets{refaddr $socket} = 0;
                     }
-
                 }
             }
         } until ($counter_fail + $counter_ok == $total_segments);
-        $stats{$filename} = [int($counter_ok / $total_segments * 100), $date];
+        $stats{$filename} = [int($counter_ok / $total_segments * 100), $date == 1 ? localtime($file->getAttribute("date")). '(from nzb)' : $date];
     }
-
     return \%stats;
 }
 
