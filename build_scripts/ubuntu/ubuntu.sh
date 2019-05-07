@@ -4,7 +4,10 @@
 
 # Note: This bash script sucks, but i don't care as long it does what i need without fuss
 
-git clone https://github.com/demanuel/NewsUP.git
+if [[ ! -d NewsUP ]]
+then
+	git clone https://github.com/demanuel/NewsUP.git
+fi
 
 mkdir -p newsup/DEBIAN
 mkdir -p newsup/usr/local/bin newsup/usr/share/perl5/ newsup/etc/newsup
@@ -14,28 +17,46 @@ cp -r NewsUP/lib/NewsUP newsup/usr/share/perl5/
 cp -r NewsUP/conf/newsup.conf newsup/etc/newsup/newsup.conf.example
 
 cd NewsUP
-echo "Package: NewsUP" > ../newsup/DEBIAN/control
-echo "Version: "$(date +"%Y%m%d")"-"$(git rev-parse --short HEAD) >> ../newsup/DEBIAN/control
-echo "Maintainer: David Santiago <demanuel@ymail.com>" >> ../newsup/DEBIAN/control
-echo "Description: Binary usenet uploader/poster with support to multiple connections, SSL and NZB" >> ../newsup/DEBIAN/control
-echo "Homepage: https://github.com/demanuel/NewsUP" >> ../newsup/DEBIAN/control
-echo "Architecture: all" >> ../newsup/DEBIAN/control
-echo "Depends: perl (>= "$(apt-cache show perl|grep Version | tail -n 1 | cut -d ' ' -f 2)"), libio-socket-ssl-perl, libnet-ssleay-perl, libxml-libxml-perl, libfile-copy-recursive-perl, libconfig-tiny-perl, libinline-c-perl, make" >> ../newsup/DEBIAN/control
-echo "Recommends: par2, rar, p7zip" >> ../newsup/DEBIAN/control
+version="`date +'%Y%m%d'`-`git rev-parse --short HEAD`"
+#installed_perl_version=`apt-cache show perl|grep Version | tail -n 1 | cut -d ' ' -f 2`
+installed_perl_version=5.26
+required_perl_version=`awk 'NR==2{a=(($2+0)%5)*1000}END{print 5"."a}' ./bin/newsup.pl`
+
+if (( $(echo "${installed_perl_version} == 5.26" | bc -l ) ))
+then
+	wget https://gist.githubusercontent.com/demanuel/87e0eac62dd6d0919031131dd8fbad3d/raw/2a9a9db3694c8622b1fb06d5a880db1fa3a62230/newsup.526.patch
+	mv newsup.526.patch lib/NewsUP/
+	cd lib/NewsUP/
+	patch -p0 Utils.pm <newsup.526.patch
+	cd -
+	required_perl_version=${installed_perl_version}
+fi
+
+cat > ../newsup/DEBIAN/control << EOT
+Package: NewsUP
+Version: ${installed_perl_version}
+Maintainer: David Santiago <demanuel@ymail.com>
+Description: Fully featured binary usenet uploader/poster
+Homepage: https://github.com/demanuel/NewsUP
+Architecture: all
+Depends: perl (>= ${required_perl_version}), libio-socket-ssl-perl, libnet-ssleay-perl, libxml-libxml-perl, libfile-copy-recursive-perl, libconfig-tiny-perl, libinline-c-perl, make
+Recommends: par2, rar, p7zip
+EOT
+
 echo "echo \"Create a ~/.config/newsup.cfg for the user\\nPlease check /etc/newsup/newsup.conf.example\"" >> ../newsup/DEBIAN/postinst
 chmod 755 ../newsup/DEBIAN/postinst
 cd ..
 
 dpkg-deb --build newsup
 
-echo "Trying to install the package. Please make sure you have all the dependencies installed: "
-echo "perl, libio-socket-ssl-perl, libnet-ssleay-perl, libxml-libxml-perl, libfile-copy-recursive-perl, libconfig-tiny-perl, libinline-c-perl, make"
-echo ""
-echo "Warning: if you don't have all the dependencies, the installation will fail and you'll need to run this again!"
-echo ""
-echo "Press enter to continue"
-read
-
-sudo dpkg -i newsup.deb
-
-rm -rf NewsUP newsup newsup.deb
+if [[ $? -eq 0 ]]
+then
+	sudo dpkg -i newsup.deb
+	rm -rf NewsUP newsup newsup.deb
+else
+	echo "Creating the package failed! Please check the error message above."
+	echo ""
+	echo "Please make sure you have all the dependencies installed: "
+	echo "perl, libio-socket-ssl-perl, libnet-ssleay-perl, libxml-libxml-perl, libfile-copy-recursive-perl, libconfig-tiny-perl, libinline-c-perl, make"
+	echo ""
+fi
