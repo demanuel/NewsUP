@@ -1,7 +1,7 @@
 NewsUP
 ======
-NewsUP a high performance binary usenet uploader/poster. Backup your personal files to the usenet!
-It will run on any platform that supports perl that matches the requirements (check the wiki for on how to run in windows)
+NewsUP is a fully feature high performance binary usenet uploader/poster. Backup your personal files to the usenet!
+It will run on any platform that supports perl that matches the requirements (check the wiki for on how to run in windows, ubuntu/debian and arch linux installation scripts provided)
 
 # Intro
 
