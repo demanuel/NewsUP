@@ -131,6 +131,7 @@ from= test
 
 
 [options]
+skip_copy = 0 # If you want to copy the files first to the `temp_folder` option.
 splitnpar= 1
 # Command that will be used to generate the splitted files
 # For rar files use:
@@ -148,7 +149,7 @@ par2_path = par2
 # this will be used if you use the obfuscation option
 par2_rename_settings = c -s768000 -r0
 par2_settings = c -s768000 -r15
-temp_folder = /data/tmp
+temp_folder = /data/tmp # Make sure this folder exists. Even if the skip_copy is set to 1. This folder is still used for the split and par files
 # if the nzb is also uploaded
 upload_nzb = 1
 nzb_save_path = /data/uploads/
@@ -189,6 +190,7 @@ nzb_save_path = /data/uploads/
 - par2 # negatable
 - headers # string in the form key=val
 - name # string
+- skip_copy # negatable
 - tempFolder # string
 - nfo #string
 

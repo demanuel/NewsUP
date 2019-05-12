@@ -10,6 +10,7 @@ use File::Spec;
 use File::Spec::Functions;
 use Config::Tiny;
 use Carp;
+use Cwd 'abs_path';
 use File::Basename;
 use File::Find;
 use File::Path qw/rmtree/;
@@ -29,7 +30,7 @@ our @EXPORT = qw(
   update_file_settings
 );
 
-our $VERSION            = 2018_04_07_19_36;
+our $VERSION            = 2019_05_08_12_52;
 our $CONFIGURATION_FILE = catfile(($^O eq 'MSWin32' ? $ENV{"USERPROFILE"} : $ENV{HOME}), '.config', 'newsup.conf');
 
 sub read_options {
@@ -72,7 +73,8 @@ sub read_options {
         'par2!'                        => \$options{PAR2},
         'headers=s%'                   => \$options{HEADERS},
         'name=s'                       => \$options{NAME},
-        'tempFolder=s'                 => \$options{TEMP_FOLDER});
+        'tempFolder=s'                 => \$options{TEMP_FOLDER},
+        'skipCopy!'                    => \$options{SKIP_COPY});
 
     my $config = {};
     $config = Config::Tiny->read($CONFIGURATION_FILE)
@@ -110,8 +112,7 @@ sub read_options {
     $options{SPLIT_CMD}               //= $config->{options}{split_cmd};
     $options{SPLIT_PATTERN}           //= $config->{options}{split_pattern}         // '*7z *[0-9][0-9][0-9]';
     $options{TEMP_FOLDER}             //= $config->{options}{temp_folder};
-    $options{PROGRESSBAR_SIZE}        //= $config->{options}{progressbar_size}      // 16;
-    $options{UPLOAD_NZB}              //= 0;
+    $options{SKIP_COPY}               //= $config->{options}{skip_copy}             // 0;
 
     croak '--nfo option is incompatible with obfuscation'
       if $options{NFO} && $options{OBFUSCATE};
@@ -157,12 +158,12 @@ sub update_file_settings {
         if ($options->{NAME}) {
             $options->{NZB_FILE} = $options->{NAME} . '.nzb';
         }
-        elsif ($options->{FILES} && @{$options->{FILES}} == 1) {
-            $options->{NZB_FILE} = $options->{FILES}[0] . '.nzb';
+        elsif ($options->{FILES} && @{$options->{FILES}} >= 1) {
+            $options->{NZB_FILE} = (File::Spec->splitpath($options->{FILES}[0]))[2] . '.nzb';
         }
     }
     if ($options->{SPLITNPAR} && !$options->{NAME}) {
-        if ($options->{FILES} && @{$options->{FILES}} == 1) {
+        if ($options->{FILES} && @{$options->{FILES}} >= 1) {
             my $file = $options->{FILES}[0];
             use File::Spec;
             $options->{NAME} = (File::Spec->splitpath($file))[-1];
@@ -177,7 +178,7 @@ sub version {
     my $year = (localtime())[5] + 1900;
     say <<"END";
     NewsUP $VERSION
-    
+
     Copyright (C) $year David Santiago
 
     This program is free software: you can redistribute it and/or modify
@@ -192,7 +193,7 @@ sub version {
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
-    
+
 END
 
     _exit 0;
@@ -242,6 +243,7 @@ sub help {
         --headers=s%                   => Headers to be added to the post
         --name=s                       => Name of the upload
         --tempFolder=s                 => Path to a temporary folder, to where newsup is going to copy the files to be uploaded and which newsup is going to perform the require operations.
+        --skipCopy!                    => Avoid copying the files to the tempFolder. Default is 0
 
 END
     exit 0;
@@ -350,16 +352,17 @@ sub find_files {
     my ($options) = @_;
     my @files = ();
 
-    croak "The `temp_folder` option isn't defined!" if !$options->{TEMP_FOLDER};
-    croak "The `temp_folder` isn't empty! Please clean it."
-      if glob(catfile($options->{TEMP_FOLDER}, '*'));
-    croak "The `temp_folder` doesn't exist! Please create it."
-      if !-e $options->{TEMP_FOLDER};
-    croak "The  `par2_path` option isn't defined!"
-      if $options->{OBFUSCATE} && !$options->{PAR2_PATH};
-    croak "The  `split_cmd` option isn't defined!"
-      if $options->{SPLITNPAR} && !$options->{SPLIT_CMD};
-
+    unless ($options->{SKIP_COPY} && !$options->{PAR2} && !$options->{SPLITNPAR}) {
+        croak "The `temp_folder` option isn't defined!" if !$options->{TEMP_FOLDER};
+        croak "The `temp_folder` isn't empty! Please clean it."
+          if glob(catfile($options->{TEMP_FOLDER}, '*'));
+        croak "The `temp_folder` doesn't exist! Please create it."
+          if !-e $options->{TEMP_FOLDER};
+        croak "The  `par2_path` option isn't defined!"
+          if $options->{OBFUSCATE} && !$options->{PAR2_PATH};
+        croak "The  `split_cmd` option isn't defined!"
+          if $options->{SPLITNPAR} && !$options->{SPLIT_CMD};
+    }
     for my $path (@{$options->{FILES}}) {
         croak "The file $path doesn't exist!" if !-e $path;
     }
@@ -399,11 +402,15 @@ sub _copy_files_to_temp {
         }
     }
 
-    rcopy($_, $options->{TEMP_FOLDER})
-      or die "Unable to copy the file to the temp folder: $!"
-      for (@$files);
+    unless ($options->{SKIP_COPY}) {
+        rcopy($_, $options->{TEMP_FOLDER})
+          or die "Unable to copy the file to the temp folder: $!"
+          for (@$files);
 
-    return _return_all_files_in_folder($options->{TEMP_FOLDER});
+        return _return_all_files_in_folder($options->{TEMP_FOLDER});
+    }
+
+    return $files;
 }
 
 sub _par_files {
@@ -414,23 +421,24 @@ sub _par_files {
         $files = _copy_files_to_temp([$options->{NFO}], $options);
     }
 
-    my $cmd = sprintf(
-        '%s %s %s "%s"',
-        $options->{PAR2_PATH},
-        $options->{PAR2_SETTINGS},
-        catfile(
-            $options->{TEMP_FOLDER},
-            $options->{OBFUSCATE} ? generate_random_string(12, 1)
-            : $options->{NAME}    ? $options->{NAME}
-            :                       generate_random_string(12, 1)
-        ),
-        join('" "', @$files));
+    my $gen_par_name = catfile(
+          $options->{SKIP_COPY} ? (File::Spec->splitpath($files->[0]))[1]
+        : $options->{TEMP_FOLDER},
+        $options->{OBFUSCATE} ? generate_random_string(12, 1)
+        : $options->{NAME}    ? $options->{NAME}
+        :                       generate_random_string(12, 1));
+    my $cmd
+      = sprintf('%s %s %s "%s"', $options->{PAR2_PATH}, $options->{PAR2_SETTINGS}, $gen_par_name, join('" "', @$files));
     qx/$cmd/;
+
+    # special case, because the par2cmd (the de facto standard) doesn't support creating par archives to another folder
+    return [glob("$gen_par_name*"), @$files] if ($options->{PAR2} && $options->{SKIP_COPY} && !$options->{SPLITNPAR});
     return _return_all_files_in_folder($options->{TEMP_FOLDER});
 }
 
 sub _return_all_files_in_folder {
     my ($folder) = @_;
+    $folder = abs_path($folder);
     my @files = ();
     find(sub { push @files, $File::Find::name if (-f $File::Find::name); }, $folder);
     return \@files;
@@ -547,7 +555,6 @@ sub _create_renaming_par_from_files {
         catfile($options->{TEMP_FOLDER}, 'rename.with.this.par2'),
         join("' '", @$files));
 
-    # say "create renaming par from files: $cmd";
     qx/$cmd/;
     return catfile($options->{TEMP_FOLDER}, 'rename.with.this.par2');
 }
@@ -561,7 +568,6 @@ sub _create_renaming_par_from_folder {
         catfile($folder, 'rename.with.this.par2'),
         join("' '", @files));
 
-    # say $cmd;
     qx/$cmd/;
     return \@files, catfile($folder, 'rename.with.this.par2');
 }

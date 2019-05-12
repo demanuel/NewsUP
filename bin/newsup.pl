@@ -25,6 +25,7 @@ BEGIN {
 }
 
 my $files;
+my $delete_files = 0;
 
 sub main {
     controller(read_options());
@@ -36,7 +37,8 @@ sub controller {
     if ($options->{CHECK_NZB}) {
         verify_nzb($options);
     }
-
+    $delete_files
+      = $options->{SKIP_COPY} * 8 + $options->{SPLITNPAR} * 4 + $options->{PAR2} * 2 + $options->{OBFUSCATE};
     if (@{$options->{FILES}}) {
         $files = find_files($options);
         # All the files are now temporary files
@@ -200,7 +202,10 @@ sub multiplexer_nzb_verification {
                 }
             }
         } until ($counter_fail + $counter_ok == $total_segments);
-        $stats{$filename} = [int($counter_ok / $total_segments * 100), $date == 1 ? localtime($file->getAttribute("date")). '(from nzb)' : $date];
+        $stats{$filename} = [
+            int($counter_ok / $total_segments * 100),
+            $date == 1 ? localtime($file->getAttribute("date")) . '(from nzb)' : $date
+        ];
     }
     return \%stats;
 }
@@ -288,7 +293,6 @@ sub header_check_multiplexer {
 
 sub upload_files {
     my ($options, $files) = @_;
-
     my @articles     = ();
     my $i            = 1;
     my $total_files  = @$files;
@@ -359,7 +363,7 @@ sub upload_files {
             push @nzb_articles, $article;
         }
         multiplexer($options, \@nzb_articles);
-        print "NZB uploaded!" . ' ' x $options->{PROGRESSBAR_SIZE};
+        print "NZB uploaded!" . ' ' x 67;
     }
 
     return \@articles;
@@ -648,12 +652,25 @@ sub get_connections {
 
 sub delete_temporary_files {
     # delete all the temporary files
-    unlink @$files if $files;
+    my ($regex) = @_;
+    unlink grep { $_ =~ m/$regex/ } @$files if $files;
     $files = [];
 }
 
 END {
-    delete_temporary_files();
+    # Not in all cases we should delete the files.
+    if (   $delete_files == 15
+        || $delete_files == 14
+        || $delete_files == 13
+        || $delete_files == 12
+        || $delete_files == 11
+        || $delete_files > 10)
+    {
+        delete_temporary_files('.');    # unless $skip_copy;
+    }
+    elsif ($delete_files == 10) {
+        delete_temporary_files('\.par2$');
+    }
 }
 
 

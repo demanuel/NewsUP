@@ -22,7 +22,7 @@ my $OPTIONS = {
 subtest 'find simple files' => sub {
     mkdir $OPTIONS->{TEMP_FOLDER};
     $OPTIONS->{FILES} = ['t/data/big_file.txt'];
-    my $files = find_files($OPTIONS);
+    my $files             = find_files($OPTIONS);
     my @existent_fs_files = glob(catfile($OPTIONS->{TEMP_FOLDER}, '*'));
     is(@existent_fs_files, 1);
     ok(@$files);
@@ -46,12 +46,12 @@ subtest 'find simple files' => sub {
     unlink(@$files);
 
     mkdir $OPTIONS->{TEMP_FOLDER};
-    $OPTIONS->{FILES} = ['t/data/big_file.txt', 't/data/empty.conf'];
+    $OPTIONS->{FILES}     = ['t/data/big_file.txt', 't/data/empty.conf'];
     $OPTIONS->{SPLITNPAR} = 1;
-    my $files = find_files($OPTIONS);
+    my $files             = find_files($OPTIONS);
     my @existent_fs_files = glob(catfile($OPTIONS->{TEMP_FOLDER}, '*'));
-    is(@existent_fs_files, 8);
-    ok(@$files == 8);
+    is(@existent_fs_files, 2);
+    ok(@$files == 2);
     rmtree($OPTIONS->{TEMP_FOLDER});
     unlink(@$files);
 
@@ -60,8 +60,8 @@ subtest 'find simple files' => sub {
     $OPTIONS->{SPLITNPAR} = 1;
     $files                = find_files($OPTIONS);
     @existent_fs_files = glob(catfile($OPTIONS->{TEMP_FOLDER}, '*'));
-    is(@existent_fs_files, 8);
-    ok(@$files == 8);
+    is(@existent_fs_files, 2);
+    ok(@$files == 2);
     rmtree($OPTIONS->{TEMP_FOLDER});
     unlink(@$files);
 
@@ -115,8 +115,8 @@ subtest 'find simple files' => sub {
     $OPTIONS->{SPLITNPAR} = 1;
     $files                = find_files($OPTIONS);
     @existent_fs_files = glob(catfile($OPTIONS->{TEMP_FOLDER}, '*'));
-    is(@existent_fs_files, 14);
-    ok(@$files == 14);
+    is(@existent_fs_files, 7);
+    ok(@$files == 7);
     rmtree($OPTIONS->{TEMP_FOLDER});
     unlink(@$files);
 
