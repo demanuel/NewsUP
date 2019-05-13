@@ -352,7 +352,7 @@ sub find_files {
     my ($options) = @_;
     my @files = ();
 
-    unless ($options->{SKIP_COPY} && !$options->{PAR2} && !$options->{SPLITNPAR}) {
+    if ($options->{PAR2} || $options->{SPLITNPAR}) {
         croak "The `temp_folder` option isn't defined!" if !$options->{TEMP_FOLDER};
         croak "The `temp_folder` isn't empty! Please clean it."
           if glob(catfile($options->{TEMP_FOLDER}, '*'));
@@ -471,10 +471,14 @@ sub _split_files {
         $split_name = generate_random_string(12, 1);
     }
 
-    my $cmd = sprintf('%s "%s" "%s"',
+    my $cmd = sprintf(
+        '%s "%s" "%s"',
         $options->{SPLIT_CMD},
         catfile($options->{TEMP_FOLDER}, $split_name),
-        join('" "', glob(catfile($options->{TEMP_FOLDER}, '*'))));
+        join('" "',
+              $options->{SKIP_COPY} && !$options->{OBFUSCATE}
+            ? @$files
+            : glob(catfile($options->{TEMP_FOLDER}, '*'))));
     qx/$cmd/;
     my %f = ();
     for my $pat (split(/\s/, $options->{SPLIT_PATTERN})) {
