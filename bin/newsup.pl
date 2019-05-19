@@ -49,7 +49,7 @@ sub controller {
     if ($options->{LIST}) {
         open my $ifh, '<', $options->{LIST} or die "Unable to open the file defined in list option: $!";
         while (defined(my $line = <$ifh>)) {
-            delete_temporary_files('.');
+            delete_temporary_files();
             chomp $line;
             say "Processing file $line";
             $options->{FILES} = [$line];
@@ -57,6 +57,7 @@ sub controller {
             # All the files are now temporary files
             my $articles = upload_files($options, $files);
             header_check($options, $articles) if ($options->{HEADERCHECK});
+	    delete $options->{NAME};
         }
         close $ifh;
     }
@@ -650,27 +651,32 @@ sub get_connections {
     return \@sockets;
 }
 
+
+
 sub delete_temporary_files {
-    # delete all the temporary files
+    # Not in all cases we should delete the files.
+    if (   $delete_files == 15
+	   || $delete_files == 14
+	   || $delete_files == 13
+	   || $delete_files == 12
+	   || $delete_files == 11
+	   || $delete_files > 10)
+    {
+        delete_files('.');    # unless $skip_copy;
+    }
+    elsif ($delete_files == 10) {
+        delete_files('\.par2$');
+    }
+}
+
+sub delete_files {
     my ($regex) = @_;
     unlink grep { $_ =~ m/$regex/ } @$files if $files;
     $files = [];
 }
 
 END {
-    # Not in all cases we should delete the files.
-    if (   $delete_files == 15
-        || $delete_files == 14
-        || $delete_files == 13
-        || $delete_files == 12
-        || $delete_files == 11
-        || $delete_files > 10)
-    {
-        delete_temporary_files('.');    # unless $skip_copy;
-    }
-    elsif ($delete_files == 10) {
-        delete_temporary_files('\.par2$');
-    }
+    delete_temporary_files();
 }
 
 
