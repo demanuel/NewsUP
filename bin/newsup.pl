@@ -49,7 +49,7 @@ sub controller {
     if ($options->{LIST}) {
         open my $ifh, '<', $options->{LIST} or die "Unable to open the file defined in list option: $!";
         while (defined(my $line = <$ifh>)) {
-            delete_temporary_files();
+            delete_temporary_files('.');
             chomp $line;
             say "Processing file $line";
             $options->{FILES} = [$line];
