@@ -54,10 +54,11 @@ sub controller {
             say "Processing file $line";
             $options->{FILES} = [$line];
             $files = find_files(update_file_settings($options));
+	    delete $options->{NAME};
             # All the files are now temporary files
             my $articles = upload_files($options, $files);
             header_check($options, $articles) if ($options->{HEADERCHECK});
-	    delete $options->{NAME};
+
         }
         close $ifh;
     }
