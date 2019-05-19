@@ -41,7 +41,7 @@ Depends: perl (>= ${required_perl_version}), libio-socket-ssl-perl, libnet-sslea
 Recommends: par2, rar, p7zip
 EOT
 
-echo "echo \"Create a ~/.config/newsup.cfg for the user\\nPlease check /etc/newsup/newsup.conf.example\"" >> newsup/DEBIAN/postinst
+echo "echo \"Create a ~/.config/newsup.conf for the user\\nPlease check /etc/newsup/newsup.conf.example\"" >> newsup/DEBIAN/postinst
 chmod 755 newsup/DEBIAN/postinst
 
 
