@@ -24,8 +24,6 @@ BEGIN {
     $| = 1;
 }
 
-my $files;
-my $delete_files = 0;
 
 sub main {
     controller(read_options());
@@ -37,27 +35,31 @@ sub controller {
     if ($options->{CHECK_NZB}) {
         verify_nzb($options);
     }
-    $delete_files
+    my $files = [];
+
+    my $delete_files
       = $options->{SKIP_COPY} * 8 + $options->{SPLITNPAR} * 4 + $options->{PAR2} * 2 + $options->{OBFUSCATE};
     if (@{$options->{FILES}}) {
         $files = find_files($options);
         # All the files are now temporary files
         my $articles = upload_files($options, $files);
         header_check($options, $articles) if ($options->{HEADERCHECK});
+	delete_temporary_files($delete_files, $files);
     }
 
     if ($options->{LIST}) {
         open my $ifh, '<', $options->{LIST} or die "Unable to open the file defined in list option: $!";
         while (defined(my $line = <$ifh>)) {
-            delete_temporary_files();
-            chomp $line;
-            say "Processing file $line";
-            $options->{FILES} = [$line];
-            $files = find_files(update_file_settings($options));
 	    delete $options->{NAME};
+            chomp $line;
+            $options->{FILES} = [$line];
+
+            $files = find_files(update_file_settings($options));
+
             # All the files are now temporary files
             my $articles = upload_files($options, $files);
             header_check($options, $articles) if ($options->{HEADERCHECK});
+	    delete_temporary_files($delete_files, $files);
 
         }
         close $ifh;
@@ -653,32 +655,24 @@ sub get_connections {
 }
 
 
-
 sub delete_temporary_files {
     # Not in all cases we should delete the files.
+    my ($delete_files, $files) = @_;
     if (   $delete_files == 15
 	   || $delete_files == 14
 	   || $delete_files == 13
 	   || $delete_files == 12
 	   || $delete_files == 11
-	   || $delete_files > 10)
+	   || $delete_files < 10)
     {
-        delete_files('.');    # unless $skip_copy;
+#        delete_files($files);    # unless $skip_copy;
+	unlink @$files;
     }
     elsif ($delete_files == 10) {
-        delete_files('\.par2$');
+	unlink grep { $_ =~ /\.par2$/} @$files
     }
 }
 
-sub delete_files {
-    my ($regex) = @_;
-    unlink grep { $_ =~ m/$regex/ } @$files if $files;
-    $files = [];
-}
-
-END {
-    delete_temporary_files();
-}
 
 
 main(@ARGV) unless caller();
