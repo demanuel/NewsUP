@@ -14,22 +14,12 @@ This program is licensed with GPLv3.
 This readme contains the basic info on how to run newsup and it's options.
 For windows installation, or another stuff more specific to some environment/script please check the wiki.
 
-
-## Alternatives
-* newsmangler (https://github.com/madcowfred/newsmangler)
-* newspost (https://github.com/joehillen/newspost)
-* pan (http://pan.rebelbase.com/)
-* sanguinews (https://github.com/tdobrovolskij/sanguinews)
-* GoPostStuff (https://github.com/madcowfred/GoPostStuff/)
-* Nyuu (https://github.com/animetosho/Nyuu)
-
 # What does this program do
 
 It will upload a file or folder to the usenet.
 If it is a folder it will search for files inside of the folder.
 It can obfuscate the uploads.
 A NZB file will be generated for later retrieving.
-
 
 ## Supports
 * SSL
@@ -42,11 +32,22 @@ A NZB file will be generated for later retrieving.
 * Multiple nzb checking
 
 # Requirements:
-* Perl (preferably 5.020 or higher)
+* Perl (5.020 or higher. Ideally 5.030)
 * Perl modules: Config::Tiny, IO::Socket::SSL, Inline::C, File::Copy::Recursive (all other modules should exist on core.)
 * rar and par2cmdline (**optional** only if you want to use the RARNPAR option)
 
 If you have any issue installing/running this check the wiki, if you still have issues please open a ticket or send me an email so i can try to help you.
+
+# Installing
+
+NewsUP is distributed with two build scripts for linux systems based on Arch Linux and Debian to make it easier to install.
+NewsUP can also be installed in windows.
+
+Please check the wiki for more info.
+For linux: https://github.com/demanuel/NewsUP/wiki/Installation
+For windows: https://github.com/demanuel/NewsUP/wiki/Running-on-windows
+
+
 
 # Running
 The most basic way to run it (please check the options section) is:
@@ -64,7 +65,6 @@ If you want to check the status of a nzb:
 $ perl newsup.pl -check my_nzb.nzb
 
 In this example it will use the headercheck server settings defined in the config file.
-
 
 # Advanced
 NewsUP uses C code to do the yenc enconding. The code needs to be compiled.

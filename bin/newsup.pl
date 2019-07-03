@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-use 5.026;
+use 5.030;
 use warnings;
 use utf8;
 use FindBin qw($Bin);

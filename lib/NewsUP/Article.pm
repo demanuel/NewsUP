@@ -1,6 +1,6 @@
 package NewsUP::Article;
 use POSIX;
-use 5.026;
+use 5.030;
 use NewsUP::yEnc;
 use NewsUP::Utils qw(generate_random_string);
 use Socket ':crlf';

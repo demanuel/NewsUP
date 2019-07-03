@@ -2,7 +2,7 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use Test::More;
 use NewsUP::Utils;
-use 5.026;
+use 5.030;
 use Data::Dumper;
 
 subtest 'Read config file check and defaults' => sub {

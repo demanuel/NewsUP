@@ -1,5 +1,5 @@
 package NewsUP::Utils;
-use 5.026;
+use 5.030;
 use warnings;
 use strict;
 use POSIX;
@@ -30,7 +30,7 @@ our @EXPORT = qw(
   update_file_settings
 );
 
-our $VERSION            = 2019_05_08_12_52;
+our $VERSION            = 2019_07_02_22_47;
 our $CONFIGURATION_FILE = catfile(($^O eq 'MSWin32' ? $ENV{"USERPROFILE"} : $ENV{HOME}), '.config', 'newsup.conf');
 
 sub read_options {
