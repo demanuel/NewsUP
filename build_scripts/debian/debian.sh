@@ -108,7 +108,7 @@ then
     fi
     cd $CURRENT_DIR
 
-    if (( $(echo "${installed_perl_version} < 5.26" | bc -l) ))
+    if (( $(echo "${installed_perl_version} < ${required_perl_version}" | bc -l) ))
     then
 
 	find newsup/usr -type f -exec sed -i "s/5.03[[:digit:]]/${installed_perl_version/./.0}/g" {} \;
