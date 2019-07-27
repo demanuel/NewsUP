@@ -176,7 +176,7 @@ temp_folder = /data/tmp # Make sure this folder exists. Even if the skip_copy is
 # if the nzb is also uploaded
 upload_nzb = 1
 nzb_save_path = /data/uploads/
-
+no_nzb = 1
 ```
 
 ## Command line options
@@ -216,7 +216,7 @@ nzb_save_path = /data/uploads/
 - skip_copy # negatable
 - tempFolder # string
 - nfo #string
-
+- noNzb
 
 # Examples
 

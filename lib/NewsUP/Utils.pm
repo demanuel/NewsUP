@@ -74,7 +74,8 @@ sub read_options {
         'headers=s%'                   => \$options{HEADERS},
         'name=s'                       => \$options{NAME},
         'tempFolder=s'                 => \$options{TEMP_FOLDER},
-        'skipCopy!'                    => \$options{SKIP_COPY});
+        'skipCopy!'                    => \$options{SKIP_COPY},
+        'noNzb'                        => \$options{NO_NZB});
 
     my $config = {};
     $config = Config::Tiny->read($CONFIGURATION_FILE)
@@ -110,9 +111,10 @@ sub read_options {
     $options{UPLOAD_NZB}              //= $config->{options}{upload_nzb}            // 0;
     $options{NZB_SAVE_PATH}           //= $config->{options}{nzb_save_path}         // '.';
     $options{SPLIT_CMD}               //= $config->{options}{split_cmd};
-    $options{SPLIT_PATTERN}           //= $config->{options}{split_pattern}         // '*7z *[0-9][0-9][0-9]';
-    $options{TEMP_FOLDER}             //= $config->{options}{temp_folder};
-    $options{SKIP_COPY}               //= $config->{options}{skip_copy}             // 0;
+    $options{SPLIT_PATTERN} //= $config->{options}{split_pattern} // '*7z *[0-9][0-9][0-9]';
+    $options{TEMP_FOLDER}   //= $config->{options}{temp_folder};
+    $options{SKIP_COPY} //= $config->{options}{skip_copy} // 0;
+    $options{NO_NZB}    //= $config->{options}{no_nzb}    // 1;
 
     croak '--nfo option is incompatible with obfuscation'
       if $options{NFO} && $options{OBFUSCATE};
@@ -244,6 +246,7 @@ sub help {
         --name=s                       => Name of the upload
         --tempFolder=s                 => Path to a temporary folder, to where newsup is going to copy the files to be uploaded and which newsup is going to perform the require operations.
         --skipCopy!                    => Avoid copying the files to the tempFolder. Default is 0
+	--noNzb                        => Do not create a NZB
 
 END
     exit 0;

@@ -44,13 +44,13 @@ sub controller {
         # All the files are now temporary files
         my $articles = upload_files($options, $files);
         header_check($options, $articles) if ($options->{HEADERCHECK});
-	delete_temporary_files($delete_files, $files);
+        delete_temporary_files($delete_files, $files);
     }
 
     if ($options->{LIST}) {
         open my $ifh, '<', $options->{LIST} or die "Unable to open the file defined in list option: $!";
         while (defined(my $line = <$ifh>)) {
-	    delete $options->{NAME};
+            delete $options->{NAME};
             chomp $line;
             $options->{FILES} = [$line];
 
@@ -59,7 +59,7 @@ sub controller {
             # All the files are now temporary files
             my $articles = upload_files($options, $files);
             header_check($options, $articles) if ($options->{HEADERCHECK});
-	    delete_temporary_files($delete_files, $files);
+            delete_temporary_files($delete_files, $files);
 
         }
         close $ifh;
@@ -340,36 +340,36 @@ sub upload_files {
       . int($total_upload / 1024 / $elapsed)
       . " KBytes/second";
 
+    unless ($options->{NO_NZB}) {
+        my $nzb_file = save_nzb($options, \@articles);
 
-    my $nzb_file = save_nzb($options, \@articles);
-
-    if ($options->{UPLOAD_NZB} && !$options->{OBFUSCATE}) {
-        print "Uploading NZB";
-        my $file_size    = -s $nzb_file;
-        my $total_parts  = ceil($file_size / (750 * 1024));
-        my $ids          = generate_random_ids($total_parts, $options) if $options->{GENERATE_IDS};
-        my @nzb_articles = ();
-        for (my $part = 1; $part <= $total_parts; $part++) {
-            my $article = NewsUP::Article->new(
-                newsgroups  => $options->{GROUPS},
-                file        => $nzb_file,
-                from        => $options->{UPLOADER},
-                file_number => 1,
-                file_size   => $file_size,
-                total_files => 1,
-                comments    => $options->{COMMENTS},
-                part        => $part,
-                total_parts => $total_parts,
-                upload_size => $options->{UPLOAD_SIZE},
-                message_id  => $options->{GENERATE_IDS} ? $ids->[$part - 1] : undef,
-                obfuscate   => 0,
-                headers     => $options->{HEADERS});
-            push @nzb_articles, $article;
+        if ($options->{UPLOAD_NZB} && !$options->{OBFUSCATE}) {
+            print "Uploading NZB";
+            my $file_size    = -s $nzb_file;
+            my $total_parts  = ceil($file_size / (750 * 1024));
+            my $ids          = generate_random_ids($total_parts, $options) if $options->{GENERATE_IDS};
+            my @nzb_articles = ();
+            for (my $part = 1; $part <= $total_parts; $part++) {
+                my $article = NewsUP::Article->new(
+                    newsgroups  => $options->{GROUPS},
+                    file        => $nzb_file,
+                    from        => $options->{UPLOADER},
+                    file_number => 1,
+                    file_size   => $file_size,
+                    total_files => 1,
+                    comments    => $options->{COMMENTS},
+                    part        => $part,
+                    total_parts => $total_parts,
+                    upload_size => $options->{UPLOAD_SIZE},
+                    message_id  => $options->{GENERATE_IDS} ? $ids->[$part - 1] : undef,
+                    obfuscate   => 0,
+                    headers     => $options->{HEADERS});
+                push @nzb_articles, $article;
+            }
+            multiplexer($options, \@nzb_articles);
+            print "NZB uploaded!" . ' ' x 67;
         }
-        multiplexer($options, \@nzb_articles);
-        print "NZB uploaded!" . ' ' x 67;
     }
-
     return \@articles;
 }
 
@@ -659,17 +659,17 @@ sub delete_temporary_files {
     # Not in all cases we should delete the files.
     my ($delete_files, $files) = @_;
     if (   $delete_files == 15
-	   || $delete_files == 14
-	   || $delete_files == 13
-	   || $delete_files == 12
-	   || $delete_files == 11
-	   || $delete_files < 10)
+        || $delete_files == 14
+        || $delete_files == 13
+        || $delete_files == 12
+        || $delete_files == 11
+        || $delete_files < 10)
     {
-#        delete_files($files);    # unless $skip_copy;
-	unlink @$files;
+        #        delete_files($files);    # unless $skip_copy;
+        unlink @$files;
     }
     elsif ($delete_files == 10) {
-	unlink grep { $_ =~ /\.par2$/} @$files
+        unlink grep { $_ =~ /\.par2$/ } @$files;
     }
 }
 
