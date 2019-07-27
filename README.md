@@ -73,7 +73,7 @@ $ perl newsup.pl -check my_nzb.nzb
 In this example it will use the headercheck server settings defined in the config file.
 
 # Advanced
-NewsUP uses C code to do the yenc enconding. The code needs to be compiled.
+NewsUP uses C code to do the yenc enconding. C is much faster than Perl. The code needs to be compiled.
 You can change the C compiler (GCC, CLang,..) and the compiler flags by
 setting the *environment variables* NEWSUP_CC (for the compiler to be used)
 and NEWSUP_CCFLAGS (for the compiler flags).
@@ -87,7 +87,24 @@ Example for GCC: `-Ofast -march=native -mcpu=native -mtune=native`
 *After this option is set or change you need to remove the inline folder
 so that the code is recompiled again.*
 
-## Config file
+## Note
+Because the C encoding is done with the C language, it will create a directory named `_Inline`.
+The `_Inline` folder is where the compiled code is saved. Since we don't want to compile it everytime you run it
+(because compiling is slow) the _Inline folder is kept. It can be removed without any problems.
+
+If you want to know how to change the location of this folder, please check the  oficial documentation
+for Inline: https://metacpan.org/pod/distribution/Inline/lib/Inline.pod#The-Inline-directory
+
+    The Inline 'directory'
+
+    Inline needs a place to build your code and to install the results of the build. It uses a single directory named '.Inline/' under normal circumstances. If you create this directory in your home directory, the current directory or in the directory where your program resides, Inline will find and use it. You can also specify it in the environment variable PERL_INLINE_DIRECTORY or directly in your program, by using the directory keyword option. If Inline cannot find the directory in any of these places it will create a '_Inline/' directory in either your current directory or the directory where your script resides.
+
+    One of the key factors to using Inline successfully, is understanding this directory. When developing code it is usually best to create this directory (or let Inline do it) in your current directory. Remember that there is nothing sacred about this directory except that it holds your compiled code. Feel free to delete it at any time. Inline will simply start from scratch and recompile your code on the next run. If you have several programs that you want to force to recompile, just delete your '.Inline/' directory.
+
+    It is probably best to have a separate '.Inline/' directory for each project that you are working on. You may want to keep stable code in the <.Inline/> in your home directory. On multi-user systems, each user should have their own '.Inline/' directories. It could be a security risk to put the directory in a shared place like /tmp/.
+
+
+# Config file
 **This config file needs to be in ~/.config/ folder**
 ```
 [server]
