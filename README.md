@@ -21,6 +21,12 @@ If it is a folder it will search for files inside of the folder.
 It can obfuscate the uploads.
 A NZB file will be generated for later retrieving.
 
+## Obfuscation warning
+
+Some servers, might block you if you use this option. The servers and the users only see "normal" posts and are unable to determine any file you are uploading. So they consider it spamming.
+
+Use this feature at your own responsability!
+
 ## Supports
 * SSL
 * Multi connections
