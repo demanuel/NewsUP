@@ -434,6 +434,9 @@ sub _par_files {
       = sprintf('%s %s %s "%s"', $options->{PAR2_PATH}, $options->{PAR2_SETTINGS}, $gen_par_name, join('" "', @$files));
     qx/$cmd/;
 
+    croak $options->{PAR2_PATH} . " failed to execute. Please make sure that the option par2_path is set correctly"
+      if $? == -1;
+
     # special case, because the par2cmd (the de facto standard) doesn't support creating par archives to another folder
     return [glob("$gen_par_name*"), @$files] if ($options->{PAR2} && $options->{SKIP_COPY} && !$options->{SPLITNPAR});
     return _return_all_files_in_folder($options->{TEMP_FOLDER});
@@ -483,6 +486,9 @@ sub _split_files {
             ? @$files
             : glob(catfile($options->{TEMP_FOLDER}, '*'))));
     qx/$cmd/;
+
+    croak "The split command failed! Please verify the split_cmd option" if $? == -1;
+
     my %f = ();
     for my $pat (split(/\s/, $options->{SPLIT_PATTERN})) {
         for (glob(catfile($options->{TEMP_FOLDER}, $pat))) {
@@ -563,6 +569,8 @@ sub _create_renaming_par_from_files {
         join("' '", @$files));
 
     qx/$cmd/;
+    croak "Creating the renaming par2 file failed!" if $? == -1;
+
     return catfile($options->{TEMP_FOLDER}, 'rename.with.this.par2');
 }
 
@@ -576,6 +584,8 @@ sub _create_renaming_par_from_folder {
         join("' '", @files));
 
     qx/$cmd/;
+    croak "Creating the renaming par2 file failed!" if $? == -1;
+
     return \@files, catfile($folder, 'rename.with.this.par2');
 }
 
