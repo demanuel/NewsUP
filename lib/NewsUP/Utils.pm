@@ -428,20 +428,24 @@ sub _copy_files_to_temp {
 
 sub _par_files {
     my ($files, $options) = @_;
-
     # Add the NFO in this step
     if ($options->{NFO}) {
         $files = _copy_files_to_temp([$options->{NFO}], $options);
     }
 
+    my $file_folder = (File::Spec->splitpath($files->[0]))[1];
+    $file_folder ||= '.';
+
     my $gen_par_name = catfile(
-          $options->{SKIP_COPY} ? (File::Spec->splitpath($files->[0]))[1]
+          $options->{SKIP_COPY} ? $file_folder
         : $options->{TEMP_FOLDER},
         $options->{OBFUSCATE} ? generate_random_string(12, 1)
         : $options->{NAME}    ? $options->{NAME}
         :                       generate_random_string(12, 1));
     my $cmd
       = sprintf('%s %s %s "%s"', $options->{PAR2_PATH}, $options->{PAR2_SETTINGS}, $gen_par_name, join('" "', @$files));
+
+    say $cmd if $options->{DEBUG};
     qx/$cmd/;
 
     croak $options->{PAR2_PATH} . " failed to execute. Please make sure that the option par2_path is set correctly"
