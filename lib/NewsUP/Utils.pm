@@ -399,21 +399,31 @@ sub find_files {
 
 sub _copy_files_to_temp {
     my ($files, $options) = @_;
+    my @files = ();
     for (@$files) {
-        if (-e catfile($options->{TEMP_FOLDER}, basename($_))) {
-            die 'The file ' . catfile($options->{TEMP_FOLDER}, basename($_)) . ' already exists! Use a folder!';
+        unless ($options->{SKIP_COPY}) {
+            die 'The file ' . catfile($options->{TEMP_FOLDER}, basename($_)) . ' already exists! Use a folder!'
+              if (-e catfile($options->{TEMP_FOLDER}, basename($_)));
+            push @files, $_;
+        }
+        else {
+            my $file = $_;
+            if (-f $file) {
+                push @files, $file;
+            }
+            else {
+                push @files, @{_return_all_files_in_folder($file)};
+            }
         }
     }
-
     unless ($options->{SKIP_COPY}) {
         rcopy($_, $options->{TEMP_FOLDER})
           or die "Unable to copy the file to the temp folder: $!"
-          for (@$files);
+          for (@files);
 
         return _return_all_files_in_folder($options->{TEMP_FOLDER});
     }
-
-    return $files;
+    return \@files;
 }
 
 sub _par_files {

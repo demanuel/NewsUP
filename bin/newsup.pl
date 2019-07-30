@@ -15,6 +15,7 @@ use Time::HiRes qw(gettimeofday tv_interval alarm);
 use NewsUP::Utils
   qw (read_options generate_random_ids save_nzb get_random_array_elements find_files update_file_settings );
 use List::Util qw(min max);
+use File::Path qw/rmtree/;
 use Carp;
 
 $\ = $CRLF;
@@ -44,7 +45,7 @@ sub controller {
         # All the files are now temporary files
         my $articles = upload_files($options, $files);
         header_check($options, $articles) if ($options->{HEADERCHECK});
-        delete_temporary_files($delete_files, $files);
+        delete_temporary_files($delete_files, $files, $options);
     }
 
     if ($options->{LIST}) {
@@ -59,7 +60,7 @@ sub controller {
             # All the files are now temporary files
             my $articles = upload_files($options, $files);
             header_check($options, $articles) if ($options->{HEADERCHECK});
-            delete_temporary_files($delete_files, $files);
+            delete_temporary_files($delete_files, $files, $options);
 
         }
         close $ifh;
@@ -657,7 +658,7 @@ sub get_connections {
 
 sub delete_temporary_files {
     # Not in all cases we should delete the files.
-    my ($delete_files, $files) = @_;
+    my ($delete_files, $files, $options) = @_;
     if (   $delete_files == 15
         || $delete_files == 14
         || $delete_files == 13
@@ -665,8 +666,14 @@ sub delete_temporary_files {
         || $delete_files == 11
         || $delete_files < 10)
     {
-        #        delete_files($files);    # unless $skip_copy;
         unlink @$files;
+
+        # Be sure that in the temp folder nothing is being left
+        unless ($options->{SKIP_COPY}) {
+            for (glob(catfile($options->{TEMP_FOLDER}, '*'))) {
+                rmtree $_ or die "unable to delete file: $!";
+            }
+        }
     }
     elsif ($delete_files == 10) {
         unlink grep { $_ =~ /\.par2$/ } @$files;
