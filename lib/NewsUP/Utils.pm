@@ -275,11 +275,12 @@ sub save_nzb {
     my $totalFiles  = 0;    # variable used to build the subject
     my %fileMapping = ();
     for my $article (@$articles) {
-        $fileMapping{$article->filename} = []
-          if (!exists $fileMapping{$article->filename});
+	if (!exists $fileMapping{$article->filename}) {
+	    $fileMapping{$article->filename} = [];
+	    $totalFiles++;
+	}
 
         push @{$fileMapping{$article->filename}}, $article;
-        $totalFiles++;
     }
 
     my $currentFile = 0;
