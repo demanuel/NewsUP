@@ -54,7 +54,6 @@ For linux: https://github.com/demanuel/NewsUP/wiki/Installation
 For windows: https://github.com/demanuel/NewsUP/wiki/Running-on-windows
 
 
-
 # Running
 The most basic way to run it (please check the options section) is:
 $ perl newsup.pl -file my_file -con 2 -news alt.binaries.test
@@ -103,6 +102,33 @@ for Inline: https://metacpan.org/pod/distribution/Inline/lib/Inline.pod#The-Inli
 
     It is probably best to have a separate '.Inline/' directory for each project that you are working on. You may want to keep stable code in the <.Inline/> in your home directory. On multi-user systems, each user should have their own '.Inline/' directories. It could be a security risk to put the directory in a shared place like /tmp/.
 
+
+# Scripting
+If the option before_upload is defined and points to a script, it will invoke it and the user can do whatever it wants with the generated files.
+
+Such script should be prepared to received all the processed files as input and it should print to the output one file per line. The output will be then uploaded.
+
+Example:
+```
+#!/bin/bash
+
+TEMP_FOLDER=`perl -n -e '/temp_folder\s*=\s*(.*)/ && print $1' ~/.config/newsup.conf`
+
+cd ${TEMP_FOLDER}/
+
+for f in $@
+do
+	mv "$f" $(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1);
+done
+
+for f in ${TEMP_FOLDER}/*
+do
+    echo $f
+done
+```
+
+This example will rename the files to a random string. (Similar to what the --name switch would do, but in this no extension is set)
+Please also note that these files can be temporary (according to what options the user defined) and as such will be deleted.
 
 # Config file
 **This config file needs to be in ~/.config/ folder**
@@ -177,6 +203,7 @@ temp_folder = /data/tmp # Make sure this folder exists. Even if the skip_copy is
 upload_nzb = 1
 nzb_save_path = /data/uploads/
 no_nzb = 1
+before_upload = /script/to/run/before_upload.sh # Make sure the file is executable
 ```
 
 ## Command line options
@@ -243,7 +270,6 @@ I want to express my gratitude to:
 * [XS News](https://www.xsnews.nl/en/index.html) for giving me a test account for free.
 
 * [Newsbin](https://www.newsbin.com) for helping me with small yenc encoding warning.
-
 
 
 

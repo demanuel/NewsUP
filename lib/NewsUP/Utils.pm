@@ -17,6 +17,7 @@ use File::Path qw/rmtree/;
 use File::Copy::Recursive qw(rcopy rmove);
 $File::Copy::Recursive::CPRFComp = 1;
 
+
 require Exporter;
 our @ISA    = qw(Exporter);
 our @EXPORT = qw(
@@ -113,8 +114,9 @@ sub read_options {
     $options{SPLIT_CMD}               //= $config->{options}{split_cmd};
     $options{SPLIT_PATTERN} //= $config->{options}{split_pattern} // '*7z *[0-9][0-9][0-9]';
     $options{TEMP_FOLDER}   //= $config->{options}{temp_folder};
-    $options{SKIP_COPY} //= $config->{options}{skip_copy} // 0;
-    $options{NO_NZB}    //= $config->{options}{no_nzb}    // 1;
+    $options{SKIP_COPY}         //= $config->{options}{skip_copy}     // 0;
+    $options{NO_NZB}            //= $config->{options}{no_nzb}        // 1;
+    $options{RUN_BEFORE_UPLOAD} //= $config->{options}{before_upload} // 0;
 
     croak '--nfo option is incompatible with obfuscation'
       if $options{NFO} && $options{OBFUSCATE};
@@ -275,10 +277,10 @@ sub save_nzb {
     my $totalFiles  = 0;    # variable used to build the subject
     my %fileMapping = ();
     for my $article (@$articles) {
-	if (!exists $fileMapping{$article->filename}) {
-	    $fileMapping{$article->filename} = [];
-	    $totalFiles++;
-	}
+        if (!exists $fileMapping{$article->filename}) {
+            $fileMapping{$article->filename} = [];
+            $totalFiles++;
+        }
 
         push @{$fileMapping{$article->filename}}, $article;
     }
@@ -355,7 +357,6 @@ sub get_random_array_elements {
 sub find_files {
     my ($options) = @_;
     my @files = ();
-
     if ($options->{PAR2} || $options->{SPLITNPAR}) {
         croak "The `temp_folder` option isn't defined!" if !$options->{TEMP_FOLDER};
         croak "The `temp_folder` isn't empty! Please clean it."
@@ -374,28 +375,37 @@ sub find_files {
     if ($options->{SPLITNPAR} && $options->{OBFUSCATE}) {
         my $obfuscated_files = _obfuscate_files($options->{FILES}, $options);
         my $split_files      = _split_files($obfuscated_files, $options);
-        return _par_files($split_files, $options);
+        return _process_files_before_upload(_par_files($split_files, $options), $options);
     }
     elsif ($options->{SPLITNPAR} && !$options->{OBFUSCATE}) {
         my $temp_files  = _copy_files_to_temp($options->{FILES}, $options);
         my $split_files = _split_files($temp_files, $options);
-        return $split_files unless $options->{PAR2};
-        return _par_files($split_files, $options);
+        return _process_files_before_upload($split_files, $options) unless $options->{PAR2};
+        return _process_files_before_upload(_par_files($split_files, $options), $options);
     }
     elsif ($options->{PAR2} && $options->{OBFUSCATE}) {
         my $obfuscated_files = _obfuscate_files($options->{FILES}, $options);
-        return _par_files($obfuscated_files, $options);
+        return _process_files_before_upload(_par_files($obfuscated_files, $options), $options);
     }
     elsif ($options->{PAR2} && !$options->{OBFUSCATE}) {
         my $temp_files = _copy_files_to_temp($options->{FILES}, $options);
-        return _par_files($temp_files, $options);
+        return _process_files_before_upload(_par_files($temp_files, $options), $options);
     }
     elsif ($options->{OBFUSCATE}) {
-        return _obfuscate_files($options->{FILES}, $options);
+        return _process_files_before_upload(_obfuscate_files($options->{FILES}, $options), $options);
     }
     else {
-        return _copy_files_to_temp($options->{FILES}, $options);
+        return _process_files_before_upload(_copy_files_to_temp($options->{FILES}, $options), $options);
     }
+}
+
+sub _process_files_before_upload {
+    my ($files, $options) = @_;
+    return $files unless $options->{RUN_BEFORE_UPLOAD};
+
+    my $cmd       = $options->{RUN_BEFORE_UPLOAD} . " '" . join("' '", @$files) . "'";
+    my @new_files = map { chomp; $_ } qx/$cmd/;
+    return \@new_files;
 }
 
 sub _copy_files_to_temp {
