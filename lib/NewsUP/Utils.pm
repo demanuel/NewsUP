@@ -84,7 +84,7 @@ sub read_options {
 
     $options{UPLOAD_SIZE} //= $config->{upload}{size}      // 750 * 1024;
     $options{OBFUSCATE}   //= $config->{upload}{obfuscate} // 0;
-    $options{GROUPS}    //= [split(',', $config->{upload}{newsgroups} // '')];
+    $options{GROUPS}    //= [split(/\s*,\s*/, $config->{upload}{newsgroups} // '')];
     $options{AUTH_USER} //= $config->{auth}{user} // '';
     $options{AUTH_PASS}   //= $config->{auth}{password}      // '';
     $options{CONNECTIONS} //= $config->{server}{connections} // 2;
