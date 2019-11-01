@@ -454,7 +454,7 @@ sub _par_files {
         : $options->{NAME}    ? $options->{NAME}
         :                       generate_random_string(12, 1));
     my $cmd
-      = sprintf('%s %s %s "%s"', $options->{PAR2_PATH}, $options->{PAR2_SETTINGS}, $gen_par_name, join('" "', @$files));
+      = sprintf('%s %s "%s" "%s"', $options->{PAR2_PATH}, $options->{PAR2_SETTINGS}, $gen_par_name, join('" "', @$files));
 
     say $cmd if $options->{DEBUG};
     qx/$cmd/;
