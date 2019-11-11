@@ -454,10 +454,17 @@ sub _par_files {
         : $options->{NAME}    ? $options->{NAME}
         :                       generate_random_string(12, 1));
     my $cmd
-      = sprintf('%s %s "%s" "%s"', $options->{PAR2_PATH}, $options->{PAR2_SETTINGS}, $gen_par_name, join('" "', @$files));
+      = sprintf('%s %s "%s" "%s"', $options->{PAR2_PATH}, $options->{PAR2_SETTINGS}, $gen_par_name,
+        join('" "', @$files));
 
-    say $cmd if $options->{DEBUG};
-    qx/$cmd/;
+    if ($options->{DEBUG}) {
+        say $cmd;
+        system($cmd);
+
+    }
+    else {
+        qx/$cmd/;
+    }
 
     croak $options->{PAR2_PATH} . " failed to execute. Please make sure that the option par2_path is set correctly"
       if $? == -1;
@@ -510,7 +517,15 @@ sub _split_files {
               $options->{SKIP_COPY} && !$options->{OBFUSCATE}
             ? @$files
             : glob(catfile($options->{TEMP_FOLDER}, '*'))));
-    qx/$cmd/;
+
+    if ($options->{DEBUG}) {
+        say $cmd;
+        system($cmd);
+
+    }
+    else {
+        qx/$cmd/;
+    }
 
     croak "The split command failed! Please verify the split_cmd option" if $? == -1;
 
@@ -593,7 +608,15 @@ sub _create_renaming_par_from_files {
         catfile($options->{TEMP_FOLDER}, 'rename.with.this.par2'),
         join("' '", @$files));
 
-    qx/$cmd/;
+    if ($options->{DEBUG}) {
+        say $cmd;
+        system($cmd);
+
+    }
+    else {
+        qx/$cmd/;
+    }
+
     croak "Creating the renaming par2 file failed!" if $? == -1;
 
     return catfile($options->{TEMP_FOLDER}, 'rename.with.this.par2');
@@ -608,7 +631,15 @@ sub _create_renaming_par_from_folder {
         catfile($folder, 'rename.with.this.par2'),
         join("' '", @files));
 
-    qx/$cmd/;
+    if ($options->{DEBUG}) {
+        say $cmd;
+        system($cmd);
+
+    }
+    else {
+        qx/$cmd/;
+    }
+
     croak "Creating the renaming par2 file failed!" if $? == -1;
 
     return \@files, catfile($folder, 'rename.with.this.par2');
