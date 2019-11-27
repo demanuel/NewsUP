@@ -401,11 +401,19 @@ sub find_files {
 
 sub _process_files_before_upload {
     my ($files, $options) = @_;
+    local $\;
     return $files unless $options->{RUN_BEFORE_UPLOAD};
 
     my $cmd       = $options->{RUN_BEFORE_UPLOAD} . " '" . join("' '", @$files) . "'";
+    _clear_line();
+    print "Processing files before upload\r";
     my @new_files = map { chomp; $_ } qx/$cmd/;
     return \@new_files;
+}
+
+sub _clear_line {
+    local $\;
+    print "\r"." "x37 ."\r";
 }
 
 sub _copy_files_to_temp {
@@ -463,6 +471,9 @@ sub _par_files {
 
     }
     else {
+	local $\;
+	_clear_line();
+	print "Start par'ing the files\r";
         qx/$cmd/;
     }
 
@@ -524,6 +535,9 @@ sub _split_files {
 
     }
     else {
+	local $\;
+	_clear_line();
+	print "Splitting the files\r";
         qx/$cmd/;
     }
 
@@ -614,6 +628,9 @@ sub _create_renaming_par_from_files {
 
     }
     else {
+	local $\;
+	_clear_line();
+	print "Creating renaming par for the files\r";
         qx/$cmd/;
     }
 
@@ -637,6 +654,9 @@ sub _create_renaming_par_from_folder {
 
     }
     else {
+	local $\;
+	_clear_line();
+	print "Creating renaming par for the files\r";
         qx/$cmd/;
     }
 
