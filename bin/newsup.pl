@@ -173,7 +173,7 @@ sub multiplexer_nzb_verification {
                 my $mid = $segments[0]->textContent;
                 unless ($date) {
                     print $socket "head <$mid>";
-                    $date = 1;
+                    $date = 'empty';
                     $sockets{refaddr $socket} = 1;
                     next;
                 }
@@ -207,9 +207,10 @@ sub multiplexer_nzb_verification {
                 }
             }
         } until ($counter_fail + $counter_ok == $total_segments);
+	say "data: '$date'";
         $stats{$filename} = [
             int($counter_ok / $total_segments * 100),
-            $date == 1 ? localtime($file->getAttribute("date")) . '(from nzb)' : $date
+            $date eq 'empty' ? localtime($file->getAttribute("date")) . '(from nzb)' : $date
         ];
     }
     return \%stats;
