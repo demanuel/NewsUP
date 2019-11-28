@@ -207,7 +207,6 @@ sub multiplexer_nzb_verification {
                 }
             }
         } until ($counter_fail + $counter_ok == $total_segments);
-	say "data: '$date'";
         $stats{$filename} = [
             int($counter_ok / $total_segments * 100),
             $date eq 'empty' ? localtime($file->getAttribute("date")) . '(from nzb)' : $date
