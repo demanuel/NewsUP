@@ -160,10 +160,10 @@ sub update_file_settings {
 
     if ($options->{UPLOAD_NZB} && !$options->{NZB_FILE}) {
         if ($options->{NAME}) {
-            $options->{NZB_FILE} = $options->{NAME} . '.nzb';
+            $options->{NZB_FILE} = $options->{NAME};
         }
         elsif ($options->{FILES} && @{$options->{FILES}} >= 1) {
-            $options->{NZB_FILE} = (File::Spec->splitpath($options->{FILES}[0]))[2] . '.nzb';
+            $options->{NZB_FILE} = (File::Spec->splitpath($options->{FILES}[0]))[2];
         }
     }
     if ($options->{SPLITNPAR} && !$options->{NAME}) {
@@ -171,10 +171,13 @@ sub update_file_settings {
             my $file = $options->{FILES}[0];
             use File::Spec;
             $options->{NAME} = (File::Spec->splitpath($file))[-1];
-            $options->{NZB_FILE} //= $options->{NAME} . '.nzb';
+            $options->{NZB_FILE} //= $options->{NAME};
         }
     }
 
+    $options->{NZB_FILE} //='newsup';
+    $options->{NZB_FILE} .='.nzb'
+    
     return $options;
 }
 
