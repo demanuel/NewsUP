@@ -415,7 +415,7 @@ sub _process_files_before_upload {
     return \@new_files;
 }
 
-sub _clear_line {
+sub clear_line {
     local $\;
     print "\r"." "x37 ."\r";
 }
@@ -476,7 +476,7 @@ sub _par_files {
     }
     else {
 	local $\;
-	_clear_line();
+	clear_line();
 	print "Start par'ing the files\r";
         qx/$cmd/;
     }
@@ -540,7 +540,7 @@ sub _split_files {
     }
     else {
 	local $\;
-	_clear_line();
+	clear_line();
 	print "Splitting the files\r";
         qx/$cmd/;
     }
@@ -633,7 +633,7 @@ sub _create_renaming_par_from_files {
     }
     else {
 	local $\;
-	_clear_line();
+	clear_line();
 	print "Creating renaming par for the files\r";
         qx/$cmd/;
     }
@@ -659,7 +659,7 @@ sub _create_renaming_par_from_folder {
     }
     else {
 	local $\;
-	_clear_line();
+	clear_line();
 	print "Creating renaming par for the files\r";
         qx/$cmd/;
     }
