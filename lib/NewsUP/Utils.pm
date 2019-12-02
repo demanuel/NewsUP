@@ -29,6 +29,7 @@ our @EXPORT = qw(
   find_files
   compress_files
   update_file_settings
+  clear_line
 );
 
 our $VERSION            = 2019_07_02_22_47;
@@ -176,7 +177,7 @@ sub update_file_settings {
     }
 
     $options->{NZB_FILE} //='newsup';
-    $options->{NZB_FILE} .='.nzb'
+    $options->{NZB_FILE} .='.nzb';
     
     return $options;
 }

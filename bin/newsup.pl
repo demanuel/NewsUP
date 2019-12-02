@@ -13,7 +13,7 @@ use Scalar::Util qw(refaddr);
 use File::Spec::Functions;
 use Time::HiRes qw(gettimeofday tv_interval alarm);
 use NewsUP::Utils
-  qw (read_options generate_random_ids save_nzb get_random_array_elements find_files update_file_settings );
+  qw (read_options generate_random_ids save_nzb get_random_array_elements find_files update_file_settings clear_line);
 use List::Util qw(min max);
 use File::Path qw/rmtree/;
 use Carp;
@@ -302,6 +302,8 @@ sub upload_files {
     my $i            = 1;
     my $total_files  = @$files;
     my $total_upload = 0;
+
+    clear_line();
     for my $file (@$files) {
         my $file_size   = -s $file;
         my $total_parts = ceil($file_size / $options->{UPLOAD_SIZE});
@@ -633,7 +635,8 @@ sub get_connections {
             ) or die "Error: Failed to connect or ssl handshake: $!, $SSL_ERROR";
         }
         else {
-            $socket = IO::Socket::INET->new(
+	    $socket = IO::Socket::IP->new(
+            #$socket = IO::Socket::INET->new(
                 PeerHost => $host,
                 PeerPort => $port,
                 Proto    => 'tcp',
