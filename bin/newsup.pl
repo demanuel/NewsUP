@@ -133,7 +133,7 @@ sub multiplexer_nzb_verification {
         if ($group ne $current_group) {
             for my $socket ($select->handles) {
                 print $socket "group $group";
-                <$socket>;
+		<$socket>;
             }
             $current_group = $group;
         }
@@ -166,21 +166,22 @@ sub multiplexer_nzb_verification {
         my ($counter_ok, $counter_fail) = (0, 0);
 
         do {
+
             my ($read_ready, $write_ready, undef) = IO::Select->select($select, $select, undef);
 
             for my $socket (@$write_ready) {
                 last unless @segments;
-                my $mid = $segments[0]->textContent;
+		next if $sockets{refaddr $socket};
+		my $segment = shift @segments;
+                my $mid = $segment->textContent;
+
                 unless ($date) {
                     print $socket "head <$mid>";
                     $date = 'empty';
-                    $sockets{refaddr $socket} = 1;
-                    next;
-                }
-                next if $sockets{refaddr $socket};
-                shift @segments;
-                print $socket "stat <$mid>";
-                $sockets{refaddr $socket} = 1;
+                } else {
+		    print $socket "stat <$mid>";
+		}
+		$sockets{refaddr $socket} = 1;
             }
 
             for my $socket (@$read_ready) {
@@ -196,6 +197,7 @@ sub multiplexer_nzb_verification {
                     elsif ($read =~ /^\d+ /) {
                         $counter_fail++;
                         $sockets{refaddr $socket} = 0;
+
                         # $date = 0;
                     }
                     elsif ($read =~ /Date: \w+, (\d+ \w+ \d+)|Date: (\d+ \w+ \d+)/) {
