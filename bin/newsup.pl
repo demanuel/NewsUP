@@ -266,6 +266,7 @@ sub header_check_multiplexer {
                 while (!$mid && $current_position < scalar @$articles) {
                     $mid = $articles->[$current_position++]->message_id();
                 }
+		last unless $mid;
                 print $socket "stat <$mid>";
                 #syswrite_to_socket($socket, "stat <$mid>");
                 $connection_status{$key} = $current_position - 1;
