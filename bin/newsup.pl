@@ -131,10 +131,22 @@ sub multiplexer_nzb_verification {
         }
         my $read = '';
         if ($group ne $current_group) {
-            for my $socket ($select->handles) {
-                print $socket "group $group";
-		<$socket>;
-            }
+
+
+	    while ( (grep {$_==0} values(%sockets)) > 0 ) {
+		for my $socket ($select->can_write(0.125)) {
+		    next if $sockets{refaddr $socket};
+		    print $socket "group $group";
+		    $sockets{refaddr $socket} = 1;
+		}
+	    }
+	    while ( (grep {$_== 1} values(%sockets)) > 0 ) {
+		for my $socket ($select->can_read(0.125)) {
+		    next unless $sockets{refaddr $socket};
+		    $sockets{refaddr $socket} = 0 if <$socket> =~ /^\d{3}/;
+		}
+	    }
+
             $current_group = $group;
         }
         my $subject = $file->getAttribute('subject');
@@ -177,11 +189,13 @@ sub multiplexer_nzb_verification {
 
                 unless ($date) {
                     print $socket "head <$mid>";
+		    $sockets{refaddr $socket} = 1;
                     $date = 'empty';
                 } else {
 		    print $socket "stat <$mid>";
+		    $sockets{refaddr $socket} = 1;
 		}
-		$sockets{refaddr $socket} = 1;
+		
             }
 
             for my $socket (@$read_ready) {
