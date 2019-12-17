@@ -79,44 +79,6 @@ cd -
 installed_perl_version=`apt-cache show perl|grep Version | tail -n 1 | awk '{print substr($2, 1, 4)}'`
 #installed_perl_version=5.26
 
-# if (( $(echo "${installed_perl_version} < ${required_perl_version}" | bc -l ) ))
-if [[ 1 -eq 1 ]]
-then
-    echo ""
-    echo " WARNING:"
-    echo "         The perl right version to run this program is: ${required_perl_version}"
-    echo "         You have ${installed_perl_version}"
-    echo ""
-    echo " Going to decreasing the required perl version. Unable to guarantee that it will"
-    echo " run without problems and with optimal performance!"
-    echo ""
-    echo " It is recommended that you upgrade your perl version! [1]"
-    echo ""
-    echo " [1] - If you don't have admin rights, or your repo doesn't contain the right version"
-    echo "      please take a look into https://perlbrew.pl/"
-    echo ""
-    echo ""
-    echo " Press enter to continue or <Ctrl-c> if you don't want to continue"
-    read
-    CURRENT_DIR=`pwd`
-    cd newsup/usr/share/perl5/NewsUP/
-    if (( $(echo "${installed_perl_version} < 5.28" | bc -l) ))
-    then
-       wget https://gist.githubusercontent.com/demanuel/87e0eac62dd6d0919031131dd8fbad3d/raw/2a9a9db3694c8622b1fb06d5a880db1fa3a62230/newsup.526.patch
-       patch -p0 Utils.pm <newsup.526.patch
-       rm -rf newsup.526.patch
-    fi
-    cd $CURRENT_DIR
-
-    if (( $(echo "${installed_perl_version} < ${required_perl_version}" | bc -l) ))
-    then
-
-	find newsup/usr -type f -exec sed -i "s/5.03[[:digit:]]/${installed_perl_version/./.0}/g" {} \;
-    fi
-
-
-    required_perl_version=${installed_perl_version}
-fi
 
 cat > newsup/DEBIAN/control << EOT
 Package: NewsUP
