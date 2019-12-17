@@ -87,7 +87,7 @@ Maintainer: David Santiago <demanuel@ymail.com>
 Description: Fully featured binary usenet uploader/poster
 Homepage: https://github.com/demanuel/NewsUP
 Architecture: all
-Depends: perl (>= ${required_perl_version}), libio-socket-ssl-perl, libnet-ssleay-perl, libxml-libxml-perl, libfile-copy-recursive-perl, libconfig-tiny-perl, libinline-c-perl, make
+Depends: perl, libio-socket-ssl-perl, libnet-ssleay-perl, libxml-libxml-perl, libfile-copy-recursive-perl, libconfig-tiny-perl, libinline-c-perl, make
 Recommends: par2, rar, p7zip
 EOT
 
