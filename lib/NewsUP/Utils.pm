@@ -409,7 +409,7 @@ sub _process_files_before_upload {
     return $files unless $options->{RUN_BEFORE_UPLOAD};
 
     my $cmd       = $options->{RUN_BEFORE_UPLOAD} . " '" . join("' '", @$files) . "'";
-    _clear_line();
+    clear_line();
     print "Processing files before upload\r";
     my @new_files = map { chomp; $_ } qx/$cmd/;
     return \@new_files;
