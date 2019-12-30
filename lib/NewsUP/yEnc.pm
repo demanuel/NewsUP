@@ -133,22 +133,18 @@ AV* encode(unsigned char* data, size_t data_size)
 	*pointer = 0;
 	encoded_size++;
 	crc32 = crc32 ^ 0xFFFFFFFF;
-  encbuffer = (char*) realloc(encbuffer, encoded_size);
-  SV* yenc_string = newSVpv(encbuffer, 0);
+        encbuffer = (char*) realloc(encbuffer, encoded_size);
+        SV* yenc_string = newSVpv(encbuffer, 0);
 	SV* ret = sv_2mortal(newAV());
 	av_push(ret, yenc_string);
-  //av_push(ret, newSVuv(crc32));
-  free(encbuffer);
+        //av_push(ret, newSVuv(crc32));
+        free(encbuffer);
 
-  char *hex_number = (char*)malloc(sizeof(char)*9);//8 chars + the termination char (null)
-  int hex_size = sprintf(hex_number, "%x", crc32);
-  //printf("say size: %d\n", hex_size);
-  //hex_number = (char*) realloc(hex_number,hex_size);
-  SV* hex_string = newSVpv(hex_number, 0);
-  av_push(ret, hex_string);
-  free(hex_number);
-
-
+        char *hex_number = (char*)malloc(sizeof(char)*9);//8 chars + the termination char (null)
+        int hex_size = sprintf(hex_number, "%x", crc32);
+        SV* hex_string = newSVpv(hex_number, 0);
+        av_push(ret, hex_string);
+        free(hex_number);
 
         return ret;
 }
@@ -156,9 +152,6 @@ AV* encode(unsigned char* data, size_t data_size)
 C_CODE
 ##### END C CODE ######
 
-# sub encode {
-#     my ($binString, $size) = @_;
-#     return _yenc_encode_c($binString, $size);
-# }
+# To use this function just call: encode($binString, $size)
 
 1;
