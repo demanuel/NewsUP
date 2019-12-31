@@ -25,6 +25,8 @@ A NZB file will be generated for later retrieving.
 
 Some servers, might block you if you use this option. The servers and the users only see "normal" posts and are unable to determine any file you are uploading. So they consider it spamming.
 
+This produces non 100% correct nzbs, although nzbget and sabnzb supports them. This is because with 100% compliance doesn't allow obfuscation.
+
 Use this feature at your own responsability!
 
 ## Supports
