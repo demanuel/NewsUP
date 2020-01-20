@@ -10,6 +10,7 @@ system_install=1
 local_path='.'
 cleanup_afterwards=0
 build_only=0
+
 function usage {
     echo "Usage: $0 [ -l PATH ] [ -c ] [ -b ]" 1>&2
     echo ""
@@ -126,7 +127,7 @@ function create_package {
     installed_perl_version=`apt-cache show perl|grep Version | tail -n 1 | awk '{print substr($2, 1, 4)}'`
     #installed_perl_version=5.26
 
-
+    version="`date +'%Y%m%d'`-`git rev-parse --short HEAD`"
     cat > newsup/DEBIAN/control << EOT
 Package: NewsUP
 Version: ${version}
