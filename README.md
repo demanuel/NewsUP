@@ -12,6 +12,7 @@ This program is licensed with GPLv3.
 
 ## note
 This readme contains the basic info on how to run newsup and it's options.
+
 For windows installation, or another stuff more specific to some environment/script please check the wiki.
 
 # What does this program do
@@ -20,6 +21,11 @@ It will upload a file or folder to the usenet.
 If it is a folder it will search for files inside of the folder.
 It can obfuscate the uploads.
 A NZB file will be generated for later retrieving.
+
+## Extra functionalities - Wiki
+On the wiki there's also instructions on how to monitor a folder for new content and upload it automatically, and how to launch the upload via torrent client (after the download is completed).
+Please check the wiki in https://github.com/demanuel/NewsUP/wiki
+
 
 ## Obfuscation warning
 
