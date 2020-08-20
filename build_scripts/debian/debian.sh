@@ -109,10 +109,55 @@ function download_newsup {
 }
 
 
+function install_local_perl_version {
+    PS3="Please answer (1/2)> "
+    echo "Do you want to install locally a more updated perl version and newsup?"
+    select choice in Yes No
+    do
+	case $choice in
+	    "Yes")
+		set -xev
+		curl -L https://install.perlbrew.pl | bash
+	
+		echo ". ~/perl5/perlbrew/etc/bashrc" >> ~/.bashrc
+
+		echo "export PERL_INLINE_DIRECTORY=~/.Inline" >> ~/.bashrc
+		mkdir ~/.Inline
+		
+		source ~/perl5/perlbrew/etc/bashrc
+		perlbrew install perl-5.30.3
+		perlbrew switch perl-5.30.3
+		rm -rf ~/perl5/perlbrew/build/perl-5.30.3
+		cd lib
+		mkdir -p ~/perl5/perlbrew/perls/perl-5.30.3/lib/5.30.3/
+		cp -R NewsUP ~/perl5/perlbrew/perls/perl-5.30.3/lib/5.30.3/
+		cd ../bin/
+		cp newsup.pl ~/perl5/perlbrew/perls/perl-5.30.3/bin/newsup
+		chmod +x ~/perl5/perlbrew/perls/perl-5.30.3/bin/newsup
+		perlbrew install-cpanm
+		sudo apt-get install zlib1g-dev
+		cpanm install XML::LibXML Config::Tiny List::Util Inline::C Net::SSLeay IO::Socket::SSL
+
+		echo "NewsUP installed locally!"
+		echo "Please open a new shell. The executable name is newsup"
+		exit 0
+		;;
+	    "No")
+		echo "Exiting"
+		exit 0
+		;;
+	    *)
+		echo "Invalid choice. Please choose Yes or No"
+	esac
+    done
+       
+    
+}
+
 function check_minimum_version {
     minimum_version=`find . -type f -exec awk '/use 5./{v=(($2+0)%5)*1000; print 5"."v}' {} + | sort -r | head -n 1`
     current_version=`perl -e 'print join(".", @{$^V->{version}}[0,1])'`
-    (( $(echo "$current_version < $minimum_version" | bc -l)  )) && echo "Please update your perl version" && exit 1
+    (( $(echo "$current_version < $minimum_version" | bc -l)  )) && echo "Please update your perl version" && install_local_perl_version
 }
 
 function create_package {
